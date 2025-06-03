@@ -1,0 +1,6 @@
+;foo
+(export i j 'mm 'G)
+(import "import_test/bar")
+(define i 1)
+(G)
+(macro mm () 123)

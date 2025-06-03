@@ -1,0 +1,4 @@
+;bar
+(export j 'G)
+(define j 123)
+(macro G () 7)
