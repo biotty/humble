@@ -6,20 +6,20 @@
 
 # scan-tokens
 
-LEX_BEG        = 1001
-LEX_END        = 1002
-LEX_DOT        = 1003
-LEX_SYM        = 1005
-LEX_REF        = 1006
-LEX_QT         = 1011
-LEX_QQ         = 1012
-LEX_UNQ        = 1013
-LEX_UNQ_SPLICE = 1014
+LEX_BEG        = 1
+LEX_END        = 2
+LEX_DOT        = 3
+LEX_SYM        = 4
+LEX_REF        = 5
+LEX_QT         = 6
+LEX_QQ         = 7
+LEX_UNQ        = 8
+LEX_UNQ_SPLICE = 9
 
-LEX_QT_BEG     = 1021  #| offsets to above QT
-LEX_QQ_BEG     = 1022  #| ..
-LEX_UNQ_BEG    = 1023  #|
-LEX_UNQ_SPLICE_BEG = 1024
+LEX_QT_BEG     = 10  #| offsets to above QT
+LEX_QQ_BEG     = 11  #| ..
+LEX_UNQ_BEG    = 12  #|
+LEX_UNQ_SPLICE_BEG = 13
 
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
@@ -28,52 +28,58 @@ quotes  = "'`,"  #| - their LEX_ codes.
 
 # syntax parse
 
-LEX_VOID       = 1025
-LEX_LIST       = 1027
-LEX_NONLIST    = 1028
-LEX_SPLICE     = 1029
-LEX_NUM        = 1031
-LEX_BOOL       = 1032
-LEX_STRING     = 1033
-LEX_NAM        = 1034
-
-LEX_QUOTE      = 1041
-LEX_QUASIQUOTE = 1042
-LEX_UNQUOTE    = 1043
-LEX_UNQUOTE_SPLICE = 1044
+LEX_VOID       = 16
+LEX_NUM        = 17
+LEX_BOOL       = 18
+LEX_STRING     = 19
+LEX_NAM        = 20
+# no DICT 21
+# no REC 22
+LEX_QUOTE      = 23
+LEX_QUASIQUOTE = 24
+LEX_UNQUOTE    = 25
+LEX_UNQUOTE_SPLICE = 26
+LEX_SPLICE     = 27
+# no APPLY 28
+# no CONS (1 << 5)
+LEX_LIST       = (1 << 6)
+LEX_NONLIST    = (1 << 7)
 
 # run-types
 
-LEX_VAR_OFF    = 1000
+BIT_VAR        = (1 << 16)
 
-VAR_VOID       = 2025  #| offsets of LEX_VAR_OFF
-VAR_CONS       = 2026  #| ..
-VAR_LIST       = 2027
-VAR_NONLIST    = 2028
-VAR_SPLICE     = 2029
-VAR_NUM        = 2031
-VAR_BOOL       = 2032
-VAR_STRING     = 2033
-VAR_NAM        = 2034
-VAR_DICT       = 2035
-VAR_REC        = 2036
-VAR_QUOTE      = 2041  #| unusual for programs
-VAR_UNQUOTE    = 2043  #| - and even more so.
-VAR_FUN        = 2061  #| result of lambda
-VAR_FUN_DOT    = 2062  #| - decl. with var-arg.
-VAR_APPLY      = 2063  #| used to obtain tail-call-opt
+# offsets with LEX_
+VAR_VOID       = 16 + BIT_VAR
+VAR_NUM        = 17 + BIT_VAR
+VAR_BOOL       = 18 + BIT_VAR
+VAR_STRING     = 19 + BIT_VAR
+VAR_NAM        = 20 + BIT_VAR
+VAR_DICT       = 21 + BIT_VAR
+VAR_REC        = 22 + BIT_VAR
+VAR_QUOTE      = 23 + BIT_VAR
+# no QUASIQUOTE 24
+VAR_UNQUOTE    = 25 + BIT_VAR
+# no UNQUOTE_SPLICE 26
+VAR_SPLICE     = 27 + BIT_VAR
+VAR_APPLY      = 28 + BIT_VAR
+VAR_CONS       = (1 << 5) + BIT_VAR
+VAR_LIST       = (1 << 6) + BIT_VAR
+VAR_NONLIST    = (1 << 7) + BIT_VAR
+VAR_FUN        = (1 << 8) + BIT_VAR
+VAR_FUN_DOT    = (1 << 9) + BIT_VAR
 
 # interpreter ops
 
-# OP_APPLY "form" implicit
-OP_DEFINE      = 3001
-OP_LAMBDA      = 3002
-OP_LAMBDA_DOT  = 3003
-OP_REBIND      = 3004
-OP_COND        = 3005
-OP_IMPORT      = 3006
-OP_EXPORT      = 3007
-OP_SEQ         = 3008
+# OP_DFLT "form" 1001 left as bare list for apply-semantics
+OP_DEFINE      = 1002
+OP_LAMBDA      = 1003
+OP_LAMBDA_DOT  = 1004
+OP_REBIND      = 1005
+OP_COND        = 1006
+OP_SEQ         = 1007
+OP_IMPORT      = 1008
+OP_EXPORT      = 1009
 
 # known names
 
@@ -106,14 +112,14 @@ nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
 
 var_type_names = {
-        VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list", VAR_NONLIST: "nonlist",
-        VAR_SPLICE: "splice", VAR_NUM: "number", VAR_BOOL: "boolean",
-        VAR_STRING: "string", VAR_DICT: "dict",
+        VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list",
+        VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
+        VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
-        VAR_FUN: "fun-obj", VAR_FUN_DOT: "dotfun-obj", VAR_APPLY: "to-apply" }
+        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "to-apply" }
 
 def lex_type_name(t):
-    return var_type_names[t + LEX_VAR_OFF]
+    return var_type_names[t + BIT_VAR]
 
 class SchemeSrcError(Exception):
     def __init__(self, message):
@@ -823,7 +829,7 @@ def from_lex(s):
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
         raise SchemeSrcError("from lex <%d>" % (s[0],))
-    return [s[0] + LEX_VAR_OFF, s[1]]
+    return [s[0] + BIT_VAR, s[1]]
 
 def to_lex(s):
     if s[0] == VAR_CONS:
@@ -838,7 +844,7 @@ def to_lex(s):
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
             VAR_QUOTE, VAR_UNQUOTE):
         raise SchemeSrcError("to lex <%d>" % (s[0],))
-    return (s[0] - LEX_VAR_OFF, s[1])
+    return (s[0] - BIT_VAR, s[1])
 
 def m_macro(macros):
     def macro(s):
