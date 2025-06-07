@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-# tokenization
+##
+# code-points
+##
+
+# scan-tokens
 
 LEX_BEG        = 1001
 LEX_END        = 1002
@@ -38,7 +42,7 @@ LEX_QUASIQUOTE = 1042
 LEX_UNQUOTE    = 1043
 LEX_UNQUOTE_SPLICE = 1044
 
-# runtime types
+# run-types
 
 LEX_VAR_OFF    = 1000
 
@@ -59,7 +63,7 @@ VAR_FUN        = 2061  #| result of lambda
 VAR_FUN_DOT    = 2062  #|
 VAR_APPLY      = 2063  #| defer call or inline tail-call optimization
 
-# interpreter instructions
+# interpreter ops
 
 # OP_APPLY "form" implicit
 OP_DEFINE      = 3001
@@ -111,6 +115,18 @@ var_type_names = {
 def lex_type_name(t):
     return var_type_names[t + LEX_VAR_OFF]
 
+class SchemeSrcError(Exception):
+    def __init__(self, message):
+      super().__init__(message)
+
+class SchemeRunError(Exception):
+    def __init__(self, message):
+      super().__init__(message)
+
+##
+# diagnostics
+##
+
 import sys
 import itertools
 
@@ -137,13 +153,9 @@ def broken(*args):
     put(sys.stderr, ["broken:"] + list(args))
     raise RuntimeError()
 
-class SchemeSrcError(Exception):
-    def __init__(self, message):
-      super().__init__(message)
-
-class SchemeRunError(Exception):
-    def __init__(self, message):
-      super().__init__(message)
+##
+# tokenization
+##
 
 filename = None
 linenumber = None
@@ -257,8 +269,8 @@ def unescape_string(s):
         i += 1
     return "".join(a)
 
-# note:  tokens considered names are converted to integers early,
-#        with a name list as a bi-product, with respective names.
+# note: tokens considered names are converted to integers early,
+#       with a name list as a bi-product, with respective names.
 
 def intern(name, names):
     try:
@@ -293,10 +305,11 @@ def name_tok(t, names):
                 y = LEX_SYM
     if h is not None:
         v = (y, h)
+        debug("token", v)
     else:
         h = intern(t, names)
         v = (y, h, linenumber)
-    debug("ntok", v)
+        debug("name", v)
     return v
 
 def lex(s, names):
@@ -341,6 +354,10 @@ def lex(s, names):
         a.append(v)
     debug("lex", a)
     return a
+
+##
+# parser
+##
 
 PARSE_MODE_TOP = -1
 PARSE_MODE_ONE = -2
@@ -583,9 +600,9 @@ def parse(s, names, macros, env_keys):
             a.append("(reportedly) %s" % (names[y],))
     raise SchemeSrcError("unbound:\n" + "\n".join(a))
 
-#
-# macros
-#
+##
+# builtin macros
+##
 
 def mchk_or_fail(c, message):
     if not c:
@@ -659,7 +676,7 @@ def bnd_unzip(s):
             broken("not list")
         x, y = z
         if x[0] != LEX_NAM:
-            broken("not name")
+            raise SchemeSrcError("let-bind not a name")
         a.append(x[1])
         v.append(y)
     return a, v
@@ -788,7 +805,7 @@ def m_unquote(s):
             return (LEX_NAM, v[1])
         if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
             raise SchemeSrcError("unquote of %s" % (lex_type_name(v[0]),))
-        # note:  no (un)quote-level for literals)
+        # note: no (un)quote-level for literals)
         return v
     return unquote(s[1])
 
@@ -850,7 +867,7 @@ def m_macro(macros):
         def m(t):
             args = [from_lex(x) for x in t[1:]]
             debug("user-macro args", args)
-            env = ExtraDict(i_env)
+            env = Env(i_env)
             if dot:
                 last = len(parms) - 1
                 mchk_or_fail(len(args) >= last, "macro"
@@ -972,9 +989,10 @@ def m_export(s):
     s[0] = OP_EXPORT
     return s
 
-class ExtraDict:
+class Env:
 
     def __init__(self, d):
+        assert type(d) == dict
         self.d = d
         self.e = dict()
 
@@ -1008,7 +1026,7 @@ def m_import(names, macros):
         mchk_or_fail(len(s) in (2, 3), "import expects 2 or 3 args")
         mchk_or_fail(s[1][0] == LEX_STRING, "import.1 expects string")
         filename = s[1][1]
-        e_macros = ExtraDict(macros)
+        e_macros = Env(macros)
         e_macros[NAM_MACRO] = m_macro(e_macros)
         try:
             f = open(filename, "r")
@@ -1042,8 +1060,8 @@ def m_import(names, macros):
                 macros[y] = e_macros[x]
             else:
                 raise SchemeSrcError("export of non-name")
-        # note:  unbound check with i_env not needed, as this will
-        #        be done from top-level
+        # note: unbound check with i_env not needed, as this will
+        #       be done from top-level
         filename = u_fn
         linenumber = u_ln
         return [OP_IMPORT, set_up, *r[1:]]
@@ -1147,9 +1165,9 @@ def normal_list(a):
     assert type(a) == list
     return a
 
-#
+##
 # builtin functions
-#
+##
 
 def fargt_repr(vt):
     try:
@@ -1482,7 +1500,7 @@ def f_eqp(*args):
 
 def f_equalp(*args):
     fargc_must_eq("equal?", args, 2);
-    # note:  DICT do not undergo value-comparison (defined)
+    # note: DICT do not undergo value-comparison (defined)
     if (args[0][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)
             or args[1][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)):
         return f_eqp(*args)
@@ -1580,14 +1598,14 @@ def f_dict_if_get(*args):
     fargt_must_eq(fn, args, 0, VAR_DICT)
     fargt_must_in(fn, args, 3, (VAR_FUN, VAR_FUN_DOT))
     if args[0][1] is None:
-        return applyx([args[3], v])
+        return fun_call([args[3], v])
     if args[0][1].t != args[1][0]:
         v = args[2]
     try:
         v = args[0][1].d[args[1][1]]
     except KeyError:
         v = args[2]
-    return applyx([args[3], v])
+    return fun_call([args[3], v])
 
 def f_dictp(*args):
     return typep(args, VAR_DICT)
@@ -1761,7 +1779,7 @@ def f_length(*args):
 
 def f_apply(*args):
     fargt_must_in("apply", args, 1, (VAR_CONS, VAR_LIST))
-    return applyx([args[0]] + normal_list(args[1][1]))
+    return fun_call([args[0]] + normal_list(args[1][1]))
 
 def f_map(*args):
     fargt_must_in("map", args, 0, (VAR_FUN, VAR_FUN_DOT))
@@ -1777,7 +1795,7 @@ def f_map(*args):
         w = []
         for j in range(len(inputs)):
             w.append(inputs[j][i])
-        r.append(applyx([f] + w))
+        r.append(fun_call([f] + w))
     return [VAR_LIST, r]
 
 def search_pred(a):
@@ -1853,24 +1871,30 @@ def f_error(names):
         sys.exit(2)
     return err
 
-#
+##
 # the core
-#
+##
 
 def is_last(w, block):
     return id(w) == id(block[-1])
 
 def fun_call(a):
-    debug("stack-apply", a)
-    # note: ^ debug-log looks as about to perform call,
-    # but in fact as already in fun_call here
-    # -- already chosen to invoke *a* on-stack
+    debug("fun-call", a)
     x = a[0]
     args = a[1:]
     # note: native function call, for builtins
-    if len(x) == 2:
-        return x[1](*args)
-    # otherwise, tail-call-optimize
+    if not is_fun_ops(x):
+        debug("native-fun")
+        a = x[1](*args)
+        if a[0] != VAR_APPLY:
+            return a
+        b = a[1]
+        x = b[0]
+        args = b[1:]
+        assert is_fun_ops(x)
+    return fun_call_ops(x, args)
+
+def fun_call_ops(x, args):
     dot = x[0] == VAR_FUN_DOT
     captured = x[1]
     parms = x[2]
@@ -1899,7 +1923,8 @@ def fun_call(a):
                 a = v[1]
                 assert a[0][0] in (VAR_FUN, VAR_FUN_DOT)
                 if not is_last(w, block):
-                    v = fun_call(a)
+                    debug("active-apply", a)
+                    v = fun_call_ops(a[0], a[1:])
                 else:
                     debug("iter-apply", a)
                     args = a[1:]
@@ -1925,7 +1950,7 @@ def rebind(fun_env, ids, env):
             debug("bind", i, env[i])
             fun_env[i] = env[i]
         # note: not needed to recurse on VAR_LIST
-        # from here -- rebind_r(v[1], ids, env)
+        #       from here -- rebind_r(v[1], ids, env)
 
 def rebind_r(s, ids, env):
     for x in s:
@@ -1957,10 +1982,6 @@ def run_each(x, env):
 i_env = {}
 # initial subset of env -- conceptually part of
 
-# note: an applicable result is deferred and a
-# VAR_APPLY is returned instead -- to be applied --
-# when it is running the a syntax block (not for
-# native builtins) -- this is for tail-call-optimization.
 def xeval(x, env):
     debug("eval", x)
     if type(x) != list:
@@ -2021,7 +2042,7 @@ def xeval(x, env):
         rebind_args(x[1], env)
         return [VAR_VOID]
     if x[0] == OP_IMPORT:
-        e = ExtraDict(i_env)
+        e = Env(i_env)
         for z in x[2:]:
             run(z, e)
         for (a, b) in x[1].items():
@@ -2039,38 +2060,28 @@ def xeval(x, env):
             r = run(y, env)
         return r
     a = run_each(x, env)
-    return xapply(a)
-
-def xapply(a):
     if a[0][0] not in (VAR_FUN, VAR_FUN_DOT):
         raise SchemeRunError("apply %s"
                 % (fargt_repr(a[0][0])))
-    if is_fun_lex(a[0]):
+    if is_fun_ops(a[0]):
         return [VAR_APPLY, a]
-    return fun_call(a)
+    return a[0][1](*a[1:])
 
 def run(x, env):
-    a = xeval(x, env)
-    return fcall(a)
+    y = xeval(x, env)
+    if y[0] == VAR_APPLY:
+        a = y[1]
+        y = fun_call_ops(a[0], a[1:])
+    return y
 
-def applyx(a):
-    return fcall(xapply(a))
-
-def fcall(a):
-    while a[0] == VAR_APPLY:
-        if a[1][0][0] not in (VAR_FUN, VAR_FUN_DOT):
-            broken("not fun")
-        a = fun_call(a[1])
-    return a
-
-#
+##
 # init
-#
+##
 
 def with_new_name(name, f, d, names):
     i = len(names)
     if name in names:
-        beoken("not new")
+        broken("not new")
     names.append(name)
     d[i] = f
 
@@ -2267,9 +2278,9 @@ def init_top():
     filename = None
     return names, env, macros
 
-#
+##
 # ui
-#
+##
 
 def xrepr(s, names):
     if not s:
@@ -2330,7 +2341,7 @@ def xrepr(s, names):
         return "#<unquote %s #>" % (xrepr(s[1], names),)
     return "#< %r #>" % (s,)
 
-def is_fun_lex(s):
+def is_fun_ops(s):
     if len(s) == 4:
         return True
     assert len(s) == 2
@@ -2364,7 +2375,7 @@ def vrepr(s, names):
                     for x, y in s[1].ditems()]) + " }"
     if s[0] in (VAR_FUN, VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
-        if is_fun_lex(s):
+        if is_fun_ops(s):
             return "%s(%s)[%s]{ %s }" % (r,
                     " ".join(names[i] for i in s[2]),
                     " ".join("%s:%s" % (names[k], vrepr(v, names))
