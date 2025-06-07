@@ -16,15 +16,15 @@ LEX_QQ         = 1012
 LEX_UNQ        = 1013
 LEX_UNQ_SPLICE = 1014
 
-LEX_QT_BEG     = 1021  #| order respectively
-LEX_QQ_BEG     = 1022
-LEX_UNQ_BEG    = 1023
+LEX_QT_BEG     = 1021  #| offsets to above QT
+LEX_QQ_BEG     = 1022  #| ..
+LEX_UNQ_BEG    = 1023  #|
 LEX_UNQ_SPLICE_BEG = 1024
 
 name_cs = "!$%&*+-./:<=>?@^_~"
-par_beg = "([{"  #| order respective to
-par_end = ")]}"  #| closing
-quotes  = "'`,"  #| order as their LEX_ codes
+par_beg = "([{"  #| respective to
+par_end = ")]}"  #| - closing.
+quotes  = "'`,"  #| - their LEX_ codes.
 
 # syntax parse
 
@@ -46,8 +46,8 @@ LEX_UNQUOTE_SPLICE = 1044
 
 LEX_VAR_OFF    = 1000
 
-VAR_VOID       = 2025  #| respecting LEX_VAR_OFF
-VAR_CONS       = 2026
+VAR_VOID       = 2025  #| offsets of LEX_VAR_OFF
+VAR_CONS       = 2026  #| ..
 VAR_LIST       = 2027
 VAR_NONLIST    = 2028
 VAR_SPLICE     = 2029
@@ -57,11 +57,11 @@ VAR_STRING     = 2033
 VAR_NAM        = 2034
 VAR_DICT       = 2035
 VAR_REC        = 2036
-VAR_QUOTE      = 2041  #| mostly unusable but we may happen to evaluate
-VAR_UNQUOTE    = 2043  #| these things.
+VAR_QUOTE      = 2041  #| unusual for programs
+VAR_UNQUOTE    = 2043  #| - and even more so.
 VAR_FUN        = 2061  #| result of lambda
-VAR_FUN_DOT    = 2062  #|
-VAR_APPLY      = 2063  #| defer call or inline tail-call optimization
+VAR_FUN_DOT    = 2062  #| - decl. with var-arg.
+VAR_APPLY      = 2063  #| used to obtain tail-call-opt
 
 # interpreter ops
 
@@ -268,9 +268,6 @@ def unescape_string(s):
         a.append(c)
         i += 1
     return "".join(a)
-
-# note: tokens considered names are converted to integers early,
-#       with a name list as a bi-product, with respective names.
 
 def intern(name, names):
     try:
@@ -487,10 +484,6 @@ def parse_i(s, names, macros):
         raise SchemeSrcError("form syntax error")
     debug("tree", ast)
     return ast
-
-# names needed to be captured by a lambda are collected
-# lexically, so that when instantiating a function
-# when running, they are captured from the environment.
 
 def unbound(s, defs, is_block):
     r = set()
@@ -1068,12 +1061,12 @@ def m_import(names, macros):
     return ximport
 
 # a list variable is represented by a contiguous container
-# until cons-usage requires it to convert to a cons.
+# until cdr-usage requires it to convert to a cons chain.
 # use *list-copy* to establish contigous array.
 #
 # for the contiguous container, the type denotes if it represent
-# a list, or that it represents a cons-chain where the last
-# CDR is not NIL, by the types VAR_LIST and VAR_NONLIST.
+# a list, or that it represents a nonlist; reflecting a cons-chain
+# where the last CDR is not NIL, by VAR_LIST and VAR_NONLIST.
 
 def is_cons(y):
     return isinstance(y, Cons)
@@ -1836,8 +1829,6 @@ def f_member(*args):
         r = r.d
     return f
 
-# as opposed to member, assoc does not need to convert its
-# argument to a VAR_CONS as no reference into list is handed out
 def f_assoc(*args):
     f = [VAR_BOOL, False]
     fargt_must_in("assoc", args, 1, (VAR_CONS, VAR_LIST, VAR_NONLIST))
@@ -2093,25 +2084,28 @@ def init_macros(env, names):
     macros[NAM_UNQUOTE_SPLICE] = m_unquote_splice
     macros[NAM_MACRO] = m_macro(macros)
     with_new_name("gensym", m_gensym(names), macros, names)
-    with_new_name("define", m_define, macros, names)
-    with_new_name("seq", m_seq, macros, names)
-    with_new_name("lambda", m_lambda, macros, names)
-    with_new_name("case-lambda", m_case_lambda, macros, names)
-    with_new_name("let", m_let, macros, names)
-    with_new_name("let*", m_letx, macros, names)
-    with_new_name("letrec", m_letrec, macros, names)
-    with_new_name("letrec*", m_letrecx, macros, names)
-    with_new_name("cond", m_cond, macros, names)
-    with_new_name("case", m_case, macros, names)
-    with_new_name("do", m_do, macros, names)
-    with_new_name("begin", m_begin, macros, names)
-    with_new_name("if", m_if, macros, names)
-    with_new_name("and", m_and, macros, names)
-    with_new_name("or", m_or, macros, names)
-    with_new_name("when", m_when, macros, names)
-    with_new_name("unless", m_unless, macros, names)
-    with_new_name("export", m_export, macros, names)
-    with_new_name("scope", m_scope, macros, names)
+    for a, b in [
+            ("define", m_define),
+            ("seq", m_seq),
+            ("lambda", m_lambda),
+            ("case-lambda", m_case_lambda),
+            ("let", m_let),
+            ("let*", m_letx),
+            ("letrec", m_letrec),
+            ("letrec*", m_letrecx),
+            ("cond", m_cond),
+            ("case", m_case),
+            ("do", m_do),
+            ("begin", m_begin),
+            ("if", m_if),
+            ("and", m_and),
+            ("or", m_or),
+            ("when", m_when),
+            ("unless", m_unless),
+            ("export", m_export),
+            ("scope", m_scope)]:
+        with_new_name(a, b, macros, names)
+
     with_new_name("import", m_import(names, macros), macros, names)
     return macros
 
@@ -2123,69 +2117,73 @@ def init_env(names):
     env[NAM_APPLY] = [VAR_FUN, f_apply]
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
-    with_new_name("+", [VAR_FUN, f_pluss], env, names)
-    with_new_name("-", [VAR_FUN, f_minus], env, names)
-    with_new_name("*", [VAR_FUN, f_multiply], env, names)
-    with_new_name("/", [VAR_FUN, f_divide], env, names)
-    with_new_name("div", [VAR_FUN, f_div], env, names)
-    with_new_name("zero?", [VAR_FUN, f_zerop], env, names)
-    with_new_name("negative?", [VAR_FUN, f_negativep], env, names)
-    with_new_name("positive?", [VAR_FUN, f_positivep], env, names)
-    with_new_name("even?", [VAR_FUN, f_evenp], env, names)
-    with_new_name("odd?", [VAR_FUN, f_oddp], env, names)
-    with_new_name("list-copy", [VAR_FUN, f_list_copy], env, names)
-    with_new_name("list-ref", [VAR_FUN, f_list_ref], env, names)
-    with_new_name("list-tail", [VAR_FUN, f_list_tail], env, names)
-    with_new_name("list-set!", [VAR_FUN, f_list_setj], env, names)
-    with_new_name("reverse", [VAR_FUN, f_reverse], env, names)
-    with_new_name("take", [VAR_FUN, f_take], env, names)
-    with_new_name("member", [VAR_FUN, f_member], env, names)
-    with_new_name("assoc", [VAR_FUN, f_assoc], env, names)
-    with_new_name("set!", [VAR_FUN, f_setj], env, names)
-    with_new_name("eq?", [VAR_FUN, f_eqp], env, names)
-    with_new_name("equal?", [VAR_FUN, f_equalp], env, names)
-    with_new_name("cdr", [VAR_FUN, f_cdr], env, names)
-    with_new_name("set-car!", [VAR_FUN, f_set_carj], env, names)
-    with_new_name("set-cdr!", [VAR_FUN, f_set_cdrj], env, names)
-    with_new_name("append", [VAR_FUN, f_append], env, names)
-    with_new_name("cons", [VAR_FUN, f_cons], env, names)
-    with_new_name("boolean?", [VAR_FUN, f_booleanp], env, names)
-    with_new_name("number?", [VAR_FUN, f_numberp], env, names)
-    with_new_name("procedure?", [VAR_FUN, f_procedurep], env, names)
-    with_new_name("symbol?", [VAR_FUN, f_symbolp], env, names)
-    with_new_name("null?", [VAR_FUN, f_nullp], env, names)
-    with_new_name("list?", [VAR_FUN, f_listp], env, names)
-    with_new_name("pair?", [VAR_FUN, f_pairp], env, names)
-    with_new_name("not", [VAR_FUN, f_not], env, names)
-    with_new_name("=", [VAR_FUN, f_eq], env, names)
-    with_new_name("<", [VAR_FUN, f_lt], env, names)
-    with_new_name(">", [VAR_FUN, f_gt], env, names)
-    with_new_name("<=", [VAR_FUN, f_lte], env, names)
-    with_new_name(">=", [VAR_FUN, f_gte], env, names)
     with_new_name("display", [VAR_FUN, f_display(names)], env, names)
-    with_new_name("newline", [VAR_FUN, f_newline], env, names)
     with_new_name("error", [VAR_FUN, f_error(names)], env, names)
-    with_new_name("map", [VAR_FUN, f_map], env, names)
-    with_new_name("abs", [VAR_FUN, f_abs], env, names)
-    with_new_name("alist->dict", [VAR_FUN, f_alist_to_dict], env, names)
-    with_new_name("dict->alist", [VAR_FUN, f_dict_to_alist], env, names)
-    with_new_name("dict-set!", [VAR_FUN, f_dict_setj], env, names)
-    with_new_name("dict-get-default!", [VAR_FUN, f_dict_get_defaultj], env, names)
-    with_new_name("dict-if-get", [VAR_FUN, f_dict_if_get], env, names)
-    with_new_name("dict?", [VAR_FUN, f_dictp], env, names)
-    with_new_name("make-record", [VAR_FUN, f_make_record], env, names)
-    with_new_name("record-get", [VAR_FUN, f_record_get], env, names)
-    with_new_name("record-set!", [VAR_FUN, f_record_setj], env, names)
-    with_new_name("record?", [VAR_FUN, f_recordp], env, names)
-    with_new_name("string->list", [VAR_FUN, f_string_to_list], env, names)
-    with_new_name("list->string", [VAR_FUN, f_list_to_string], env, names)
-    with_new_name("string-ref", [VAR_FUN, f_string_ref], env, names)
-    with_new_name("substring", [VAR_FUN, f_substring], env, names)
-    with_new_name("string-append", [VAR_FUN, f_string_append], env, names)
-    with_new_name("string=?", [VAR_FUN, f_stringeqp], env, names)
-    with_new_name("string<?", [VAR_FUN, f_stringltp], env, names)
-    with_new_name("string>?", [VAR_FUN, f_stringgtp], env, names)
-    with_new_name("symbol->string", [VAR_FUN, f_symbol_to_string(names)], env, names)
+    with_new_name("symbol->string", [VAR_FUN, f_symbol_to_string(names)],
+            env, names)
+    for a, b in [
+            ("+", f_pluss),
+            ("-", f_minus),
+            ("*", f_multiply),
+            ("/", f_divide),
+            ("div", f_div),
+            ("zero?", f_zerop),
+            ("negative?", f_negativep),
+            ("positive?", f_positivep),
+            ("even?", f_evenp),
+            ("odd?", f_oddp),
+            ("list-copy", f_list_copy),
+            ("list-ref", f_list_ref),
+            ("list-tail", f_list_tail),
+            ("list-set!", f_list_setj),
+            ("reverse", f_reverse),
+            ("take", f_take),
+            ("member", f_member),
+            ("assoc", f_assoc),
+            ("set!", f_setj),
+            ("eq?", f_eqp),
+            ("equal?", f_equalp),
+            ("cdr", f_cdr),
+            ("set-car!", f_set_carj),
+            ("set-cdr!", f_set_cdrj),
+            ("append", f_append),
+            ("cons", f_cons),
+            ("boolean?", f_booleanp),
+            ("number?", f_numberp),
+            ("procedure?", f_procedurep),
+            ("symbol?", f_symbolp),
+            ("null?", f_nullp),
+            ("list?", f_listp),
+            ("pair?", f_pairp),
+            ("not", f_not),
+            ("=", f_eq),
+            ("<", f_lt),
+            (">", f_gt),
+            ("<=", f_lte),
+            (">=", f_gte),
+            ("newline", f_newline),
+            ("map", f_map),
+            ("abs", f_abs),
+            ("alist->dict", f_alist_to_dict),
+            ("dict->alist", f_dict_to_alist),
+            ("dict-set!", f_dict_setj),
+            ("dict-get-default!", f_dict_get_defaultj),
+            ("dict-if-get", f_dict_if_get),
+            ("dict?", f_dictp),
+            ("make-record", f_make_record),
+            ("record-get", f_record_get),
+            ("record-set!", f_record_setj),
+            ("record?", f_recordp),
+            ("string->list", f_string_to_list),
+            ("list->string", f_list_to_string),
+            ("string-ref", f_string_ref),
+            ("substring", f_substring),
+            ("string-append", f_string_append),
+            ("string=?", f_stringeqp),
+            ("string<?", f_stringltp),
+            ("string>?", f_stringgtp)]:
+        with_new_name(a, [VAR_FUN, b], env, names)
+
     return env
 
 def run_top(ast, env, names):
@@ -2249,7 +2247,8 @@ def inc_macros(names, env, macros):
 
 def init_top():
     global filename
-    names = [None] * 13
+    N = 13
+    names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
     names[NAM_QUOTE] = "quote"
@@ -2263,6 +2262,7 @@ def init_top():
     names[NAM_APPLY] = "apply"
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
+    assert N == len(names)
     env = init_env(names)
     macros = init_macros(env, names)
 
