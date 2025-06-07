@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from mics import init_top, parse, run_top
+from mics import init_top, parse, run_top, set_verbose
 
 import sys
 def test(s):
@@ -10,6 +10,9 @@ def test(s):
     tree = parse(s, names, macros, env.keys())
     run_top(tree, env, names)
     sys.stdout.write("*\n")
+
+# for debug:
+# set_verbose(True)
 
 test("")
 test("1")
@@ -339,6 +342,7 @@ test(""" [ define y 1 ]
 (chk d+ 33)
 (chk '(2 3 4) (cdr '(1 2 3 4)))
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
+(let tco ((a 789)) (if (zero? a) 0 (apply tco (list (- a 1)))))
 """)
 #
 # --- the following deferred for c++ impl (python too encoding-nosy)

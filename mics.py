@@ -128,12 +128,14 @@ class SchemeRunError(Exception):
 ##
 
 import sys
-import itertools
 
 def put(f, a):
     f.write(" ".join([str(x) for x in a]) + "\n")
 
 verbose = False
+def set_verbose(v):
+    global verbose
+    verbose = v
 
 def debug(*args):
     if verbose:
@@ -661,15 +663,15 @@ def m_case_lambda(s):
 
 def bnd_unzip(s):
     if type(s) != list:
-        broken("not list")
+        raise SchemeSrcError("bindings not a list")
     a = []
     v = []
     for z in s:
         if type(z) != list:
-            broken("not list")
+            raise SchemeSrcError("bind-item not list")
         x, y = z
         if x[0] != LEX_NAM:
-            raise SchemeSrcError("let-bind not a name")
+            raise SchemeSrcError("bind not to name")
         a.append(x[1])
         v.append(y)
     return a, v
@@ -911,7 +913,8 @@ def m_cond(s):
         i += 1
     if i == n:
         return s
-    assert blex(s[i][1]) == nam_then
+    if blex(s[i][1]) != nam_then:
+        raise SchemeSrcError("cond expected =>")
     return s[:i] + [[(LEX_BOOL, True),
         m_let([-99, [[nam_then, s[i][0]]],
             m_cond([-99, [nam_then, [s[i][2], nam_then]], *s[i + 1:]])])]]
@@ -954,14 +957,17 @@ def m_unless(s):
 
 def xcase_test(t, last):
     if type(t) != list:
-        assert last
-        assert blex(t) == nam_else
+        if not last:
+            raise SchemeSrcError("non-form case-test not last")
+        if blex(t) != nam_else:
+            raise SchemeSrcError("last case neither form nor else")
         return (LEX_BOOL, True)
     return m_or([-99, *[[nam_eqvp, v, nam_else] for v in t]])
 
 def xcase_target(t):
     if blex(t[0]) == nam_then:
-        assert len(t) == 2
+        if len(t) != 2:
+            raise SchemeSrcError("=> case with %d elements" % (len(t),))
         t = [[t[1], nam_else]]
     return (LEX_LIST, t)
 
@@ -1148,13 +1154,13 @@ def to_cons_copy(a):
     return to_cons(a)
 
 def normal_list(a):
+    if a is None:
+        return []
     if is_cons(a):
         r = a.to_list_var()
         if r[0] != VAR_LIST:
             raise SchemeRunError("nonlist for list-use")
         return r[1]
-    if a is None:
-        return []
     assert type(a) == list
     return a
 
@@ -1222,7 +1228,10 @@ def f_car(*args):
     if args[0][0] in (VAR_LIST, VAR_NONLIST):
         return args[0][1][0]
     assert args[0][0] == VAR_CONS
-    assert is_cons(args[0][1])
+    if not args[0][1]:
+        raise SchemeRunError("car on null")
+    if not is_cons(args[0][1]):
+        broken("cons variable has non-cons")
     return args[0][1].a
 
 def f_list_ref(*args):
@@ -1233,7 +1242,9 @@ def f_list_ref(*args):
     fargt_must_eq("list-ref", args, 1, VAR_NUM)
     if args[0][0] == VAR_CONS:
         return c_list_ref(args[0][1], args[1][1])
-    assert args[0][0] in (VAR_LIST, VAR_NONLIST)
+    if args[0][0] not in (VAR_LIST, VAR_NONLIST):
+        raise SchemeRunError("list-ref on %s"
+                % (fargt_repr(args[0][0]),))
     return args[0][1][args[1][1]]
 
 def f_cdr(*args):
@@ -1243,7 +1254,8 @@ def f_cdr(*args):
     if t != VAR_CONS:
         assert t in (VAR_LIST, VAR_NONLIST)
         if t == VAR_NONLIST:
-            assert len(a) > 1
+            if len(a) <= 1:
+                broken("short nonlist")
             if len(a) == 2:
                 return a[1]
         a = to_cons([t, a])
@@ -1412,8 +1424,6 @@ def f_max(*args):
 
 def f_min(*args):
     fargt_must_eq("min", args, 0, VAR_NUM)
-    assert len(args) >= 1
-    assert args[0][0] == VAR_NUM
     r = args[0][1]
     for x in args[1:]:
         fchk_or_fail(x[0] == VAR_NUM, "min expects number")
@@ -1493,7 +1503,8 @@ def f_eqp(*args):
 
 def f_equalp(*args):
     fargc_must_eq("equal?", args, 2);
-    # note: DICT do not undergo value-comparison (defined)
+    # note: DICT do not undergo value-comparison --
+    #       it shall differ with itself under equal
     if (args[0][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)
             or args[1][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)):
         return f_eqp(*args)
@@ -1591,14 +1602,14 @@ def f_dict_if_get(*args):
     fargt_must_eq(fn, args, 0, VAR_DICT)
     fargt_must_in(fn, args, 3, (VAR_FUN, VAR_FUN_DOT))
     if args[0][1] is None:
-        return fun_call([args[3], v])
+        return xapply([args[3], v])
     if args[0][1].t != args[1][0]:
         v = args[2]
     try:
         v = args[0][1].d[args[1][1]]
     except KeyError:
         v = args[2]
-    return fun_call([args[3], v])
+    return xapply([args[3], v])
 
 def f_dictp(*args):
     return typep(args, VAR_DICT)
@@ -1772,7 +1783,7 @@ def f_length(*args):
 
 def f_apply(*args):
     fargt_must_in("apply", args, 1, (VAR_CONS, VAR_LIST))
-    return fun_call([args[0]] + normal_list(args[1][1]))
+    return xapply([args[0]] + normal_list(args[1][1]))
 
 def f_map(*args):
     fargt_must_in("map", args, 0, (VAR_FUN, VAR_FUN_DOT))
@@ -1882,7 +1893,8 @@ def fun_call(a):
         b = a[1]
         x = b[0]
         args = b[1:]
-        assert is_fun_ops(x)
+        if not is_fun_ops(x):
+            broken("apply-var with native")
     return fun_call_ops(x, args)
 
 def fun_call_ops(x, args):
@@ -1936,9 +1948,9 @@ def make_fun(up, x, fun_dot):
 def rebind(fun_env, ids, env):
     for i, v in fun_env.items():
         if v[0] == LEX_REF:
+            debug("bind", i, env[i])
             assert v[1] == i
             assert i in ids
-            debug("bind", i, env[i])
             fun_env[i] = env[i]
         # note: not needed to recurse on VAR_LIST
         #       from here -- rebind_r(v[1], ids, env)
@@ -2017,7 +2029,10 @@ def xeval(x, env):
         # in some cases we could have catched at parse time
         # which means it would have been a lex error.
         broken(x)
-    assert type(x) == list and len(x)
+    if type(x) != list:
+        broken("form is non-form")
+    if len(x) == 0:
+        broken("empty form")
     if x[0] == OP_DEFINE:
         env[x[1]] = run(x[2], env)
         return [VAR_VOID]
@@ -2051,6 +2066,9 @@ def xeval(x, env):
             r = run(y, env)
         return r
     a = run_each(x, env)
+    return xapply(a)
+
+def xapply(a):
     if a[0][0] not in (VAR_FUN, VAR_FUN_DOT):
         raise SchemeRunError("apply %s"
                 % (fargt_repr(a[0][0])))
@@ -2191,6 +2209,8 @@ def run_top(ast, env, names):
         r = run(a, env)
         if r[0] != VAR_VOID:
             result(vrepr(r, names))
+
+import itertools
 
 def inc_functions(names, env, macros):
     a = []
@@ -2434,10 +2454,10 @@ if __name__ == "__main__":
         if line.endswith(";"):
             if line == ";;":
                 if not verbose:
-                    verbose = True
+                    set_verbose(True)
                     debug(list(enumerate(names)))
                 else:
-                    verbose = False
+                    set_verbose(False)
             try:
                 t = parse("".join(buf), names, macros, env.keys())
             except SchemeSrcError as e:
@@ -2449,7 +2469,7 @@ if __name__ == "__main__":
             else:
                 if line.endswith(";;"):
                     for xt in t:
-                        print("%", xrepr(xt, names))
+                        sys.stdout.write("%%%s" % (xrepr(xt, names),))
                 try:
                     run_top(t, env, names)
                 except SchemeRunError as e:
