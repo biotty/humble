@@ -9,25 +9,20 @@
 LEX_BEG        = 1
 LEX_END        = 2
 LEX_DOT        = 3
-LEX_SYM        = 4
-LEX_REF        = 5
-LEX_QT         = 6
-LEX_QQ         = 7
-LEX_UNQ        = 8
-LEX_UNQ_SPLICE = 9
-
-LEX_QT_BEG     = 10  #| offsets to above QT
-LEX_QQ_BEG     = 11  #| ..
-LEX_UNQ_BEG    = 12  #|
-LEX_UNQ_SPLICE_BEG = 13
+LEX_QT         = 4
+LEX_QQ         = 5
+LEX_UNQ        = 6
+LEX_UNQ_SPLICE = 7
 
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
 par_end = ")]}"  #| - closing.
 quotes  = "'`,"  #| - their LEX_ codes.
 
-# syntax parse
+# syntax tree
 
+LEX_SYM        = 14  #| expanded quoted name
+LEX_REF        = 15  #| tmp for re-bind
 LEX_VOID       = 16
 LEX_NUM        = 17
 LEX_BOOL       = 18
@@ -47,9 +42,11 @@ LEX_NONLIST    = (1 << 7)
 
 # run-types
 
-BIT_VAR        = (1 << 16)
+BIT_VAR        = (1 << 14)
 
 # offsets with LEX_
+# no SYM 14
+# no REF 15
 VAR_VOID       = 16 + BIT_VAR
 VAR_NUM        = 17 + BIT_VAR
 VAR_BOOL       = 18 + BIT_VAR
@@ -71,15 +68,15 @@ VAR_FUN_DOT    = (1 << 9) + BIT_VAR
 
 # interpreter ops
 
-# OP_DFLT "form" 1001 left as bare list for apply-semantics
-OP_DEFINE      = 1002
-OP_LAMBDA      = 1003
-OP_LAMBDA_DOT  = 1004
-OP_REBIND      = 1005
-OP_COND        = 1006
-OP_SEQ         = 1007
-OP_IMPORT      = 1008
-OP_EXPORT      = 1009
+# OP_DFLT "form" 0xC01 left as bare list for apply-semantics
+OP_DEFINE      = 0xC02
+OP_LAMBDA      = 0xC03
+OP_LAMBDA_DOT  = 0xC04
+OP_REBIND      = 0xC05
+OP_COND        = 0xC06
+OP_SEQ         = 0xC07
+OP_IMPORT      = 0xC08
+OP_EXPORT      = 0xC09
 
 # known names
 
@@ -245,9 +242,7 @@ def tok(s, i):
             i += 1
             if i == n:
                 raise SchemeSrcError("terminated at @")
-        if s[i] in par_beg:
-            i += 1
-            return s[w : i], i
+        return s[w : i], i
     while s[i].isalnum() or s[i] in name_cs:
         i += 1
         if i == n:
@@ -285,38 +280,6 @@ def intern(name, names):
         names.append(name)
         return i
 
-def name_tok(t, names):
-    y = LEX_NAM
-    h = None
-    if t[0] in quotes:
-        y = quotes.index(t[0]) + LEX_QT
-        if len(t) == 1:
-            h = -1
-        elif t[1] in par_beg:
-            y += LEX_QT_BEG - LEX_QT
-            h = par_beg.index(t[1])
-        elif t.startswith(",@"):
-            if len(t) == 2:
-                h = -1
-            elif t[2] in par_beg:
-                y = LEX_UNQ_SPLICE_BEG
-                h = par_beg.index(t[2])
-            else:
-                y = LEX_UNQ_SPLICE
-                t = t[2:]
-        else:
-            t = t[1:]
-            if y != LEX_UNQ:
-                y = LEX_SYM
-    if h is not None:
-        v = (y, h)
-        debug("token", v)
-    else:
-        h = intern(t, names)
-        v = (y, h, linenumber)
-        debug("name", v)
-    return v
-
 def lex(s, names):
     n = len(s)
     i = 0
@@ -352,10 +315,18 @@ def lex(s, names):
                 raise SchemeSrcError("# token at line %d" % (linenumber,))
         elif t[0] == "\"":
             v = (LEX_STRING, unescape_string(t[1:-1]))
-        elif t == ".":
+        elif t.startswith("."):
+            assert len(t) == 1
             v = (LEX_DOT, None)
+        elif t.startswith(",@"):
+            assert len(t) == 2
+            v = (LEX_UNQ_SPLICE, -1)
+        elif t[0] in quotes:
+            assert len(t) == 1
+            v = (quotes.index(t[0]) + LEX_QT, -1)
         else:
-            v = name_tok(t, names)
+            h = intern(t, names)
+            v = (LEX_NAM, h, linenumber)
         a.append(v)
     debug("lex", a)
     return a
@@ -378,44 +349,25 @@ def parse_r(z, i, paren_mode, d):
                     par_beg[paren_mode] if paren_mode >= 0 else '(none)',
                     x[2], par_end[x[1]]))
             return r, i + 1
-        elif c in (LEX_BEG, LEX_QT_BEG, LEX_QQ_BEG, LEX_UNQ_BEG, LEX_UNQ_SPLICE_BEG):
+        elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
-            if c == LEX_QT_BEG:
-                r.append([(LEX_NAM, NAM_QUOTE), s])
-            elif c == LEX_QQ_BEG:
-                r.append([(LEX_NAM, NAM_QUASIQUOTE), s])
-            elif c == LEX_UNQ_BEG:
-                r.append([(LEX_NAM, NAM_UNQUOTE), s])
-            elif c == LEX_UNQ_SPLICE_BEG:
-                r.append([(LEX_NAM, NAM_UNQUOTE_SPLICE), s])
-            elif c == LEX_BEG:
-                r.append(s)
-            else:
-                broken("%d unexpected" % (c,))
-        elif x[1] == -1 and c in (LEX_SYM, LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQ_SPLICE):
+            r.append(s)
+        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQ_SPLICE):
+            assert x[1] == -1
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
-            if len(x) != 1:
-                broken("expected 1 token in one-mode")
-            if c == LEX_SYM:
-                x = [(LEX_NAM, NAM_QUOTE), *x]
-            elif c == LEX_QT:
-                x = [(LEX_NAM, NAM_QUOTE), *x]
+            assert len(x) == 1
+            if c == LEX_QT:
+                x = [nam_quote, *x]
             elif c == LEX_QQ:
-                x = [(LEX_NAM, NAM_QUASIQUOTE), *x]
+                x = [nam_quasiquote, *x]
             elif c == LEX_UNQ:
-                x = [(LEX_NAM, NAM_UNQUOTE), *x]
+                x = [nam_unquote, *x]
             elif c == LEX_UNQ_SPLICE:
-                x = [(LEX_NAM, NAM_UNQUOTE_SPLICE), *x]
+                x = [nam_unquote_splice, *x]
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
         else:
-            if c == LEX_SYM:
-                x = [(LEX_NAM, NAM_QUOTE), (LEX_NAM, x[1])]
-            elif c == LEX_UNQ:
-                x = [(LEX_NAM, NAM_UNQUOTE), (LEX_NAM, x[1])]
-            elif c == LEX_UNQ_SPLICE:
-                x = [(LEX_NAM, NAM_UNQUOTE), (LEX_SPLICE, (LEX_NAM, x[1]))]
             i += 1
             r.append(x)
         if paren_mode == PARSE_MODE_ONE:
@@ -825,10 +777,10 @@ def from_lex(s):
     if s[0] == LEX_NONLIST:
         return from_lex([nam_nonlist, *s[1]])
     if s[0] == LEX_SYM:
-        return from_lex([(LEX_NAM, NAM_QUOTE), (LEX_NAM, s[1])])
+        return from_lex([nam_quote, (LEX_NAM, s[1])])
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
-        raise SchemeSrcError("from lex <%d>" % (s[0],))
+        raise SchemeSrcError("from lex %s" % (xrepr(s),))
     return [s[0] + BIT_VAR, s[1]]
 
 def to_lex(s):
@@ -843,7 +795,7 @@ def to_lex(s):
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
             VAR_QUOTE, VAR_UNQUOTE):
-        raise SchemeSrcError("to lex <%d>" % (s[0],))
+        raise SchemeSrcError("to lex %s" % (vrepr(s),))
     return (s[0] - BIT_VAR, s[1])
 
 def m_macro(macros):
@@ -2380,13 +2332,14 @@ def vrepr(s, names):
             w.insert(-1, ".")
         return "(%s)" % " ".join(w)
     if s[0] == VAR_SPLICE:
-        return "#~splice(%s)" % " ".join(
+        return "#@(%s)" % " ".join(
                 vrepr(x, names) for x in s[1])
     if s[0] == VAR_CONS:
+        # alt: show as usual
         if s[1] is None:
-            return "#~()"
+            return "#:()"
         else:
-            return "#~%s" % vrepr(s[1].to_list_var(), names)
+            return "#:%s" % vrepr(s[1].to_list_var(), names)
     if s[0] == VAR_NAM:
         return names[s[1]]
     if s[0] == VAR_NUM:

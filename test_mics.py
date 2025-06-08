@@ -191,7 +191,7 @@ test(""" [ define y 1 ]
 (define x '(1 2 3))
 `(list ,@(cdr x))
 (let ((x '(1 2 399))) `(list ,@(cdr x)))
-(macro fu x `(list ,@(cdr x)))
+(macro fu x ` (list ,@ (cdr x)))
 (fu 1 22 3)
 (macro fi (x . y) `(list ,@y))
 (fi 4 5 6)
