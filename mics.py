@@ -1,4 +1,58 @@
 #!/usr/bin/env python3
+#
+# Welcome to "Humble Scheme", copyright Christian Oeien
+#
+# My Scheme is more humble than yours!
+#
+# Features:
+#
+# Checked equavalent parens-pairs (), [] and {}
+# Optimized "tail call" (by deferred-apply variable)
+# Contigous (non)lists until cdr-usage on which list variable
+# transforms to a cons chain.
+# The dict type (an alist with efficient representation)
+# macro (exactly as lisp defmacro) -- and gensym
+# import of file (that needs "export" as first expression)
+# define@ -- define with list values (no multi-value)
+# seq -- lexical block without own scope
+# scope -- an import with contents (not loading file)
+#       -- export certain names
+#       -- "here document" import
+# Record type -- not provided for user -- but;
+# define-record-type provided as a macro
+# cadr combinations
+# nonlist function (like list)
+# Most functions and special forms as specified in r7rs
+#
+# Excluded:  (non-features)
+#
+# Multi-value, eval, call/cc, values, dyn-param,
+# force-delay, exception
+# str->sym (parse-time intern of all names)
+# Implicit quoting in case
+# Other commenting than ; and #| .. |#
+# Label-syntax for data-loops, or output-representation
+# No float, exact, complex, char, only number
+# Unicode specials as specified in r7rs
+# No |n a m e s|
+# port; all with with- instead
+# define-syntax; instead powerful "unhygienic" lisp macro
+# make-list, prone to error on i-e all to one int and the set!
+# No char, but number parsed with utf-8 on #\ support.
+#
+# Omitted in this python implementation:
+#
+# ustring-ref that gives unicode-value doing UTF-8
+# list->ustring and ustring->list (UTF-8 <-> values)
+#
+# As of yet not implemented:
+#
+# file-exists? delete-file rename-file file-stat exit
+# with-input-from-file with-output-to-file
+# write-byte read-byte eof-object?
+# peek-byte read-line write-string
+# with-input-from-pipe with-output-to-pipe
+#
 
 ##
 # code-points
@@ -86,13 +140,13 @@ NAM_QUOTE      = 2      #| quote-processing are performed by macros
 NAM_QUASIQUOTE = 3      #| on names
 NAM_UNQUOTE    = 4      #|
 NAM_UNQUOTE_SPLICE = 5  #| .
-NAM_MACRO      = 6  #| the macro macro; defines a user-macro
-NAM_CAR        = 7
-NAM_EQVP       = 8
-NAM_LENGTH     = 9
-NAM_APPLY      = 10
-NAM_LIST       = 11
-NAM_NONLIST    = 12
+NAM_MACRO      = 6   #| the macro macro; defines a user-macro
+NAM_CAR        = 7   #| names of functions used in some of the
+NAM_EQVP       = 8   #| language-macros
+NAM_LENGTH     = 9   #|
+NAM_APPLY      = 10  #| .
+NAM_LIST       = 11  #| used for conversions of macro-argument
+NAM_NONLIST    = 12  #| into data-variable representation.
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -108,15 +162,10 @@ nam_apply = (LEX_NAM, NAM_APPLY)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
 
-var_type_names = {
-        VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list",
-        VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
-        VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
-        VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
-        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "to-apply" }
+##
+# diagnostics
+##
 
-def lex_type_name(t):
-    return var_type_names[t + BIT_VAR]
 
 class SchemeSrcError(Exception):
     def __init__(self, message):
@@ -126,12 +175,6 @@ class SchemeRunError(Exception):
     def __init__(self, message):
       super().__init__(message)
 
-##
-# diagnostics
-##
-
-import sys
-
 def put(f, a):
     f.write(" ".join([str(x) for x in a]) + "\n")
 
@@ -139,6 +182,8 @@ verbose = False
 def set_verbose(v):
     global verbose
     verbose = v
+
+import sys
 
 def debug(*args):
     if verbose:
@@ -317,13 +362,13 @@ def lex(s, names):
             v = (LEX_STRING, unescape_string(t[1:-1]))
         elif t.startswith("."):
             assert len(t) == 1
-            v = (LEX_DOT, None)
+            v = (LEX_DOT,)
         elif t.startswith(",@"):
             assert len(t) == 2
-            v = (LEX_UNQ_SPLICE, -1)
+            v = (LEX_UNQ_SPLICE,)
         elif t[0] in quotes:
             assert len(t) == 1
-            v = (quotes.index(t[0]) + LEX_QT, -1)
+            v = (quotes.index(t[0]) + LEX_QT,)
         else:
             h = intern(t, names)
             v = (LEX_NAM, h, linenumber)
@@ -335,8 +380,20 @@ def lex(s, names):
 # parser
 ##
 
-PARSE_MODE_TOP = -1
-PARSE_MODE_ONE = -2
+# notes on lexical elements and the language
+#
+# there is no other numeric type than number.
+# there is no char-type even tho support in parser.
+#
+# for this python-implementation *string* functions are
+# encoding aware, as is usual for python.  however in the
+# proposed language the following is defined:
+# literal strings are utf-8 but the *string* functions are byte-wise
+# and for utf-8 access one must use the *ustring* functions.
+
+PARSE_MODE_TOP = -2  # inside no form paren
+PARSE_MODE_ONE = -1  # yield single element
+# otherwise 0..2:  par_beg most recent open
 def parse_r(z, i, paren_mode, d):
     n = len(z)
     r = []
@@ -353,7 +410,6 @@ def parse_r(z, i, paren_mode, d):
             s, i = parse_r(z, i + 1, x[1], d + 1)
             r.append(s)
         elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQ_SPLICE):
-            assert x[1] == -1
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
             assert len(x) == 1
             if c == LEX_QT:
@@ -394,9 +450,9 @@ def with_dot(x):
     return x[:-1] + [(LEX_DOT, None), x[-1]]
 
 def expand_macros(t, macros, qq):
-    if not (type(t) == list and t):
+    if type(t) != list or len(t) == 0:
         return t
-    is_macro = t[0] and t[0][0] == LEX_NAM and t[0][1] in macros
+    is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
     is_user = is_macro and hasattr(macros[t[0][1]], "user")
     current = is_macro and qq == 0
     is_quote = False
@@ -409,20 +465,26 @@ def expand_macros(t, macros, qq):
             qq -= 1
             if qq == 0:
                 current = True
-    d = macros
     if is_user:
-        d = {
-                NAM_QUOTE: macros[NAM_QUOTE],
+        # a user-macro must observe input prior to language-macros
+        # expansion, which is instead performed below, as their
+        # output is not interpreter-ready as for language-macros.
+        # however, the quotation macros are processed on the args
+        # in addition to eventually on their output.
+        args_exp = { NAM_QUOTE: macros[NAM_QUOTE],
                 NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
                 NAM_UNQUOTE: macros[NAM_UNQUOTE],
                 NAM_UNQUOTE_SPLICE: macros[NAM_UNQUOTE_SPLICE] }
     elif is_quote:
-        d = {
-                NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
+        # normal quote arguments must not know of macros except
+        # for quasi-quotation processing.
+        args_exp = { NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
                 NAM_UNQUOTE: macros[NAM_UNQUOTE],
                 NAM_UNQUOTE_SPLICE: macros[NAM_UNQUOTE_SPLICE] }
+    else:
+        args_exp = macros
     for i in range(len(t)):
-        t[i] = expand_macros(t[i], d, qq)
+        t[i] = expand_macros(t[i], args_exp, qq)
     if current:
         t = macros[t[0][1]](t)
         if is_user and type(t) == list:
@@ -732,7 +794,7 @@ def quote(v, quasi):
         if v[0] == LEX_UNQUOTE_SPLICE:
             return (LEX_SPLICE, v[1])
     if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-        raise SchemeSrcError("quote of %s" % (lex_type_name(v[0]),))
+        raise SchemeSrcError("quote of %s" % (xrepr(v),))
     return v
 
 def m_quote(s):
@@ -757,7 +819,7 @@ def m_unquote(s):
         if v[0] == LEX_SYM:
             return (LEX_NAM, v[1])
         if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-            raise SchemeSrcError("unquote of %s" % (lex_type_name(v[0]),))
+            raise SchemeSrcError("unquote of %s" % (xrepr(v),))
         # note: no (un)quote-level for literals)
         return v
     return unquote(s[1])
@@ -847,7 +909,7 @@ def m_macro(macros):
 def m_gensym(names):
     def gensym(s):
         i = len(names)
-        names.append("&%d&" % (i,))
+        names.append("&%d" % (i,))
         return (LEX_SYM, i)
     return gensym
 
@@ -1024,6 +1086,16 @@ def m_import(names, macros):
         return [OP_IMPORT, set_up, *r[1:]]
     return ximport
 
+##
+# builtin functions
+##
+
+# notes on variables
+#
+# a variable is a value-semantics entry in the environment.
+# it is a mutable pair of type and value.  the value referred
+# to may be shared from other variables.
+#
 # a list variable is represented by a contiguous container
 # until cdr-usage requires it to convert to a cons chain.
 # use *list-copy* to establish contigous array.
@@ -1031,6 +1103,12 @@ def m_import(names, macros):
 # for the contiguous container, the type denotes if it represent
 # a list, or that it represents a nonlist; reflecting a cons-chain
 # where the last CDR is not NIL, by VAR_LIST and VAR_NONLIST.
+#
+# dict is an explicit type for efficient lookup operations
+# and is converted from an alist or back.
+#
+# the record type is not meant for a program but used by the
+# define-record-type macro.
 
 def is_cons(y):
     return isinstance(y, Cons)
@@ -1122,9 +1200,12 @@ def normal_list(a):
     assert type(a) == list
     return a
 
-##
-# builtin functions
-##
+var_type_names = {
+        VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list",
+        VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
+        VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
+        VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
+        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply" }
 
 def fargt_repr(vt):
     try:

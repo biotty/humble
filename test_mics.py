@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+#
+# Welcome to "Humble Scheme", copyright Christian Oeien
+#
+# My Scheme is more humble than yours!
+#
+# The tests are running documentation of a working language.
+# The following tests grew together with development
+# of this interpreter.  In general one must regression-
+# diff the output, but at some point the chk macro
+# was established to assert correctness in a test.
+# For import testing, run on import_test/main
+#
 
 from mics import init_top, parse, run_top, set_verbose
 
@@ -344,67 +356,4 @@ test(""" [ define y 1 ]
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
 (let tco ((a 789)) (if (zero? a) 0 (apply tco (list (- a 1)))))
 """)
-#
-# --- the following deferred for c++ impl (python too encoding-nosy)
-#
-#     a string is of bytes, but io works with that, while it can be
-#     operated on as an ustring as follows.
-# ( ) ustring-ref that gives unicode-value doing UTF-8
-# ( ) list->ustring and ustring->list (UTF-8 <-> unicode values)
-#
-# ( ) file-exists? delete-file rename-file file-stat exit
-# ( ) with-input-from-file with-output-to-file
-# ( ) write-byte read-byte eof-object?
-# ( ) peek-byte read-line write-string
-# ( ) with-input-from-pipe with-output-to-pipe
-#
-# ( ) builtin posix getopts w help very vanilla in the code
-#     written in c++ with shared_ptr all the things.
-#
-# ( ) regex match-to-groups (ontop c++regex)
-#
-# --- features:
-#
-# checked ()[]{}
-# contigous (non)lists until cdr-usage on which list variable
-# transforms to a cons chain.
-#     -- list-copy may be done to establish contigous one
-# the dict type (an alist with efficient representation)
-# macro (exactly as lisp defmacro) -- and gensym
-# define@ -- define with list values (no multi-value)
-# seq -- lexical block without own scope
-# scope -- an import with contents (not loading file)
-#       -- export certain names
-#       -- just like "here document" import
-# import of file (that needs "export" as first expression)
-# record type -- not provided for user -- but;
-# define-record-type provided as a macro
-# cadr combinations
-# nonlist function (like list)
-# most functions and special forms as specified in r7rs
-# but-
-#
-# --- excluded ofcourse:
-#
-# multi-value
-# eval
-# call/cc, values, dyn-param, force-delay, exception
-# str->sym (parse-time intern of all names)
-# implicit quoting in case
-# other commenting than ; and #| .. |#
-# label-syntax for data-loops, or output-representation
-# float, exact, complex.. ; only integer (even char is)
-# not #true #false and no alternative representation
-# of #\ except the (unicode) character itself, or
-# the ascii specials as specified in r7rs
-# |n a m e s|
-# port; all with with-
-# define-syntax; back to power of unhygienic lisp macro
-# make-list prone to error on i-e all to one int and the set!
-# no char, but ascii-only strings, where str->list is INT values,
-# there is IO for string and byte, no UTF except ustring-functions,
-# this is pms for systems programing.  we can process strings
-# of non-ascii, as these are the raw bytes, but language
-# has no encoding knowledge such as UTF-8, except when parsing
-# one #\ in order to get the whole utf value (a mere LEX_NUM)
 
