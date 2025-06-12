@@ -23,6 +23,14 @@
 # cadr combinations
 # nonlist function (like list)
 # Most functions and special forms as specified in r7rs
+# except only limited set of IO:
+# file-exists? delete-file rename-file file-stat exit
+# with-input-from-file with-output-to-file
+# write-byte read-byte eof-object?
+# peek-byte read-line write-string
+# with-input-from-pipe with-output-to-pipe
+# ( string-io is utf-8 and there is no "file-mode".
+# for byte access there are byte-io functions. )
 #
 # Excluded:  (non-features)
 #
@@ -35,23 +43,16 @@
 # No float, exact, complex, char, only number
 # Unicode specials as specified in r7rs
 # No |n a m e s|
-# port; all with with- instead
+# port; but all with with- so no close
 # define-syntax; instead powerful "unhygienic" lisp macro
 # make-list, prone to error on i-e all to one int and the set!
 # No char, but number parsed with utf-8 on #\ support.
 #
-# Omitted in this python implementation:
-#
-# ustring-ref that gives unicode-value doing UTF-8
-# list->ustring and ustring->list (UTF-8 <-> values)
-#
-# As of yet not implemented:
-#
+# Note *yet* implemented:
 # file-exists? delete-file rename-file file-stat exit
-# with-input-from-file with-output-to-file
-# write-byte read-byte eof-object?
-# peek-byte read-line write-string
-# with-input-from-pipe with-output-to-pipe
+#
+# Excluded in this python implementation:
+# peek-byte with-input-from-pipe with-output-to-pipe
 #
 
 ##
@@ -93,6 +94,10 @@ LEX_SPLICE     = 27
 # no CONS (1 << 5)
 LEX_LIST       = (1 << 6)
 LEX_NONLIST    = (1 << 7)
+# no VAR_FUN (1 << 8)
+# no VAR_FUN_DOT (1 << 9)
+# no VAR_PORT (1 << 10)
+# no VAR_EOF (1 << 11)
 
 # run-types
 
@@ -119,6 +124,8 @@ VAR_LIST       = (1 << 6) + BIT_VAR
 VAR_NONLIST    = (1 << 7) + BIT_VAR
 VAR_FUN        = (1 << 8) + BIT_VAR
 VAR_FUN_DOT    = (1 << 9) + BIT_VAR
+VAR_PORT       = (1 << 10) + BIT_VAR
+VAR_EOF        = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
@@ -379,17 +386,6 @@ def lex(s, names):
 ##
 # parser
 ##
-
-# notes on lexical elements and the language
-#
-# there is no other numeric type than number.
-# there is no char-type even tho support in parser.
-#
-# for this python-implementation *string* functions are
-# encoding aware, as is usual for python.  however in the
-# proposed language the following is defined:
-# literal strings are utf-8 but the *string* functions are byte-wise
-# and for utf-8 access one must use the *ustring* functions.
 
 PARSE_MODE_TOP = -2  # inside no form paren
 PARSE_MODE_ONE = -1  # yield single element
@@ -1048,7 +1044,7 @@ def m_import(names, macros):
         e_macros = Env(macros)
         e_macros[NAM_MACRO] = m_macro(e_macros)
         try:
-            f = open(filename, "r")
+            f = open(filename, "r", encoding="utf-8")
         except:
             raise SchemeSrcError("no such file")
         global linenumber
@@ -1205,7 +1201,8 @@ var_type_names = {
         VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
         VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
-        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply" }
+        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply",
+        VAR_PORT: "port", VAR_EOF: "eof-object" }
 
 def fargt_repr(vt):
     try:
@@ -1912,6 +1909,80 @@ def f_error(names):
         sys.exit(2)
     return err
 
+def f_with_input_from_file(*args):
+    fn = "with-input-from-file"
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    f = open(args[0][1], "rb")
+    p = [VAR_PORT, f]
+    r = fun_call([args[1], p])
+    f.close()
+    return r
+
+def f_eof_objectp(*args):
+    fargc_must_eq("eof-object?", args, 1)
+    return [VAR_BOOL, args[0][0] == VAR_EOF]
+
+def f_read_byte(*args):
+    fn = "read-byte"
+    fargt_must_eq(fn, args, 0, VAR_PORT)
+    f = args[0][1]
+    b = f.read(1)
+    if not b:
+        return [VAR_EOF]
+    return [VAR_NUM, ord(b)]
+
+def f_read_line(*args):
+    fn = "read-line"
+    fargt_must_eq(fn, args, 0, VAR_PORT)
+    f = args[0][1]
+    a = []
+    while True:
+        b = f.read(1)
+        if not b:
+            return [VAR_EOF]
+        c = ord(b)
+        if c == 10:
+            break
+        a.append(c)
+    s = bytes(a).decode("utf-8")
+    return [VAR_STRING, s]
+
+def f_with_output_to_file(*args):
+    fn = "with-output-to-file"
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    f = open(args[0][1], "wb")
+    p = [VAR_PORT, f]
+    r = fun_call([args[1], p])
+    f.close()
+    return r
+
+def complete_write(b, f):
+    i = 0
+    n = len(b)
+    while i != n:
+        i += f.write(b[i:])
+
+def f_write_byte(*args):
+    fn = "write-byte"
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    fargt_must_eq(fn, args, 1, VAR_PORT)
+    f = args[1][1]
+    b = bytes([args[0][1]])
+    complete_write(b, f)
+    return [VAR_VOID]
+
+def f_write_string(*args):
+    fn = "write-string"
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_eq(fn, args, 1, VAR_PORT)
+    f = args[1][1]
+    s = args[0][1]
+    b = s.encode("utf-8")
+    complete_write(b, f)
+    return [VAR_VOID]
+
 ##
 # the core
 ##
@@ -2238,7 +2309,14 @@ def init_env(names):
             ("string-append", f_string_append),
             ("string=?", f_stringeqp),
             ("string<?", f_stringltp),
-            ("string>?", f_stringgtp)]:
+            ("string>?", f_stringgtp),
+            ("with-input-from-file", f_with_input_from_file),
+            ("eof-object?", f_eof_objectp),
+            ("read-byte", f_read_byte),
+            ("read-line", f_read_line),
+            ("with-output-to-file", f_with_output_to_file),
+            ("write-byte", f_write_byte),
+            ("write-string", f_write_string)]:
         with_new_name(a, [VAR_FUN, b], env, names)
 
     return env
@@ -2445,6 +2523,10 @@ def vrepr(s, names):
             return r
     if s[0] == VAR_FUN_DOT:
         return "#~dotfun"
+    if s[0] == VAR_PORT:
+        return "#~port"
+    if s[0] == VAR_EOF:
+        return "#~eof-object"
     if s[0] == VAR_BOOL:
         if type(s[1]) != bool:
             warning("dirty bool")

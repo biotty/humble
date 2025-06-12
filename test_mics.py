@@ -355,5 +355,6 @@ test(""" [ define y 1 ]
 (chk '(2 3 4) (cdr '(1 2 3 4)))
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
 (let tco ((a 789)) (if (zero? a) 0 (apply tco (list (- a 1)))))
+(list->string '(#\\Ø #\\i #\\e #\\n))
 """)
 
