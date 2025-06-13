@@ -6,13 +6,13 @@
 #
 # Features:
 #
-# Checked equavalent parens-pairs (), [] and {}
+# Checked parens-pairs (), [] and {} (no meanings)
 # Optimized "tail call" (by deferred-apply variable)
-# Contigous (non)lists until cdr-usage on which list variable
-# transforms to a cons chain.
-# The dict type (an alist with efficient representation)
+# Contigous (non)lists until cdr-usage on which list-
+# variable transforms to a cons chain.
+# The dict type (an alist with efficient repr)
 # macro (exactly as lisp defmacro) -- and gensym
-# import of file (that needs "export" as first expression)
+# import of file (that needs "export" as first expr)
 # define@ -- define with list values (no multi-value)
 # seq -- lexical block without own scope
 # scope -- an import with contents (not loading file)
@@ -20,39 +20,39 @@
 #       -- "here document" import
 # Record type -- not provided for user -- but;
 # define-record-type provided as a macro
-# cadr combinations
+# cadar combinations
 # nonlist function (like list)
 # Most functions and special forms as specified in r7rs
-# except only limited set of IO:
-# file-exists? delete-file rename-file file-stat exit
-# with-input-from-file with-output-to-file
+# but limited for math and very limited for IO:
+# input-from-file output-to-file
 # write-byte read-byte eof-object?
 # peek-byte read-line write-string
-# with-input-from-pipe with-output-to-pipe
+# input-from-pipe output-to-pipe exit
 # ( string-io is utf-8 and there is no "file-mode".
 # for byte access there are byte-io functions. )
+# char- and string-literals with a few escapes
+# Otherwise rely on source encoding -- utf-8
+# ( note python *could* easily cope better )
 #
 # Excluded:  (non-features)
 #
-# Multi-value, eval, call/cc, values, dyn-param,
-# force-delay, exception
-# str->sym (parse-time intern of all names)
-# Implicit quoting in case
+# Multi-value, eval, call/cc, dyn-param, exception.
+# force-delay
+# str->sym (because parse-time intern of all names)
+# Implicit quoting in case (we evaluate the <datum>s)
 # Other commenting than ; and #| .. |#
 # Label-syntax for data-loops, or output-representation
-# No float, exact, complex, char, only number
+# float, exact, complex, char, only number
 # Unicode specials as specified in r7rs
 # No |n a m e s|
-# port; but all with with- so no close
+# Limited port ops; all "with" mechanism (implicit close)
+# FS/System ops, as there is input-from-pipe
 # define-syntax; instead powerful "unhygienic" lisp macro
 # make-list, prone to error on i-e all to one int and the set!
-# No char, but number parsed with utf-8 on #\ support.
-#
-# Note *yet* implemented:
-# file-exists? delete-file rename-file file-stat exit
+# char, but number parsed with utf-8 on #\ support.
 #
 # Excluded in this python implementation:
-# peek-byte with-input-from-pipe with-output-to-pipe
+# peek-byte (as no ungetc)
 #
 
 ##
@@ -1906,14 +1906,28 @@ def f_error(names):
         for i, a in enumerate(args):
             sys.stdout.write("error-args[%d]: %s\n" % (i, vrepr(a, names)))
         sys.stderr.write("-- sorry'bout that\n")
-        sys.exit(2)
+        sys.exit(1)
     return err
 
-def f_with_input_from_file(*args):
-    fn = "with-input-from-file"
+def f_exit(*args):
+    fargt_must_eq("exit", args, 0, VAR_NUM)
+    sys.exit(args[0][1])
+
+def f_input_from_file(*args):
+    fn = "input-from-file"
     fargt_must_eq(fn, args, 0, VAR_STRING)
     fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
     f = open(args[0][1], "rb")
+    p = [VAR_PORT, f]
+    r = fun_call([args[1], p])
+    f.close()
+    return r
+
+def f_output_to_file(*args):
+    fn = "output-to-file"
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    f = open(args[0][1], "wb")
     p = [VAR_PORT, f]
     r = fun_call([args[1], p])
     f.close()
@@ -1948,16 +1962,6 @@ def f_read_line(*args):
     s = bytes(a).decode("utf-8")
     return [VAR_STRING, s]
 
-def f_with_output_to_file(*args):
-    fn = "with-output-to-file"
-    fargt_must_eq(fn, args, 0, VAR_STRING)
-    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
-    f = open(args[0][1], "wb")
-    p = [VAR_PORT, f]
-    r = fun_call([args[1], p])
-    f.close()
-    return r
-
 def complete_write(b, f):
     i = 0
     n = len(b)
@@ -1982,6 +1986,42 @@ def f_write_string(*args):
     b = s.encode("utf-8")
     complete_write(b, f)
     return [VAR_VOID]
+
+import subprocess
+
+def f_input_from_pipe(*args):
+    fn = "input-from-pipe"
+    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    a = []
+    for e in normal_list(args[0][1]):
+        fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
+                % (fn, fargt_repr(e[0])))
+        a.append(e[1])
+    u = subprocess.Popen(a, stdout=subprocess.PIPE)
+    f = u.stdout
+    p = [VAR_PORT, f]
+    r = fun_call([args[1], p])
+    f.close()
+    c = u.wait()
+    return [VAR_NONLIST, [[VAR_NUM, c], r]]
+
+def f_output_to_pipe(*args):
+    fn = "output-to-pipe"
+    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    a = []
+    for e in normal_list(args[0][1]):
+        fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
+                % (fn, fargt_repr(e[0])))
+        a.append(e[1])
+    u = subprocess.Popen(a, stdin=subprocess.PIPE)
+    f = u.stdin
+    p = [VAR_PORT, f]
+    r = fun_call([args[1], p])
+    f.close()
+    c = u.wait()
+    return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
 ##
 # the core
@@ -2310,11 +2350,14 @@ def init_env(names):
             ("string=?", f_stringeqp),
             ("string<?", f_stringltp),
             ("string>?", f_stringgtp),
-            ("with-input-from-file", f_with_input_from_file),
+            ("exit", f_exit),
+            ("input-from-file", f_input_from_file),
+            ("input-from-pipe", f_input_from_pipe),
             ("eof-object?", f_eof_objectp),
             ("read-byte", f_read_byte),
             ("read-line", f_read_line),
-            ("with-output-to-file", f_with_output_to_file),
+            ("output-to-file", f_output_to_file),
+            ("output-to-pipe", f_output_to_pipe),
             ("write-byte", f_write_byte),
             ("write-string", f_write_string)]:
         with_new_name(a, [VAR_FUN, b], env, names)
