@@ -32,7 +32,6 @@
 # for byte access there are byte-io functions. )
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
-# ( note python *could* easily cope better )
 #
 # Excluded:  (non-features)
 #
@@ -51,7 +50,7 @@
 # make-list, prone to error on i-e all to one int and the set!
 # char, but number parsed with utf-8 on #\ support.
 #
-# Excluded in this python implementation:
+# Excluded in this PYTHON implementation:
 # peek-byte (as no ungetc)
 #
 
@@ -91,13 +90,13 @@ LEX_UNQUOTE    = 25
 LEX_UNQUOTE_SPLICE = 26
 LEX_SPLICE     = 27
 # no APPLY 28
+# no VAR_PORT 29
+# no VAR_EOF 30
 # no CONS (1 << 5)
 LEX_LIST       = (1 << 6)
 LEX_NONLIST    = (1 << 7)
 # no VAR_FUN (1 << 8)
 # no VAR_FUN_DOT (1 << 9)
-# no VAR_PORT (1 << 10)
-# no VAR_EOF (1 << 11)
 
 # run-types
 
@@ -119,13 +118,13 @@ VAR_UNQUOTE    = 25 + BIT_VAR
 # no UNQUOTE_SPLICE 26
 VAR_SPLICE     = 27 + BIT_VAR
 VAR_APPLY      = 28 + BIT_VAR
+VAR_PORT       = 29 + BIT_VAR
+VAR_EOF        = 30 + BIT_VAR
 VAR_CONS       = (1 << 5) + BIT_VAR
 VAR_LIST       = (1 << 6) + BIT_VAR
 VAR_NONLIST    = (1 << 7) + BIT_VAR
 VAR_FUN        = (1 << 8) + BIT_VAR
 VAR_FUN_DOT    = (1 << 9) + BIT_VAR
-VAR_PORT       = (1 << 10) + BIT_VAR
-VAR_EOF        = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
@@ -348,8 +347,17 @@ def lex(s, names):
         elif (t[0] in "-+." and len(t) != 1) or t[0].isdigit():
             v = (LEX_NUM, int(t))
         elif t[0] == "#":
-            if t[1] in "tf" and len(t) == 2:
-                v = (LEX_BOOL, "t" == t[1])
+            if t[1] in "tf":
+                if len(t) == 2 or t[1:] in ("true", "false"):
+                    v = (LEX_BOOL, "t" == t[1])
+                else:
+                    raise SchemeSrcError("'%s' at %d" % (linenumber,))
+            elif t[1] in "bodx":
+                base = [2, 8, 10, 16]["bodx".index(t[1])]
+                try:
+                    v = (LEX_NUM, int(t[2:], base))
+                except ValueError:
+                    raise SchemeSrcError("'%s' at %d" % (linenumber,))
             elif t[1] == "\\":
                 if len(t) == 3:
                     v = (LEX_NUM, ord(t[2]))
@@ -1088,23 +1096,46 @@ def m_import(names, macros):
 
 # notes on variables
 #
-# a variable is a value-semantics entry in the environment.
-# it is a mutable pair of type and value.  the value referred
-# to may be shared from other variables.
+# a variable is the value of an entry in the environment.
+# it is a mutable pair (type, value).  the value referred
+# to may be referred from other variables (shared), and
+# by different environments or by lists as a member.
+#
+# no function operates on the environment.  set! operates
+# on the variable.  set!! is needed to change its type.
+# list-set! replaces the list member and does not affect
+# the previous member variable.  special forms such as
+# DEFINE operates on the environment.
 #
 # a list variable is represented by a contiguous container
 # until cdr-usage requires it to convert to a cons chain.
-# use *list-copy* to establish contigous array.
 #
-# for the contiguous container, the type denotes if it represent
-# a list, or that it represents a nonlist; reflecting a cons-chain
-# where the last CDR is not NIL, by VAR_LIST and VAR_NONLIST.
+# the contigous representation of a cons chain as mentioned,
+# uses a specific type to denotes if it represent a normal
+# list, or that it represents a non-list; a cons-chain
+# where the last CDR is not NIL, by type respectively
+# VAR_LIST and VAR_NONLIST.
+#
+# the value of a CONS variable is a cons-cell, while the
+# value of a (NON)LIST variable is the contigous list as
+# a whole and owned privately by this variable.
+# the latter list value is not shared by other variables
+# (but the variable itself may be refered to by several
+# environments).  the cons-cell on the other hand, may be,
+# and typically is shared by different variables.
 #
 # dict is an explicit type for efficient lookup operations
-# and is converted from an alist or back.
+# and is converted from an alist or back, VAR_DICT.
 #
-# the record type is not meant for a program but used by the
-# define-record-type macro.
+# the record type VAR_REC is not meant for a program but used
+# by the define-record-type macro.
+#
+# bytes is a mutable byte-buffer that has no lexical repr.
+# otherwise as bytevector, excluding utf8->string and
+# string->utf8 which are ill-defined in r7rs because the
+# byte sequence may end in a partial utf8 encoding.
+# there are accessors bytes-u{8,16,32,64}-ref and set!
+# and make-bytes N which zero-fills.
 
 def is_cons(y):
     return isinstance(y, Cons)
@@ -1521,7 +1552,13 @@ def f_gte(*args):
 def f_setj(*args):
     fargc_must_eq("set!", args, 2);
     if args[0][0] != args[1][0]:
-        warning("set! different type")
+        raise SchemeRunError("set! %s with %s"
+                % (var_type_names[args[0][0]],
+                    var_type_names[args[1][0]]))
+    return f_setjj(*args)
+
+def f_setjj(*args):
+    fargc_must_eq("set!", args, 2);
     args[0][0] = args[1][0]
     args[0][1] = args[1][1]
     return [VAR_VOID]
@@ -2309,6 +2346,7 @@ def init_env(names):
             ("member", f_member),
             ("assoc", f_assoc),
             ("set!", f_setj),
+            ("set!!", f_setjj),
             ("eq?", f_eqp),
             ("equal?", f_equalp),
             ("cdr", f_cdr),
