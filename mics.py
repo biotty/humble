@@ -886,7 +886,7 @@ def m_macro(macros):
         def m(t):
             args = [from_lex(x) for x in t[1:]]
             debug("user-macro args", args)
-            env = Env(i_env)
+            env = Overlay(i_env)
             if dot:
                 last = len(parms) - 1
                 mchk_or_fail(len(args) >= last, "macro"
@@ -1012,7 +1012,7 @@ def m_export(s):
     s[0] = OP_EXPORT
     return s
 
-class Env:
+class Overlay:
 
     def __init__(self, d):
         assert type(d) == dict
@@ -1049,7 +1049,7 @@ def m_import(names, macros):
         mchk_or_fail(len(s) in (2, 3), "import expects 2 or 3 args")
         mchk_or_fail(s[1][0] == LEX_STRING, "import.1 expects string")
         filename = s[1][1]
-        e_macros = Env(macros)
+        e_macros = Overlay(macros)
         e_macros[NAM_MACRO] = m_macro(e_macros)
         try:
             f = open(filename, "r", encoding="utf-8")
@@ -1603,6 +1603,12 @@ def f_equalp(*args):
         if not r[1]:
             break
     return r
+
+# the DICT type supports keys only of the specific types
+# NUM or STRING.  the data structure is distinct from the
+# impl's own dictionaries:  global environment, the lambda-
+# capture environments, the macro-set and the Overlay on the
+# global-env and the macro-set (for import).
 
 class Dict:
     def __init__(self, w):
@@ -2235,7 +2241,7 @@ def xeval(x, env):
         rebind_args(x[1], env)
         return [VAR_VOID]
     if x[0] == OP_IMPORT:
-        e = Env(i_env)
+        e = Overlay(i_env)
         for z in x[2:]:
             run(z, e)
         for (a, b) in x[1].items():
