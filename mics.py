@@ -33,6 +33,13 @@
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
 #
+# Missing:  (todo)
+#
+# -- the port from the input/output lambda may escape
+# so it must be ref-counted and not close in the
+# input/output function itself if so.
+# -- to/from string (as pipe and file)
+#
 # Excluded:  (non-features)
 #
 # Multi-value, eval, call/cc, dyn-param, exception.
@@ -47,7 +54,8 @@
 # Limited port ops; all "with" mechanism (implicit close)
 # FS/System ops, as there is input-from-pipe
 # define-syntax; instead powerful "unhygienic" lisp macro
-# make-list, prone to error on i-e all to one int and the set!
+# set! operates on the variable (no magic location concept)
+# make-list, prone to err i-e all to one int and the set!
 # char, but number parsed with utf-8 on #\ support.
 #
 # Excluded in this PYTHON implementation:
@@ -1130,12 +1138,6 @@ def m_import(names, macros):
 # the record type VAR_REC is not meant for a program but used
 # by the define-record-type macro.
 #
-# bytes is a mutable byte-buffer that has no lexical repr.
-# otherwise as bytevector, excluding utf8->string and
-# string->utf8 which are ill-defined in r7rs because the
-# byte sequence may end in a partial utf8 encoding.
-# there are accessors bytes-u{8,16,32,64}-ref and set!
-# and make-bytes N which zero-fills.
 
 def is_cons(y):
     return isinstance(y, Cons)
