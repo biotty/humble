@@ -180,7 +180,6 @@ nam_nonlist = (LEX_NAM, NAM_NONLIST)
 # diagnostics
 ##
 
-
 class SchemeSrcError(Exception):
     def __init__(self, message):
       super().__init__(message)
@@ -568,7 +567,7 @@ def locate_unbound(s, y):
             r = None
             if x[0] in (LEX_LIST, LEX_NONLIST):
                 r = locate_unbound(x[1], y)
-            if x[0] == LEX_SPLICE:
+            elif x[0] == LEX_SPLICE:
                 r = locate_unbound([x[1]], y)
             if r:
                 return r
@@ -590,6 +589,7 @@ def locate_unbound(s, y):
         if x[0] in (OP_IMPORT, OP_EXPORT):
             continue
         if x[0] == OP_REBIND:
+            broken("name be hit prior")
             if y in x[1]:
                 return x
             continue
@@ -617,6 +617,7 @@ def parse(s, names, macros, env_keys):
     t = parse_i(s, names, macros)
     u = unbound(t, set(env_keys), True)
     if not u:
+        zloc_scopes(t, None, names)
         return t
     a = []
     for y in u:
@@ -626,6 +627,48 @@ def parse(s, names, macros, env_keys):
         else:
             a.append("(reportedly) %s" % (names[y],))
     raise SchemeSrcError("unbound:\n" + "\n".join(a))
+
+class LocalEnv:
+
+    def __init__(self, parms, captured, names):
+        self.parms = parms
+        self.captured = captured
+
+    def rewrite(self, y):
+        return y
+
+def zloc_scopes(t, local_env, names):
+    for i, x in enumerate(t):
+        if type(x) != list:
+            if x[0] == LEX_NAM:
+                if local_env:
+                    t[i] = (x[0], local_env.rewrite(x[1]))
+            elif x[0] in (LEX_LIST, LEX_NONLIST):
+                zloc_scopes(x[1], local_env, names)
+            elif x[0] == LEX_SPLICE:
+                zloc_scopes([x[1]], local_env, names)
+            continue
+        if x[0] in (OP_IMPORT, OP_EXPORT):
+            continue
+        if x[0] == OP_DEFINE:
+            zloc_scopes([x[2]], local_env, names)
+            continue
+        if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+            local_env = LocalEnv(x[1], x[2], names)
+            zloc_scopes(x[3:], local_env, names)
+            x[1] = local_env
+            continue
+        if x[0] == OP_COND:
+            zloc_scopes(x[1:], local_env, names)
+            continue
+        if x[0] == OP_REBIND:
+            # todo: x[1] shall be simply a number of args to rebind, as those
+            # will all be parms, which will be using local names 0..n
+            continue
+        if x[0] == OP_SEQ:
+            zloc_scopes(x[1:], local_env, names)
+            continue
+        zloc_scopes(x, local_env, names)
 
 ##
 # builtin macros
@@ -872,7 +915,7 @@ def to_lex(s):
         raise SchemeSrcError("to lex %s" % (vrepr(s),))
     return (s[0] - BIT_VAR, s[1])
 
-def m_macro(macros):
+def m_macro(macros, names):
     def macro(s):
         margc_must_ge("macro", s, 4)
         if s[1][0] != LEX_NAM:
@@ -887,6 +930,7 @@ def m_macro(macros):
             if dot:
                 y = without_dot(y)
         block = s[3:]
+        zloc_scopes(block, None, names)
         parms = []
         for p in y:
             mchk_or_fail(p[0] == LEX_NAM, "macro params must be names")
@@ -1058,7 +1102,7 @@ def m_import(names, macros):
         mchk_or_fail(s[1][0] == LEX_STRING, "import.1 expects string")
         filename = s[1][1]
         e_macros = Overlay(macros)
-        e_macros[NAM_MACRO] = m_macro(e_macros)
+        e_macros[NAM_MACRO] = m_macro(e_macros, names)
         try:
             f = open(filename, "r", encoding="utf-8")
         except:
@@ -2095,7 +2139,7 @@ def fun_call(a):
 def fun_call_ops(x, args):
     dot = x[0] == VAR_FUN_DOT
     captured = x[1]
-    parms = x[2]
+    parms = x[2].parms
     block = x[3]
     done = False
     while not done:
@@ -2126,12 +2170,30 @@ def fun_call_ops(x, args):
                 else:
                     debug("iter-apply", a)
                     args = a[1:]
-                    captured, parms, block = a[0][1:]
+                    captured, le, block = a[0][1:]
+                    parms = le.parms
                     dot = a[0][0] == VAR_FUN_DOT
                     done = False
     return v
 
 def make_fun(up, x, fun_dot):
+    # todo:  implement and use LocalEnv as follows instead
+    # of being a no-op whom existence is merely validated.
+    # zloc_scopes does for all blocks, as of LocalEnv
+    #   each name identifier is re-written as follows:
+    #     the parms are 0..n_parms
+    #     at n_parms..k are all captured names (num.order)
+    #     at k..q are all other (num.order) (defined in block)
+    # in this way the env user in fun_call_ops will operate
+    # with a array.  LocalEnv has info on any lookup with
+    # names such as error-report (or one might think for
+    # symbol->string, but we don't re-write symbols but
+    # only naked names that are used in the block) we need
+    # mapping from this local index back to name index is
+    # needed.  the rebind mechanism will work almost as of
+    # now but may be made less general as it always rebinds parms,
+    # and simplified as we don't care about LEX_REF place-holders,
+    # that may instead re-use LEX_VOID.
     fun_parms = x[0]
     fun_captured = dict()
     for k in x[1]:
@@ -2295,7 +2357,7 @@ def init_macros(env, names):
     macros[NAM_QUASIQUOTE] = m_quasiquote
     macros[NAM_UNQUOTE] = m_unquote
     macros[NAM_UNQUOTE_SPLICE] = m_unquote_splice
-    macros[NAM_MACRO] = m_macro(macros)
+    macros[NAM_MACRO] = m_macro(macros, names)
     with_new_name("gensym", m_gensym(names), macros, names)
     for a, b in [
             ("define", m_define),
