@@ -617,7 +617,7 @@ def parse(s, names, macros, env_keys):
     t = parse_i(s, names, macros)
     u = unbound(t, set(env_keys), True)
     if not u:
-        zloc_scopes(t, None, names)
+        zloc_scopes(t, None)
         return t
     a = []
     for y in u:
@@ -630,45 +630,65 @@ def parse(s, names, macros, env_keys):
 
 class LocalEnv:
 
-    def __init__(self, parms, captured, names):
-        self.parms = parms
-        self.captured = captured
+    def __init__(self, parms, captured):
+        self.n_parms = len(parms)
+        self.names = parms + captured
+        self.n_init = len(self.names)
 
-    def rewrite(self, y):
-        return y
+    def rewrite_name(self, n):
+        return intern(n, self.names)
 
-def zloc_scopes(t, local_env, names):
+    def rewrite_names(self, c):
+        assert type(c) == list
+        r = []
+        for n in c:
+            r.append(self.rewrite_name(n))
+        return r
+
+    def activation(self, captured):
+        r = [None] * len(self.names)
+        for i, v in enumerate(captured):
+            r[i + self.n_parms] = v
+        return r
+
+def zloc_scopes(t, local_env):
     for i, x in enumerate(t):
         if type(x) != list:
-            if x[0] == LEX_NAM:
+            if x[0] in (LEX_NAM, LEX_REF):
                 if local_env:
-                    t[i] = (x[0], local_env.rewrite(x[1]))
+                    t[i] = (x[0], local_env.rewrite_name(x[1]))
             elif x[0] in (LEX_LIST, LEX_NONLIST):
-                zloc_scopes(x[1], local_env, names)
+                t[i] = (x[0], zloc_scopes(x[1], local_env))
             elif x[0] == LEX_SPLICE:
-                zloc_scopes([x[1]], local_env, names)
+                t[i] = (x[0], zloc_scopes([x[1]], local_env)[0])
             continue
         if x[0] in (OP_IMPORT, OP_EXPORT):
             continue
         if x[0] == OP_DEFINE:
-            zloc_scopes([x[2]], local_env, names)
+            if local_env:
+                x[1] = local_env.rewrite_name(x[1])
+            x[2:] = zloc_scopes([x[2]], local_env)
             continue
         if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
-            local_env = LocalEnv(x[1], x[2], names)
-            zloc_scopes(x[3:], local_env, names)
-            x[1] = local_env
+            c = sorted(x[2])
+            fun_env = LocalEnv(x[1], c)
+            x[3:] = zloc_scopes(x[3:], fun_env)
+            x[1] = fun_env
+            if local_env:
+                c = local_env.rewrite_names(c)
+            x[2] = c
             continue
         if x[0] == OP_COND:
-            zloc_scopes(x[1:], local_env, names)
+            x[1:] = zloc_scopes(x[1:], local_env)
             continue
         if x[0] == OP_REBIND:
-            # todo: x[1] shall be simply a number of args to rebind, as those
-            # will all be parms, which will be using local names 0..n
+            x[1] = local_env.rewrite_names(x[1])
             continue
         if x[0] == OP_SEQ:
-            zloc_scopes(x[1:], local_env, names)
+            x[1:] = zloc_scopes(x[1:], local_env)
             continue
-        zloc_scopes(x, local_env, names)
+        t[i] = zloc_scopes(x, local_env)
+    return t
 
 ##
 # builtin macros
@@ -930,7 +950,7 @@ def m_macro(macros, names):
             if dot:
                 y = without_dot(y)
         block = s[3:]
-        zloc_scopes(block, None, names)
+        zloc_scopes(block, None)
         parms = []
         for p in y:
             mchk_or_fail(p[0] == LEX_NAM, "macro params must be names")
@@ -2139,25 +2159,26 @@ def fun_call(a):
 def fun_call_ops(x, args):
     dot = x[0] == VAR_FUN_DOT
     captured = x[1]
-    parms = x[2].parms
+    le = x[2]
     block = x[3]
     done = False
     while not done:
-        env = dict(captured)
+        env = le.activation(captured)
         if dot:
-            last = len(parms) - 1
+            last = le.n_parms - 1
             if len(args) < last:
                 raise SchemeRunError("fun-dot expected %d args got %d"
-                        % (len(parms), len(args)))
+                        % (le.n_parms, len(args)))
             for i in range(last):
-                env[parms[i]] = args[i]
-            env[parms[last]] = [VAR_LIST, list(args[last:])]
+                env[i] = args[i]
+            env[last] = [VAR_LIST, list(args[last:])]
         else:
-            if len(args) != len(parms):
+            if len(args) != le.n_parms:
                 raise SchemeRunError("fun expected %d args got %d"
-                        % (len(parms), len(args)))
+                        % (le.n_parms, len(args)))
             for i, v in enumerate(args):
-                env[parms[i]] = v
+                env[i] = v
+        # consuder: move above into the def activation
         done = True
         for w in block:
             v = xeval(w, env)
@@ -2171,7 +2192,6 @@ def fun_call_ops(x, args):
                     debug("iter-apply", a)
                     args = a[1:]
                     captured, le, block = a[0][1:]
-                    parms = le.parms
                     dot = a[0][0] == VAR_FUN_DOT
                     done = False
     return v
@@ -2194,21 +2214,21 @@ def make_fun(up, x, fun_dot):
     # now but may be made less general as it always rebinds parms,
     # and simplified as we don't care about LEX_REF place-holders,
     # that may instead re-use LEX_VOID.
-    fun_parms = x[0]
-    fun_captured = dict()
+    local_env = x[0]
+    captured = []
     for k in x[1]:
-        fun_captured[k] = up[k]
+        captured.append(up[k])
     fun_block = x[2:]
     t = VAR_FUN_DOT if fun_dot else VAR_FUN
-    return [t, fun_captured, fun_parms, fun_block]
+    return [t, captured, local_env, fun_block]
 
 def rebind(fun_env, ids, env):
-    for i, v in fun_env.items():
+    if type(env) != list:
+        broken("rebind in global-env")
+    for i, v in enumerate(fun_env):
         if v[0] == LEX_REF:
-            debug("bind", i, env[i])
-            assert v[1] == i
-            assert i in ids
-            fun_env[i] = env[i]
+            debug("bind", i, v[1])
+            fun_env[i] = env[v[1]]
         # note: not needed to recurse on VAR_LIST
         #       from here -- rebind_r(v[1], ids, env)
 
@@ -2220,6 +2240,7 @@ def rebind_r(s, ids, env):
             rebind_r(x[1], ids, env)
 
 def rebind_args(ids, env):
+    print("rebind_args", ids, env)
     for i in ids:
         v = env[i]
         if v[0] in (VAR_FUN, VAR_FUN_DOT):
@@ -2665,11 +2686,13 @@ def vrepr(s, names):
     if s[0] in (VAR_FUN, VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
         if is_fun_ops(s):
+            le = s[2]
+            lnames = [names[k] for k in le.names]
             return "%s(%s)[%s]{ %s }" % (r,
-                    " ".join(names[i] for i in s[2]),
-                    " ".join("%s:%s" % (names[k], vrepr(v, names))
-                        for k, v in s[1].items()),
-                    " ".join(xrepr(x, names) for x in s[3]))
+                    " ".join(names[k] for k in le.names[:le.n_parms]),
+                    " ".join("%s:%s" % (lnames[k], vrepr(s[1][k], names))
+                        for k in range(le.n_parms, le.n_init)),
+                    " ".join(xrepr(x, lnames) for x in s[3]))
         else:
             return r
     if s[0] == VAR_FUN_DOT:
