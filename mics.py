@@ -35,9 +35,6 @@
 #
 # Missing:  (todo)
 #
-# -- the port from the input/output lambda may escape
-# so it must be ref-counted and not close in the
-# input/output function itself if so.
 # -- to/from string (as pipe and file)
 #
 # Excluded:  (non-features)
@@ -57,6 +54,7 @@
 # set! operates on the variable (no magic location concept)
 # make-list, prone to err i-e all to one int and the set!
 # char, but number parsed with utf-8 on #\ support.
+# port closes when input/output lambda done (don't keep).
 #
 # Excluded in this PYTHON implementation:
 # peek-byte (as no ungetc)
@@ -83,8 +81,7 @@ quotes  = "'`,"  #| - their LEX_ codes.
 
 # syntax tree
 
-LEX_SYM        = 14  #| expanded quoted name
-LEX_REF        = 15  #| tmp for re-bind
+LEX_SYM        = 15  #| expanded quoted name
 LEX_VOID       = 16
 LEX_NUM        = 17
 LEX_BOOL       = 18
@@ -111,8 +108,7 @@ LEX_NONLIST    = (1 << 7)
 BIT_VAR        = (1 << 14)
 
 # offsets with LEX_
-# no SYM 14
-# no REF 15
+# no SYM 15
 VAR_VOID       = 16 + BIT_VAR
 VAR_NUM        = 17 + BIT_VAR
 VAR_BOOL       = 18 + BIT_VAR
@@ -140,11 +136,10 @@ VAR_FUN_DOT    = (1 << 9) + BIT_VAR
 OP_DEFINE      = 0xC02
 OP_LAMBDA      = 0xC03
 OP_LAMBDA_DOT  = 0xC04
-OP_REBIND      = 0xC05
-OP_COND        = 0xC06
-OP_SEQ         = 0xC07
-OP_IMPORT      = 0xC08
-OP_EXPORT      = 0xC09
+OP_COND        = 0xC05
+OP_SEQ         = 0xC06
+OP_IMPORT      = 0xC07
+OP_EXPORT      = 0xC08
 
 # known names
 
@@ -161,6 +156,7 @@ NAM_LENGTH     = 9   #|
 NAM_APPLY      = 10  #| .
 NAM_LIST       = 11  #| used for conversions of macro-argument
 NAM_NONLIST    = 12  #| into data-variable representation.
+NAM_SETJJ      = 13  #| for letrec, letrecx
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -175,6 +171,7 @@ nam_length = (LEX_NAM, NAM_LENGTH)
 nam_apply = (LEX_NAM, NAM_APPLY)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
+nam_setjj = (LEX_NAM, NAM_SETJJ)
 
 ##
 # diagnostics
@@ -588,11 +585,6 @@ def locate_unbound(s, y):
             continue
         if x[0] in (OP_IMPORT, OP_EXPORT):
             continue
-        if x[0] == OP_REBIND:
-            broken("name be hit prior")
-            if y in x[1]:
-                return x
-            continue
         if x[0] == OP_SEQ:
             r = locate_unbound(x[1:], y)
             if r:
@@ -626,7 +618,7 @@ def parse(s, names, macros, env_keys):
             a.append(info_unbound(x, names))
         else:
             a.append("(reportedly) %s" % (names[y],))
-    raise SchemeSrcError("unbound:\n" + "\n".join(a))
+    raise SchemeSrcError("unbound,\n" + "\n".join(a))
 
 class LocalEnv:
 
@@ -654,7 +646,7 @@ class LocalEnv:
 def zloc_scopes(t, local_env):
     for i, x in enumerate(t):
         if type(x) != list:
-            if x[0] in (LEX_NAM, LEX_REF):
+            if x[0] == LEX_NAM:
                 if local_env:
                     t[i] = (x[0], local_env.rewrite_name(x[1]))
             elif x[0] in (LEX_LIST, LEX_NONLIST):
@@ -680,9 +672,6 @@ def zloc_scopes(t, local_env):
             continue
         if x[0] == OP_COND:
             x[1:] = zloc_scopes(x[1:], local_env)
-            continue
-        if x[0] == OP_REBIND:
-            x[1] = local_env.rewrite_names(x[1])
             continue
         if x[0] == OP_SEQ:
             x[1:] = zloc_scopes(x[1:], local_env)
@@ -771,18 +760,48 @@ def bnd_unzip(s):
         v.append(y)
     return a, v
 
-def m_let(s):
+def recset(let):
+    a = let[0][1]
+    u = let[0][2]
+    b = []
+    for z in a:
+        assert z < 0
+        n = -z
+        b.append(n)
+        let[0].insert(3, [nam_setjj, (LEX_NAM, n), (LEX_NAM, z)])
+    u.add(NAM_SETJJ)
+    u.update(b)
+    u.update(unbound(let[1:], a, False))
+
+def rectmp(let, a):
+    u = let[0][2]
+    v = []
+    for z in a:
+        assert z >= 0
+        v.append((LEX_VOID,))
+    w = set(u)
+    w.difference_update(a)
+    return [[OP_LAMBDA, a, w, let], *v]
+
+def m_let(s, rec=False):
     margc_must_ge("let", s, 2)
     if type(s[1]) != list and s[1][0] == LEX_NAM:
         return named_let(s)
     lbd = [OP_LAMBDA]
     a, v = bnd_unzip(s[1])
+    if rec:
+        t = a
+        a = [-z for z in t]
     lbd.append(a)
     lbd.append(unbound(s[2:], set(a), True))
     lbd.extend(s[2:])
-    return [lbd, *v]
+    r = [lbd, *v]
+    if rec:
+        recset(r)
+        r = rectmp(r, t)
+    return r
 
-def m_letx(s):
+def m_letx(s, rec=False):
     margc_must_ge("let*", s, 2)
     block = s[2:]
     if not block:
@@ -790,32 +809,32 @@ def m_letx(s):
     mchk_or_fail(type(s[1]) == list, "let*.1 expected sub-form")
     if not s[1]:
         return [[OP_LAMBDA, [], unbound(block, {}, True), *block]]
+    t = []
     for z in reversed(s[1]):
         lbd = [OP_LAMBDA]
         x, y = z
         mchk_or_fail(x[0] == LEX_NAM, "let* expects name in form")
         a = [x[1]]
+        if rec:
+            t.extend(a)
+            a = [-a[0]]
         lbd.append(a)
         lbd.append(unbound(block, set(a), True))
         lbd.extend(block)
-        block = [[lbd, y]]
-    return block[0]
-
-def rec(let):
-    a = let[0][1]
-    u = let[0][2]
-    let[0].insert(3, [OP_REBIND, a])
-    v = []
-    for z in a:
-        v.append((LEX_REF, z))
-    u.update(unbound(let[1:], a, False))
-    return [[OP_LAMBDA, a, u, let], *v]
+        r = [lbd, y]
+        if rec:
+            recset(r)
+        block = [r]
+    r = block[0]
+    if rec:
+        r = rectmp(r, t)
+    return r
 
 def m_letrec(s):
-    return rec(m_let(s))
+    return m_let(s, True)
 
 def m_letrecx(s):
-    return rec(m_letx(s))
+    return m_letx(s, True)
 
 def named_let(s):
     name = s[1]
@@ -1624,9 +1643,9 @@ def f_setj(*args):
     return f_setjj(*args)
 
 def f_setjj(*args):
-    fargc_must_eq("set!", args, 2);
-    args[0][0] = args[1][0]
-    args[0][1] = args[1][1]
+    fargc_must_eq("set!!", args, 2);
+    args[0].clear()
+    args[0].extend(args[1])
     return [VAR_VOID]
 
 def f_eqp(*args):
@@ -2197,23 +2216,6 @@ def fun_call_ops(x, args):
     return v
 
 def make_fun(up, x, fun_dot):
-    # todo:  implement and use LocalEnv as follows instead
-    # of being a no-op whom existence is merely validated.
-    # zloc_scopes does for all blocks, as of LocalEnv
-    #   each name identifier is re-written as follows:
-    #     the parms are 0..n_parms
-    #     at n_parms..k are all captured names (num.order)
-    #     at k..q are all other (num.order) (defined in block)
-    # in this way the env user in fun_call_ops will operate
-    # with a array.  LocalEnv has info on any lookup with
-    # names such as error-report (or one might think for
-    # symbol->string, but we don't re-write symbols but
-    # only naked names that are used in the block) we need
-    # mapping from this local index back to name index is
-    # needed.  the rebind mechanism will work almost as of
-    # now but may be made less general as it always rebinds parms,
-    # and simplified as we don't care about LEX_REF place-holders,
-    # that may instead re-use LEX_VOID.
     local_env = x[0]
     captured = []
     for k in x[1]:
@@ -2221,32 +2223,6 @@ def make_fun(up, x, fun_dot):
     fun_block = x[2:]
     t = VAR_FUN_DOT if fun_dot else VAR_FUN
     return [t, captured, local_env, fun_block]
-
-def rebind(fun_env, ids, env):
-    if type(env) != list:
-        broken("rebind in global-env")
-    for i, v in enumerate(fun_env):
-        if v[0] == LEX_REF:
-            debug("bind", i, v[1])
-            fun_env[i] = env[v[1]]
-        # note: not needed to recurse on VAR_LIST
-        #       from here -- rebind_r(v[1], ids, env)
-
-def rebind_r(s, ids, env):
-    for x in s:
-        if x[0] in (VAR_FUN, VAR_FUN_DOT):
-            rebind(x[1], ids, env)
-        if x[0] == VAR_LIST:
-            rebind_r(x[1], ids, env)
-
-def rebind_args(ids, env):
-    print("rebind_args", ids, env)
-    for i in ids:
-        v = env[i]
-        if v[0] in (VAR_FUN, VAR_FUN_DOT):
-            rebind(v[1], ids, env)
-        if v[0] == VAR_LIST:
-            rebind_r(v[1], ids, env)
 
 def flatten_splices(a):
     r = []
@@ -2298,8 +2274,6 @@ def xeval(x, env):
             return [VAR_UNQUOTE, x[1]]
         if x[0] == LEX_QUASIQUOTE:
             return [VAR_QUOTE, x[1]]
-        if x[0] == LEX_REF:
-            return x  # sticks till OP_REBIND
         if x[0] == LEX_VOID:
             return [VAR_VOID]
         if x[0] == LEX_DOT:
@@ -2322,9 +2296,6 @@ def xeval(x, env):
             if t[0] != VAR_BOOL or t[1]:
                 return xeval(y[1], env)
         raise SchemeRunError("all cond #f")
-    if x[0] == OP_REBIND:
-        rebind_args(x[1], env)
-        return [VAR_VOID]
     if x[0] == OP_IMPORT:
         e = Overlay(i_env)
         for z in x[2:]:
@@ -2413,6 +2384,7 @@ def init_env(names):
     env[NAM_APPLY] = [VAR_FUN, f_apply]
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
+    env[NAM_SETJJ] = [VAR_FUN, f_setjj]
     with_new_name("display", [VAR_FUN, f_display(names)], env, names)
     with_new_name("error", [VAR_FUN, f_error(names)], env, names)
     with_new_name("symbol->string", [VAR_FUN, f_symbol_to_string(names)],
@@ -2437,7 +2409,6 @@ def init_env(names):
             ("member", f_member),
             ("assoc", f_assoc),
             ("set!", f_setj),
-            ("set!!", f_setjj),
             ("eq?", f_eqp),
             ("equal?", f_equalp),
             ("cdr", f_cdr),
@@ -2556,7 +2527,7 @@ def inc_macros(names, env, macros):
 
 def init_top():
     global filename
-    N = 13
+    N = 14
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -2571,6 +2542,7 @@ def init_top():
     names[NAM_APPLY] = "apply"
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
+    names[NAM_SETJJ] = "set!!"
     assert N == len(names)
     env = init_env(names)
     macros = init_macros(env, names)
@@ -2599,11 +2571,9 @@ def xrepr(s, names):
             return "#<define %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
         if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
-            return "#<(%s)[%s] %s #>" % (
-                    " ".join(names[i] for i in s[1]),
-                    " ".join(names[i] for i in s[2]), xrepr(s[3], names))
-        if s[0] == OP_REBIND:
-            return "#<rebind %s #>" % (" ".join(names[i] for i in s[1]))
+            return "#<(%d)[%s] %s #>" % (s[1].n_parms,
+                    " ".join(str(i) for i in s[2]),
+                    xrepr(s[3], names))
         if s[0] == OP_COND:
             return "#<cond%s #>" % (
                     "".join(" [%s %s]" % (xrepr(a, names), xrepr(b, names))
@@ -2630,8 +2600,6 @@ def xrepr(s, names):
         return "'%s" % (names[s[1]],)
     if s[0] == LEX_NAM:
         return names[s[1]]
-    if s[0] == LEX_REF:
-        return "##%s" % (names[s[1]],)
     if s[0] == LEX_NUM:
         return str(s[1])
     if s[0] == LEX_STRING:
