@@ -33,10 +33,6 @@
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
 #
-# Missing:  (todo)
-#
-# -- to/from string (as pipe and file)
-#
 # Excluded:  (non-features)
 #
 # Multi-value, eval, call/cc, dyn-param, exception.
@@ -55,9 +51,6 @@
 # make-list, prone to err i-e all to one int and the set!
 # char, but number parsed with utf-8 on #\ support.
 # port closes when input/output lambda done (don't keep).
-#
-# Excluded in this PYTHON implementation:
-# peek-byte (as no ungetc)
 #
 
 ##
@@ -1226,13 +1219,12 @@ def is_cons(y):
     return isinstance(y, Cons)
 
 class Cons:
-
-    # note: non-recursive impls
-
     def __init__(self, a, d):
         self.a = a  # CAR will be a VAR_xyz
         self.d = d  # CDR will be a Cons (not VAR_CONS) or None,
         #             or in case of a non-list will be a VAR_xyz
+
+    # note: non-recursive impls
 
     def xcopy(self, n):
         r = c = Cons(self.a, self.d)
@@ -2041,25 +2033,54 @@ def f_exit(*args):
     fargt_must_eq("exit", args, 0, VAR_NUM)
     sys.exit(args[0][1])
 
-def f_input_from_file(*args):
-    fn = "input-from-file"
-    fargt_must_eq(fn, args, 0, VAR_STRING)
-    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
-    f = open(args[0][1], "rb")
-    p = [VAR_PORT, f]
-    r = fun_call([args[1], p])
-    f.close()
-    return r
+def read_line_(read_byte):
+    a = []
+    while True:
+        b = read_byte()
+        if not b:
+            if not a:
+                return None
+            break
+        c = ord(b)
+        if c == 10:
+            break
+        a.append(c)
+    return bytes(a).decode("utf-8")
 
-def f_output_to_file(*args):
-    fn = "output-to-file"
+class File:
+    def __init__(self, f):
+        self.f = f
+
+    def __del__(self):
+        self.f.close()
+
+    def read_byte(self):
+        return self.f.read(1)
+
+    def read_line(self):
+        return read_line_(self.read_byte)
+
+    def _complete_write(self, b):
+        i = 0
+        n = len(b)
+        while i != n:
+            i += self.f.write(b[i:])
+
+    def write_byte(self, i):
+        self._complete_write(bytes([i]))
+
+    def write_string(self, s):
+        self._complete_write(s.encode("utf-8"))
+
+def f_input_file(*args):
+    fn = "input-file"
     fargt_must_eq(fn, args, 0, VAR_STRING)
-    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
-    f = open(args[0][1], "wb")
-    p = [VAR_PORT, f]
-    r = fun_call([args[1], p])
-    f.close()
-    return r
+    return [VAR_PORT, File(open(args[0][1], "rb"))]
+
+def f_output_file(*args):
+    fn = "output-file"
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    return [VAR_PORT, File(open(args[0][1], "wb"))]
 
 def f_eof_objectp(*args):
     fargc_must_eq("eof-object?", args, 1)
@@ -2069,8 +2090,8 @@ def f_read_byte(*args):
     fn = "read-byte"
     fargt_must_eq(fn, args, 0, VAR_PORT)
     f = args[0][1]
-    b = f.read(1)
-    if not b:
+    b = f.read_byte()
+    if b is None:
         return [VAR_EOF]
     return [VAR_NUM, ord(b)]
 
@@ -2078,41 +2099,23 @@ def f_read_line(*args):
     fn = "read-line"
     fargt_must_eq(fn, args, 0, VAR_PORT)
     f = args[0][1]
-    a = []
-    while True:
-        b = f.read(1)
-        if not b:
-            return [VAR_EOF]
-        c = ord(b)
-        if c == 10:
-            break
-        a.append(c)
-    s = bytes(a).decode("utf-8")
+    s = f.read_line()
+    if s is None:
+        return [VAR_EOF]
     return [VAR_STRING, s]
-
-def complete_write(b, f):
-    i = 0
-    n = len(b)
-    while i != n:
-        i += f.write(b[i:])
 
 def f_write_byte(*args):
     fn = "write-byte"
     fargt_must_eq(fn, args, 0, VAR_NUM)
     fargt_must_eq(fn, args, 1, VAR_PORT)
-    f = args[1][1]
-    b = bytes([args[0][1]])
-    complete_write(b, f)
+    args[1][1].write_byte(args[0][1])
     return [VAR_VOID]
 
 def f_write_string(*args):
     fn = "write-string"
     fargt_must_eq(fn, args, 0, VAR_STRING)
     fargt_must_eq(fn, args, 1, VAR_PORT)
-    f = args[1][1]
-    s = args[0][1]
-    b = s.encode("utf-8")
-    complete_write(b, f)
+    args[1][1].write_string(args[0][1])
     return [VAR_VOID]
 
 import subprocess
@@ -2127,10 +2130,10 @@ def f_input_from_pipe(*args):
                 % (fn, fargt_repr(e[0])))
         a.append(e[1])
     u = subprocess.Popen(a, stdout=subprocess.PIPE)
-    f = u.stdout
+    f = File(u.stdout)
     p = [VAR_PORT, f]
     r = fun_call([args[1], p])
-    f.close()
+    del f, p
     c = u.wait()
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
@@ -2144,12 +2147,71 @@ def f_output_to_pipe(*args):
                 % (fn, fargt_repr(e[0])))
         a.append(e[1])
     u = subprocess.Popen(a, stdin=subprocess.PIPE)
-    f = u.stdin
+    f = File(u.stdin)
     p = [VAR_PORT, f]
     r = fun_call([args[1], p])
-    f.close()
+    del f, p  # contract:  port reference kept in fun will hang here
     c = u.wait()
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
+
+class InStringFile:
+    def __init__(self, b):
+        self.i = 0
+        self.b = b
+
+    def read_byte(self):
+        if self.i == len(self.b):
+            return None
+        r = self.b[self.i]
+        self.i += 1
+        return chr(r)
+
+    def read_line(self):
+        return read_line_(self.read_byte)
+
+def f_in_string(*args):
+    fargt_must_eq("in-string", args, 0, VAR_STRING)
+    b = args[0][1].encode("utf-8")
+    return [VAR_PORT, InStringFile(b)]
+
+def f_in_string_bytes(*args):
+    fn = "in-string-bytes"
+    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    b = []
+    for e in normal_list(args[0][1]):
+        fchk_or_fail(e[0] == VAR_NUM, "%s got %s expects number"
+                % (fn, fargt_repr(e[0])))
+        b.append(e[1])
+    return [VAR_PORT, InStringFile(b)]
+
+class OutStringFile:
+    def __init__(self):
+        self.b = []
+
+    def write_byte(self, i):
+        self.b.append(i)
+
+    def write_string(self, s):
+        self.b.extend(s.encode("utf-8"))
+
+def f_out_string(*args):
+    fargc_must_eq("out-string", args, 0)
+    return [VAR_PORT, OutStringFile()]
+
+def f_out_string_get(*args):
+    fargt_must_eq("out-string-get", args, 0, VAR_PORT)
+    fchk_or_fail(isinstance(args[0][1], OutStringFile),
+            "%s got output-port")
+    return [VAR_STRING, bytes(args[0][1].b).decode("utf-8")]
+
+def f_out_string_get_bytes(*args):
+    fargt_must_eq("out-string-get-bytes", args, 0, VAR_PORT)
+    fchk_or_fail(isinstance(args[0][1], OutStringFile),
+            "%s got output-port")
+    r = []
+    for i in args[0][1].b:
+        r.append([VAR_NUM, i])
+    return [VAR_LIST, r]
 
 ##
 # the core
@@ -2451,15 +2513,20 @@ def init_env(names):
             ("string<?", f_stringltp),
             ("string>?", f_stringgtp),
             ("exit", f_exit),
-            ("input-from-file", f_input_from_file),
-            ("input-from-pipe", f_input_from_pipe),
             ("eof-object?", f_eof_objectp),
+            ("input-file", f_input_file),
+            ("output-file", f_output_file),
             ("read-byte", f_read_byte),
             ("read-line", f_read_line),
-            ("output-to-file", f_output_to_file),
-            ("output-to-pipe", f_output_to_pipe),
             ("write-byte", f_write_byte),
-            ("write-string", f_write_string)]:
+            ("write-string", f_write_string),
+            ("input-from-pipe", f_input_from_pipe),
+            ("output-to-pipe", f_output_to_pipe),
+            ("out-string", f_out_string),
+            ("out-string-get", f_out_string_get),
+            ("out-string-get-bytes", f_out_string_get_bytes),
+            ("in-string", f_in_string),
+            ("in-string-bytes", f_in_string_bytes)]:
         with_new_name(a, [VAR_FUN, b], env, names)
 
     return env

@@ -359,6 +359,13 @@ test(""" [ define y 1 ]
 (chk '(2 3 4) (cdr '(1 2 3 4)))
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
 (let tco ((a 789)) (if (zero? a) 0 (apply tco (list (- a 1)))))
+(let ((f (out-string))) (write-string "HEY\n" f)
+  (list (out-string-get f)
+        (out-string-get-bytes f)));
+(let ((f (in-string "foo"))) (read-line f));
+(let ((f (in-string-bytes '(120 120 10 120))))
+  (list (read-line f)
+         (read-byte f)));
 (list->string '(#\\Ø #\\i #\\e #\\n))
 """)
 
