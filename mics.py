@@ -313,6 +313,16 @@ def unescape_string(s):
                 c = "\n"
             if c == "r":
                 c = "\r"
+            if c == "0":
+                b = 0
+                while i + 1 != n:
+                    c = s[i + 1]
+                    if c not in "01234567":
+                        break
+                    b *= 8
+                    b += int(c)
+                    i += 1
+                c = chr(b)
         a.append(c)
         i += 1
     return "".join(a)
@@ -325,9 +335,14 @@ def intern(name, names):
         names.append(name)
         return i
 
+def sysln(s):
+    if s.startswith("#!"):
+        return s.index("\n")
+    return 0
+
 def lex(s, names):
     n = len(s)
-    i = 0
+    i = sysln(s)
     a = []
     while i != n:
         t, i = tok(s, i)
@@ -705,6 +720,11 @@ def m_define(s):
     d = s[2]
     u = unbound([d], set(), False)
     if i in u:
+        # todo:  trivial cases such as (define i (+ i 1))
+        #        fails, while the tested lambda cases works.
+        #        when using another symbol for y, the
+        #        non-lambda (immediate) case works, but then
+        #        the tests report unbound.
         y = (LEX_NAM, i)
         return [OP_DEFINE, i,
                 m_letrec([-99, [[y, d]], y])]
@@ -1550,7 +1570,7 @@ def f_divide(*args):
 
 def f_div(*args):
     n, d = div(args)
-    return [VAR_LIST,
+    return [VAR_NONLIST,
             [[VAR_NUM, n // d],
             [VAR_NUM, n % d]]]
 
@@ -1806,8 +1826,9 @@ def f_string_to_list(*args):
     return [VAR_LIST, [[VAR_NUM, ord(c)] for c in args[0][1]]]
 
 def f_list_to_string(*args):
-    fargt_must_eq("list->string", args, 0, VAR_LIST)
-    return [VAR_STRING, "".join([chr(n[1]) for n in args[0][1]])]
+    fargt_must_in("list->string", args, 0, (VAR_LIST, VAR_CONS))
+    return [VAR_STRING, "".join([chr(n[1])
+        for n in normal_list(args[0][1])])]
 
 def f_symbol_to_string(names):
     def to_name_string(*args):
@@ -2256,7 +2277,7 @@ def fun_call_ops(x, args):
                         % (le.n_parms, len(args)))
             for i, v in enumerate(args):
                 env[i] = v
-        # consuder: move above into the def activation
+        # consider: move above into the def activation
         done = True
         for w in block:
             v = xeval(w, env)
