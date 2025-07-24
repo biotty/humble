@@ -6,8 +6,8 @@
 #
 # Features:
 #
-# Checked parens-pairs (), [] and {} (no meanings)
-# Optimized "tail call" (by deferred-apply variable)
+# Checked parens-pairs (), [] and {} - no meanings
+# Optimized "tail call" - impl/w deferred-apply var
 # Contigous (non)lists until cdr-usage on which list-
 # variable transforms to a cons chain.
 # The dict type (an alist with efficient repr)
@@ -15,42 +15,39 @@
 # import of file (that needs "export" as first expr)
 # define@ -- define with list values (no multi-value)
 # seq -- lexical block without own scope
-# scope -- an import with contents (not loading file)
-#       -- export certain names
-#       -- "here document" import
+# scope -- an import with contents, not loading file
+#       -- export certain names from "here-doc"
 # Record type -- not provided for user -- but;
 # define-record-type provided as a macro
-# cadar combinations
-# nonlist function (like list)
-# Most functions and special forms as specified in r7rs
-# but limited for math and very limited for IO:
-# input-from-file output-to-file
+# Cadar combinations
+# A nonlist function (like list)
+# Functions and special forms as specified in r7rs
+# But limited for math and a very basic IO:
+# input-file output-file
 # write-byte read-byte eof-object?
-# peek-byte read-line write-string
+# read-line write-string
 # input-from-pipe output-to-pipe exit
-# ( string-io is utf-8 and there is no "file-mode".
-# for byte access there are byte-io functions. )
+# IO is utf-8 and there is no "file-mode".
+# For byte access there are byte-io functions. )
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
+# in-string and out-string provides port interface
 #
 # Excluded:  (non-features)
 #
-# Multi-value, eval, call/cc, dyn-param, exception.
-# force-delay
+# Multi-value, eval, call/cc, dyn-param, except, force-delay
 # str->sym (because parse-time intern of all names)
 # Implicit quoting in case (we evaluate the <datum>s)
 # Other commenting than ; and #| .. |#
 # Label-syntax for data-loops, or output-representation
-# float, exact, complex, char, only number
-# Unicode specials as specified in r7rs
-# No |n a m e s|
-# Limited port ops; all "with" mechanism (implicit close)
-# FS/System ops, as there is input-from-pipe
+# Float, exact, complex, char, only number
+# No |n a m e s| and no fold-case mode
+# FS/System ops, as there is i.e input-from-pipe
 # define-syntax; instead powerful "unhygienic" lisp macro
 # set! operates on the variable (no magic location concept)
-# make-list, prone to err i-e all to one int and the set!
-# char, but number parsed with utf-8 on #\ support.
-# port closes when input/output lambda done (don't keep).
+# Make-list, prone to err i-e all to one int and the set!
+# Char, but number parsed for #\ and with utf-8 support.
+# pipe-port closes when input/output lambda done (don't keep).
 #
 
 ##
@@ -2691,21 +2688,21 @@ def is_fun_ops(s):
     assert len(s) == 2
     return False
 
-def vrepr(s, names):
+def vrepr(s, names, rf=True):
     if s[0] in (VAR_LIST, VAR_NONLIST):
-        w  = [vrepr(x, names) for x in s[1]]
+        w  = [vrepr(x, names, rf) for x in s[1]]
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
         return "(%s)" % " ".join(w)
     if s[0] == VAR_SPLICE:
         return "#@(%s)" % " ".join(
-                vrepr(x, names) for x in s[1])
+                vrepr(x, names, rf) for x in s[1])
     if s[0] == VAR_CONS:
         # alt: show as usual
         if s[1] is None:
             return "#:()"
         else:
-            return "#:%s" % vrepr(s[1].to_list_var(), names)
+            return "#:%s" % vrepr(s[1].to_list_var(), names, rf)
     if s[0] == VAR_NAM:
         return names[s[1]]
     if s[0] == VAR_NUM:
@@ -2716,17 +2713,19 @@ def vrepr(s, names):
         if s[1] is None:
             return "#{}"
         return "#{ " + " ".join(
-                ["(%s . %s)" % (vrepr(x, names), vrepr(y, names))
+                ["(%s . %s)" % (vrepr(x, names, rf), vrepr(y, names, rf))
                     for x, y in s[1].ditems()]) + " }"
     if s[0] in (VAR_FUN, VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
-        if is_fun_ops(s):
+        if is_fun_ops(s) and rf:
             le = s[2]
             lnames = [names[k] for k in le.names]
+            p = le.n_parms
             return "%s(%s)[%s]{ %s }" % (r,
-                    " ".join(names[k] for k in le.names[:le.n_parms]),
-                    " ".join("%s:%s" % (lnames[k], vrepr(s[1][k], names))
-                        for k in range(le.n_parms, le.n_init)),
+                    " ".join(lnames[:p]),
+                    "|".join("%s %s"
+                        % (lnames[k], vrepr(s[1][k - p], names, False))
+                        for k in range(p, le.n_init)),
                     " ".join(xrepr(x, lnames) for x in s[3]))
         else:
             return r
