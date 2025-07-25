@@ -9,15 +9,6 @@
 (stty "raw")
 (define in (input-file "/dev/tty"));
 
-; surprised i don't have number->string,
-; well let's implement it in my scheme
-(define (number->string i)
-  (let loop ((r '()) (k i))
-    (if (eq? k 0) (list->string r)
-      (let ((d (div k 10)))
-        (loop (cons (+ #\0 (cdr d)) r)
-              (car d))))))
-
 (define (pos row col)
   (let ((s (out-string)))
     (write-string "\033[" s)

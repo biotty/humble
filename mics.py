@@ -720,11 +720,9 @@ def m_define(s):
     d = s[2]
     u = unbound([d], set(), False)
     if i in u:
-        # todo:  trivial cases such as (define i (+ i 1))
-        #        fails, while the tested lambda cases works.
-        #        when using another symbol for y, the
-        #        non-lambda (immediate) case works, but then
-        #        the tests report unbound.
+        # permit define of recursive lambda by wrapping with
+        # a letrec.  this leaves immediate i-e (define i (+ i))
+        # "non-working", then instead use set!  'nuf said.
         y = (LEX_NAM, i)
         return [OP_DEFINE, i,
                 m_letrec([-99, [[y, d]], y])]
@@ -1352,14 +1350,12 @@ def fargc_must_ge(fn, args, n):
         fargs_count_fail(fn, len(args), n)
 
 def fargt_must_eq(fn, args, i, vt):
-    fargc_must_ge(fn, args, i + 1)
     if args[i][0] != vt:
         raise SchemeRunError("%s expected args[%d] %s got %s"
             % (fn, i,
                 fargt_repr(vt), fargt_repr(args[i][0])))
 
 def fargt_must_in(fn, args, i, vts):
-    fargc_must_ge(fn, args, i + 1)
     if args[i][0] not in vts:
         raise SchemeRunError("%s args[%d] accepts %r got %s"
             % (fn, i, "/".join(fargt_repr(vt) for vt in vts),
@@ -1373,7 +1369,9 @@ def f_nonlist(*args):
     return [VAR_NONLIST, list(args)]
 
 def f_list_copy(*args):
-    fargt_must_in("list-copy", args, 0, (VAR_LIST, VAR_CONS))
+    fn = "list-copy"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
     return [VAR_LIST, normal_list(args[0][1])]
 
 def f_cons(*args):
@@ -1385,7 +1383,9 @@ def f_cons(*args):
     return [VAR_NONLIST, list(args)]
 
 def f_car(*args):
-    fargt_must_in("car", args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fn = "car"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
     if args[0][0] in (VAR_LIST, VAR_NONLIST):
         return args[0][1][0]
     assert args[0][0] == VAR_CONS
@@ -1409,7 +1409,9 @@ def f_list_ref(*args):
     return args[0][1][args[1][1]]
 
 def f_cdr(*args):
-    fargt_must_in("cdr", args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fn = "cdr"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
     t = args[0][0]
     a = args[0][1]
     if t != VAR_CONS:
@@ -1455,8 +1457,9 @@ def f_append(*args):
     return [VAR_CONS, r]
 
 def f_set_carj(*args):
-    fargc_must_eq("set-car!", args, 2)
-    fargt_must_in("set-car!", args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fn = "set-car!"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
     if args[0][0] == VAR_CONS:
         args[0][1].a = args[1]
     else:
@@ -1464,8 +1467,9 @@ def f_set_carj(*args):
     return [VAR_VOID]
 
 def f_set_cdrj(*args):
-    fargc_must_eq("set-cdr!", args, 2)
-    fargt_must_in("set-cdr!", args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fn = "set-cdr!"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
     if args[1][0] in (VAR_LIST, VAR_NONLIST):
         args[1][1] = to_cons(args[1])
         args[1][0] = VAR_CONS
@@ -1486,9 +1490,9 @@ def f_set_cdrj(*args):
 
 def f_list_tail(*args):
     fn = "list-tail"
-    fargc_must_eq(fn, args, 2);
-    fargt_must_eq(fn, args, 1, VAR_NUM)
+    fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_eq(fn, args, 1, VAR_NUM)
     n = args[1][1]
     r = to_cons(args[0])
     args[0][1] = r
@@ -1502,9 +1506,9 @@ def f_list_tail(*args):
 
 def f_list_setj(*args):
     fn = "list-set!"
-    fargc_must_eq(fn, args, 3);
-    fargt_must_eq(fn, args, 1, VAR_NUM)
+    fargc_must_eq(fn, args, 3)
     fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_eq(fn, args, 1, VAR_NUM)
     n = args[1][1]
     if args[0][0] == VAR_LIST:
         args[0][1][n] = args[2]
@@ -1522,8 +1526,10 @@ def f_reverse(*args):
     return r
 
 def f_take(*args):
-    fargt_must_in("take", args, 1, (VAR_CONS, VAR_LIST))
-    fargt_must_eq("take", args, 0, VAR_NUM)
+    fn = "take"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    fargt_must_in(fn, args, 1, (VAR_CONS, VAR_LIST))
     n = args[0][1]
     if args[1][0] == VAR_LIST:
         return [VAR_LIST, args[1][1][:n]]
@@ -1531,8 +1537,8 @@ def f_take(*args):
 
 def f_pluss(*args):
     r = 0
-    for x in args:
-        fchk_or_fail(x[0] == VAR_NUM, "+ expects number")
+    for i, x in enumerate(args):
+        fargt_must_eq("+", args, i, VAR_NUM)
         r += x[1]
     return [VAR_NUM, r]
 
@@ -1541,53 +1547,55 @@ def f_minus(*args):
     if len(args) == 1:
         return [VAR_NUM, -args[0][1]]
     r = args[0][1]
-    for x in args[1:]:
-        fchk_or_fail(x[0] == VAR_NUM, "- expects number")
+    for i, x in enumerate(args[1:], 1):
+        fargt_must_eq("-", args, i, VAR_NUM)
         r -= x[1]
     return [VAR_NUM, r]
 
 def f_multiply(*args):
     r = 1
-    for x in args:
-        fchk_or_fail(x[0] == VAR_NUM, "* expects number")
+    for i, x in enumerate(args):
+        fargt_must_eq("*", args, i, VAR_NUM)
         r *= x[1]
     return [VAR_NUM, r]
 
-def div(args):
-    fargt_must_eq("div", args, 0, VAR_NUM)
+def rdiv(args, fn):
+    fargt_must_eq(fn, args, 0, VAR_NUM)
     n = args[0][1]
     d = 1
-    for x in args[1:]:
-        fchk_or_fail(x[0] == VAR_NUM, "div expects number")
+    for i, x in enumerate(args[1:], 1):
+        fargt_must_eq(fn, args, i, VAR_NUM)
         d *= x[1]
         if d > n * 2:
             break
     return n, d
 
 def f_divide(*args):
-    n, d = div(args)
+    n, d = rdiv(args, "/")
     return [VAR_NUM, n // d]
 
 def f_div(*args):
-    n, d = div(args)
+    n, d = rdiv(args, "div")
     return [VAR_NONLIST,
             [[VAR_NUM, n // d],
             [VAR_NUM, n % d]]]
 
 def f_max(*args):
-    fargt_must_eq("max", args, 0, VAR_NUM)
+    fn = "max"
+    fargt_must_eq(fn, args, 0, VAR_NUM)
     r = args[0][1]
-    for x in args[1:]:
-        fchk_or_fail(x[0] == VAR_NUM, "max expects number")
+    for i, x in enumerate(args[1:], 1):
+        fargt_must_eq(fn, args, i, VAR_NUM)
         if x[1] > r:
             r = x[1]
     return [VAR_NUM, r]
 
 def f_min(*args):
-    fargt_must_eq("min", args, 0, VAR_NUM)
+    fn = "min"
+    fargt_must_eq(fn, args, 0, VAR_NUM)
     r = args[0][1]
-    for x in args[1:]:
-        fchk_or_fail(x[0] == VAR_NUM, "min expects number")
+    for i, x in enumerate(args[1:], 1):
+        fargt_must_eq(fn, args, i, VAR_NUM)
         if x[1] < r:
             r = x[1]
     return [VAR_NUM, r]
@@ -1596,32 +1604,32 @@ def f_abs(*args):
     fargt_must_eq("abs", args, 0, VAR_NUM)
     return [VAR_NUM, abs(args[0][1])]
 
-def n1_pred(args, pred):
-    fargt_must_eq("<predicate>", args, 0, VAR_NUM)
+def n1_pred(args, fn, pred):
+    fargt_must_eq(fn, args, 0, VAR_NUM)
     return [VAR_BOOL, pred(args[0][1])]
 
 def f_zerop(*args):
-    return n1_pred(args, lambda x: x == 0)
+    return n1_pred(args, "zero?", lambda x: x == 0)
 
 def f_positivep(*args):
-    return n1_pred(args, lambda x: x > 0)
+    return n1_pred(args, "positive?", lambda x: x > 0)
 
 def f_negativep(*args):
-    return n1_pred(args, lambda x: x < 0)
+    return n1_pred(args, "negative?", lambda x: x < 0)
 
 def f_evenp(*args):
-    return n1_pred(args, lambda x: x % 2 == 0)
+    return n1_pred(args, "even?", lambda x: x % 2 == 0)
 
 def f_oddp(*args):
-    return n1_pred(args, lambda x: x % 2 == 1)
+    return n1_pred(args, "odd?", lambda x: x % 2 == 1)
 
-def n2_pred(args, pred):
+def n2_pred(args, fn, pred):
     r = True
     if len(args) > 1:
-        fchk_or_fail(args[0][0] == VAR_NUM, "<pred> expects number")
+        fargt_must_eq(fn, args, 0, VAR_NUM)
         n = args[0][1]
-        for x in args[1:]:
-            fchk_or_fail(x[0] == VAR_NUM, "<pred>.. expects number")
+        for i, x in enumerate(args[1:], 1):
+            fargt_must_eq(fn, args, i, VAR_NUM)
             if not pred(n, x[1]):
                 r = False
                 break
@@ -1629,36 +1637,44 @@ def n2_pred(args, pred):
     return [VAR_BOOL, r]
 
 def f_eq(*args):
-    return n2_pred(args, lambda x, y: x == y)
+    return n2_pred(args, "=", lambda x, y: x == y)
 
 def f_lt(*args):
-    return n2_pred(args, lambda x, y: x < y)
+    return n2_pred(args, "<", lambda x, y: x < y)
 
 def f_gt(*args):
-    return n2_pred(args, lambda x, y: x > y)
+    return n2_pred(args, ">", lambda x, y: x > y)
 
 def f_lte(*args):
-    return n2_pred(args, lambda x, y: x <= y)
+    return n2_pred(args, "<=", lambda x, y: x <= y)
 
 def f_gte(*args):
-    return n2_pred(args, lambda x, y: x >= y)
+    return n2_pred(args, ">=", lambda x, y: x >= y)
+
+def setjj(a, b, fn):
+    if id(a) == id(b):
+        warning("%s self-ref %s" % (fn, fargt_repr(a[0])))
+    else:
+        a.clear()
+        a.extend(b)
+    return [VAR_VOID]
 
 def f_setj(*args):
-    fargc_must_eq("set!", args, 2);
+    fn = "set!"
+    fargc_must_eq(fn, args, 2)
     if args[0][0] != args[1][0]:
         raise SchemeRunError("set! %s with %s"
                 % (var_type_names[args[0][0]],
                     var_type_names[args[1][0]]))
-    return f_setjj(*args)
+    return setjj(args[0], args[1], fn)
 
 def f_setjj(*args):
-    fargc_must_eq("set!!", args, 2);
-    args[0].clear()
-    args[0].extend(args[1])
-    return [VAR_VOID]
+    fn = "set!!"
+    fargc_must_eq(fn, args, 2)
+    return setjj(args[0], args[1], fn)
 
 def f_eqp(*args):
-    fargc_must_eq("eq?", args, 2);
+    fargc_must_eq("eq?", args, 2)
     if args[0][0] != args[1][0]:
         return [VAR_BOOL, False]
     if args[0][0] in (VAR_LIST, VAR_NONLIST):
@@ -1669,7 +1685,7 @@ def f_eqp(*args):
     return [VAR_BOOL, args[0][1] == args[1][1]]
 
 def f_equalp(*args):
-    fargc_must_eq("equal?", args, 2);
+    fargc_must_eq("equal?", args, 2)
     # note: DICT do not undergo value-comparison --
     #       it shall differ with itself under equal
     if (args[0][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)
@@ -1712,8 +1728,10 @@ class Dict:
     def ditems(self):
         return [([self.t, k], v) for k, v in self.d.items()]
 
-def f_alist_to_dict(*args):
-    fargt_must_in("alist->dict", args, 0, (VAR_LIST, VAR_CONS))
+def f_alist_z_dict(*args):
+    fn = "alist->dict"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
     d = []
     for x in normal_list(args[0][1]):
         if x[0] == VAR_CONS:
@@ -1729,16 +1747,17 @@ def f_alist_to_dict(*args):
         return [VAR_DICT, None]
     return [VAR_DICT, Dict(d)]
 
-def f_dict_to_alist(*args):
-    fargt_must_eq("dict->alist", args, 0, VAR_DICT)
+def f_dict_z_alist(*args):
+    fn = "dict->alist"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_DICT)
     d = [] if args[0][1] is None else args[0][1].ditems()
-    return [VAR_LIST, [[VAR_NONLIST, [a, b]]
-        for a, b in d]]
+    return [VAR_LIST, [[VAR_NONLIST, [a, b]] for a, b in d]]
 
 def f_dict_setj(*args):
     fn = "dict-set!"
-    fargt_must_eq(fn, args, 0, VAR_DICT)
     fargc_must_eq(fn, args, 3)
+    fargt_must_eq(fn, args, 0, VAR_DICT)
     if args[0][1] is None:
         args[0][1] = Dict([[args[1], args[2]]])
         return [VAR_VOID]
@@ -1753,8 +1772,8 @@ def f_dict_setj(*args):
 
 def f_dict_get_defaultj(*args):
     fn = "dict-get-default!"
-    fargt_must_eq(fn, args, 0, VAR_DICT)
     fargc_must_eq(fn, args, 3)
+    fargt_must_eq(fn, args, 0, VAR_DICT)
     if args[0][1] is None:
         args[0][1] = Dict([[args[1], args[2]]])
         return args[2]
@@ -1772,6 +1791,7 @@ def f_dict_get_defaultj(*args):
 
 def f_dict_if_get(*args):
     fn = "dict-if-get"
+    fargc_must_eq(fn, args, 4)
     fargt_must_eq(fn, args, 0, VAR_DICT)
     fargt_must_in(fn, args, 3, (VAR_FUN, VAR_FUN_DOT))
     if args[0][1] is None:
@@ -1785,7 +1805,7 @@ def f_dict_if_get(*args):
     return xapply([args[3], v])
 
 def f_dictp(*args):
-    return typep(args, VAR_DICT)
+    return typep(args, "dict?", VAR_DICT)
 
 class Record:
     def __init__(self, nam, values):
@@ -1797,12 +1817,14 @@ def f_make_record(*args):
 
 def f_record_get(*args):
     fn = "record-get"
+    fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 0, VAR_REC)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     return args[0][1].values[args[1][1]]
 
 def f_record_setj(*args):
     fn = "record-set!"
+    fargc_must_eq(fn, args, 3)
     fargt_must_eq(fn, args, 0, VAR_REC)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     args[0][1].values[args[1][1]] = args[2]
@@ -1810,39 +1832,42 @@ def f_record_setj(*args):
 
 def f_recordp(*args):
     fn = "record?"
+    fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 0, VAR_REC)
     fargt_must_eq(fn, args, 1, VAR_NAM)
     return [VAR_BOOL, args[0][1].nam == args[1][1]]
 
 def f_string_ref(*args):
     fn = "string-ref"
-    fargc_must_eq(fn, args, 2);
+    fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     return [VAR_NUM, args[0][1][args[1][1]]]
 
-def f_string_to_list(*args):
+def f_string_z_list(*args):
     fargt_must_eq("string->list", args, 0, VAR_STRING)
     return [VAR_LIST, [[VAR_NUM, ord(c)] for c in args[0][1]]]
 
-def f_list_to_string(*args):
+def f_list_z_string(*args):
     fargt_must_in("list->string", args, 0, (VAR_LIST, VAR_CONS))
     return [VAR_STRING, "".join([chr(n[1])
         for n in normal_list(args[0][1])])]
 
-def f_symbol_to_string(names):
+def f_symbol_z_string(names):
     def to_name_string(*args):
         fargt_must_eq("symbol->string", args, 0, VAR_NAM)
         return [VAR_STRING, names[args[0][1]]]
     return to_name_string
 
 def f_substring(*args):
-    fargt_must_eq("substring", args, 0, VAR_STRING)
-    fargt_must_eq("substring", args, 1, VAR_NUM)
+    fn = "substring"
+    fargc_must_ge(fn, args, 2)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_eq(fn, args, 1, VAR_NUM)
     s = args[0][1]
     i = args[1][1]
-    if len(args) >=3:
-        fargt_must_eq("substring", args, 2, VAR_NUM)
+    if len(args) >= 3:
+        fargt_must_eq(fn, args, 2, VAR_NUM)
         j = args[2][1]
         r = s[i:j]
     else:
@@ -1851,49 +1876,83 @@ def f_substring(*args):
 
 def f_string_append(*args):
     r = []
-    for (i, a) in enumerate(args):
-        if a[0] != VAR_STRING:
-            raise SchemeRunError("string-append args[%d] got %s"
-                % (i, fargt_repr(a[0])))
-        r.append(a[1])
+    for (i, x) in enumerate(args):
+        fargt_must_eq("string-append", args, i, VAR_STRING)
+        r.append(x[1])
     return [VAR_STRING, "".join(r)]
 
+def stringpred(args, fn, pred):
+    fargc_must_eq(fn, args, 2)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_eq(fn, args, 1, VAR_STRING)
+    return [VAR_BOOL, pred(args[0][1], args[1][1])]
+
 def f_stringeqp(*args):
-    fargt_must_eq("string=?", args, 0, VAR_STRING)
-    fargt_must_eq("string=?", args, 1, VAR_STRING)
-    return [VAR_BOOL, args[0][1] == args[1][1]]
+    return stringpred(args, "string=?", lambda x, y: x == y)
 
 def f_stringltp(*args):
-    fargt_must_eq("string<?", args, 0, VAR_STRING)
-    fargt_must_eq("string<?", args, 1, VAR_STRING)
-    return [VAR_BOOL, args[0][1] < args[1][1]]
+    return stringpred(args, "string<?", lambda x, y: x < y)
 
 def f_stringgtp(*args):
-    fargt_must_eq("string>?", args, 0, VAR_STRING)
-    fargt_must_eq("string>?", args, 1, VAR_STRING)
-    return [VAR_BOOL, args[0][1] > args[1][1]]
+    return stringpred(args, "string>?", lambda x, y: x > y)
 
-def typep(args, t):
-    fargc_must_eq("<t-pred>", args, 1);
+def f_string_z_number(*args):
+    fn = "string->number"
+    fargc_must_ge(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    radix = 0
+    if len(args) > 1:
+        fargt_must_eq(fn, args, 1, VAR_NUM)
+        radix = args[1][1]
+    try:
+        return [VAR_NUM, int(args[0][1], radix)]
+    except ValueError:
+        raise SchemeRunError("%s %s with radix %d"
+                % (fn, args[0][1], radix))
+
+def f_number_z_string(*args):
+    fn = "number->string"
+    fargc_must_ge(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    b = "d"
+    if len(args) > 1:
+        fargt_must_eq(fn, args, 1, VAR_NUM)
+        radix = args[1][1]
+        if radix == 2:
+            b = "b"
+        elif radix == 8:
+            b = "o"
+        elif radix == 10:
+            pass
+        elif radix == 16:
+            b = "x"
+        else:
+            raise SchemeRunError("%s %s with radix %d"
+                    % (fn, args[0][1], radix))
+    return [VAR_STRING, format(args[0][1], b)]
+
+def typep(args, fn, t):
+    fargc_must_eq(fn, args, 1)
     return [VAR_BOOL, t == args[0][0]]
 
 def f_booleanp(*args):
-    return typep(args, VAR_BOOL)
+    return typep(args, "boolean?", VAR_BOOL)
 
 def f_numberp(*args):
-    return typep(args, VAR_NUM)
+    return typep(args, "number?", VAR_NUM)
 
 def f_procedurep(*args):
-    r = typep(args, VAR_FUN)
+    fn = "procedure?"
+    r = typep(args, fn, VAR_FUN)
     if not r[1]:
-        r = typep(args, VAR_FUN_DOT)
+        r = typep(args, fn, VAR_FUN_DOT)
     return r
 
 def f_symbolp(*args):
-    return typep(args, LEX_NAM)
+    return typep(args, "symbol?", LEX_NAM)
 
 def f_nullp(*args):
-    r = typep(args, VAR_LIST)
+    r = typep(args, "null?", VAR_LIST)
     if r[1]:
         r[1] = (0 == len(args[0][1]))
     elif args[0][0] == VAR_CONS:
@@ -1907,7 +1966,7 @@ def f_listp(*args):
                 return c
             c = c.d
         return c
-    r = typep(args, VAR_LIST)
+    r = typep(args, "list?", VAR_LIST)
     if r[1]:
         r[1] = (0 != len(args[0][1]))
     elif args[0][0] == VAR_CONS:
@@ -1916,16 +1975,17 @@ def f_listp(*args):
     return r
 
 def f_pairp(*args):
-    r = typep(args, VAR_NONLIST)
-    if r[1]:
-        return r
-    elif args[0][0] == VAR_CONS:
-        r[1] = args[0][1] is not None
-        return r
-    return f_listp(args)
+    fargc_must_eq("pair?", args, 1)
+    if args[0][0] == VAR_NONLIST:
+        return [VAR_BOOL, True]
+    if args[0][0] == VAR_LIST:
+        return [VAR_BOOL, len(args[0][1]) != 0]
+    if args[0][0] == VAR_CONS:
+        return [VAR_BOOL, args[0][1] is not None]
+    return [VAR_BOOL, False]
 
 def f_not(*args):
-    fargc_must_eq("not", args, 1);
+    fargc_must_eq("not", args, 1)
     return [VAR_BOOL, args[0] == [VAR_BOOL, False]]
 
 def f_display(names):
@@ -1940,12 +2000,14 @@ def f_display(names):
     return display
 
 def f_newline(*args):
-    fargc_must_eq("newline", args, 0);
+    fargc_must_eq("newline", args, 0)
     sys.stdout.write("\n")
     return [VAR_VOID]
 
 def f_length(*args):
-    fargt_must_in("length", args, 0, (VAR_CONS, VAR_LIST))
+    fn = "length"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
     if args[0][0] == VAR_CONS:
         if args[0][1] is None:
             r = 0
@@ -1956,16 +2018,18 @@ def f_length(*args):
     return [VAR_NUM, r]
 
 def f_apply(*args):
-    fargt_must_in("apply", args, 1, (VAR_CONS, VAR_LIST))
+    fn = "apply"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 1, (VAR_CONS, VAR_LIST))
     return xapply([args[0]] + normal_list(args[1][1]))
 
 def f_map(*args):
-    fargt_must_in("map", args, 0, (VAR_FUN, VAR_FUN_DOT))
+    fn = "map"
+    fargt_must_in(fn, args, 0, (VAR_FUN, VAR_FUN_DOT))
     f = args[0]
     inputs = []
     for j in range(1, len(args)):
-        fchk_or_fail(args[j][0] in (VAR_LIST, VAR_CONS),
-                "map expects list")
+        fargt_must_in(fn, args, j, (VAR_LIST, VAR_CONS))
         inputs.append(normal_list(args[j][1]))
     n = min(len(y) for y in inputs)
     r = []
@@ -2092,20 +2156,22 @@ class File:
 
 def f_input_file(*args):
     fn = "input-file"
+    fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     return [VAR_PORT, File(open(args[0][1], "rb"))]
 
 def f_output_file(*args):
     fn = "output-file"
+    fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     return [VAR_PORT, File(open(args[0][1], "wb"))]
 
 def f_eof_objectp(*args):
-    fargc_must_eq("eof-object?", args, 1)
-    return [VAR_BOOL, args[0][0] == VAR_EOF]
+    return typep(args, "eof-object?", VAR_EOF)
 
 def f_read_byte(*args):
     fn = "read-byte"
+    fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_PORT)
     f = args[0][1]
     b = f.read_byte()
@@ -2115,6 +2181,7 @@ def f_read_byte(*args):
 
 def f_read_line(*args):
     fn = "read-line"
+    fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_PORT)
     f = args[0][1]
     s = f.read_line()
@@ -2124,6 +2191,7 @@ def f_read_line(*args):
 
 def f_write_byte(*args):
     fn = "write-byte"
+    fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 0, VAR_NUM)
     fargt_must_eq(fn, args, 1, VAR_PORT)
     args[1][1].write_byte(args[0][1])
@@ -2131,6 +2199,7 @@ def f_write_byte(*args):
 
 def f_write_string(*args):
     fn = "write-string"
+    fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     fargt_must_eq(fn, args, 1, VAR_PORT)
     args[1][1].write_string(args[0][1])
@@ -2140,6 +2209,7 @@ import subprocess
 
 def f_input_from_pipe(*args):
     fn = "input-from-pipe"
+    fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
     fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
     a = []
@@ -2157,6 +2227,7 @@ def f_input_from_pipe(*args):
 
 def f_output_to_pipe(*args):
     fn = "output-to-pipe"
+    fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
     fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
     a = []
@@ -2188,12 +2259,15 @@ class InStringFile:
         return read_line_(self.read_byte)
 
 def f_in_string(*args):
-    fargt_must_eq("in-string", args, 0, VAR_STRING)
+    fn = "in-string"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
     b = args[0][1].encode("utf-8")
     return [VAR_PORT, InStringFile(b)]
 
 def f_in_string_bytes(*args):
     fn = "in-string-bytes"
+    fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
     b = []
     for e in normal_list(args[0][1]):
@@ -2217,13 +2291,17 @@ def f_out_string(*args):
     return [VAR_PORT, OutStringFile()]
 
 def f_out_string_get(*args):
-    fargt_must_eq("out-string-get", args, 0, VAR_PORT)
+    fn = "out-string-get"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_PORT)
     fchk_or_fail(isinstance(args[0][1], OutStringFile),
             "%s got output-port")
     return [VAR_STRING, bytes(args[0][1].b).decode("utf-8")]
 
 def f_out_string_get_bytes(*args):
-    fargt_must_eq("out-string-get-bytes", args, 0, VAR_PORT)
+    fn = "out-string-get-bytes"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_PORT)
     fchk_or_fail(isinstance(args[0][1], OutStringFile),
             "%s got output-port")
     r = []
@@ -2467,7 +2545,7 @@ def init_env(names):
     env[NAM_SETJJ] = [VAR_FUN, f_setjj]
     with_new_name("display", [VAR_FUN, f_display(names)], env, names)
     with_new_name("error", [VAR_FUN, f_error(names)], env, names)
-    with_new_name("symbol->string", [VAR_FUN, f_symbol_to_string(names)],
+    with_new_name("symbol->string", [VAR_FUN, f_symbol_z_string(names)],
             env, names)
     for a, b in [
             ("+", f_pluss),
@@ -2512,8 +2590,8 @@ def init_env(names):
             ("newline", f_newline),
             ("map", f_map),
             ("abs", f_abs),
-            ("alist->dict", f_alist_to_dict),
-            ("dict->alist", f_dict_to_alist),
+            ("alist->dict", f_alist_z_dict),
+            ("dict->alist", f_dict_z_alist),
             ("dict-set!", f_dict_setj),
             ("dict-get-default!", f_dict_get_defaultj),
             ("dict-if-get", f_dict_if_get),
@@ -2522,14 +2600,16 @@ def init_env(names):
             ("record-get", f_record_get),
             ("record-set!", f_record_setj),
             ("record?", f_recordp),
-            ("string->list", f_string_to_list),
-            ("list->string", f_list_to_string),
+            ("string->list", f_string_z_list),
+            ("list->string", f_list_z_string),
             ("string-ref", f_string_ref),
             ("substring", f_substring),
             ("string-append", f_string_append),
             ("string=?", f_stringeqp),
             ("string<?", f_stringltp),
             ("string>?", f_stringgtp),
+            ("string->number", f_string_z_number),
+            ("number->string", f_number_z_string),
             ("exit", f_exit),
             ("eof-object?", f_eof_objectp),
             ("input-file", f_input_file),
