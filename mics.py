@@ -49,6 +49,22 @@
 # Char, but number parsed for #\ and with utf-8 support.
 # pipe-port closes when input/output lambda done (don't keep).
 #
+# Known Bugs:
+#
+# case with no match and no else gives #f to car --
+# the fix in m_case is to add else branch when not exists.
+#
+# an octal escape above \0377 will encode uni-code point,
+# and not a byte part of the encoding.  maybe not expected.
+# hexadecimal escape missing.
+#
+
+# C-Only:
+#
+# (dynload) Load dynamic library that gets to register
+# a list of functions to initial environment.  An example
+# of curses is provided (but always "loaded" for python)
+#
 
 ##
 # code-points
@@ -114,6 +130,7 @@ VAR_SPLICE     = 27 + BIT_VAR
 VAR_APPLY      = 28 + BIT_VAR
 VAR_PORT       = 29 + BIT_VAR
 VAR_EOF        = 30 + BIT_VAR
+VAR_EXTRA      = 31 + BIT_VAR
 VAR_CONS       = (1 << 5) + BIT_VAR
 VAR_LIST       = (1 << 6) + BIT_VAR
 VAR_NONLIST    = (1 << 7) + BIT_VAR
@@ -354,7 +371,7 @@ def lex(s, names):
         elif t in par_end:
             v = (LEX_END, par_end.index(t), linenumber)
         elif (t[0] in "-+." and len(t) != 1) or t[0].isdigit():
-            v = (LEX_NUM, int(t))
+            v = (LEX_NUM, int(t, 0))
         elif t[0] == "#":
             if t[1] in "tf":
                 if len(t) == 2 or t[1:] in ("true", "false"):
@@ -535,7 +552,18 @@ def unbound(s, defs, is_block):
         if x[0] == OP_DEFINE:
             if not is_block:
                 raise SchemeSrcError("define in non-block")
-            r.update(unbound([x[2]], defs, False))
+            i = x[1]
+            u = unbound([x[2]], defs, False)
+            # if i in defs:
+            #    # if defined by means of itself, the wrap in
+            #    # a letrec done in m_define will use void
+            #    # (tmp.binding) instead of the previous value
+            #    # emitting this warning predicts this
+            #    # possibility, but if indeed so then when
+            #    # run an error on whatever usage of the void
+            #    # will happen.  i-e (define v v) is silent.
+            #    warning("re-define")
+            r.update(u)
             defs.add(x[1])
             continue
         if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
@@ -549,7 +577,7 @@ def unbound(s, defs, is_block):
             # note: no recurse, as checked when generating it
             continue
         if x[0] == OP_EXPORT:
-            # note: ignored by itself.  in import handled above
+            # note: ignored here -- import handled above
             continue
         if x[0] == OP_SEQ:
             for y in x[1:]:
@@ -816,7 +844,7 @@ def m_letx(s, rec=False):
         block = [(LEX_VOID,)]
     mchk_or_fail(type(s[1]) == list, "let*.1 expected sub-form")
     if not s[1]:
-        return [[OP_LAMBDA, [], unbound(block, {}, True), *block]]
+        return [[OP_LAMBDA, [], unbound(block, set(), True), *block]]
     t = []
     for z in reversed(s[1]):
         lbd = [OP_LAMBDA]
@@ -1325,7 +1353,7 @@ var_type_names = {
         VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
         VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply",
-        VAR_PORT: "port", VAR_EOF: "eof-object" }
+        VAR_PORT: "port", VAR_EOF: "eof-object", VAR_EXTRA: "extra" }
 
 def fargt_repr(vt):
     try:
@@ -2309,6 +2337,30 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
+from time import time, sleep
+
+JIFFIES_PER_SEOND = 1000
+zt = None
+
+def f_current_jiffy(*args):
+    fargc_must_eq("current-jiffy", args, 0)
+    r = 0
+    global zt
+    if not zt:
+        zt = time()
+    else:
+        r = int((time() - zt) * JIFFIES_PER_SEOND)
+    return [VAR_NUM, r]
+
+def f_pause(*args):
+    fn = "pause"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    p = args[0][1] / JIFFIES_PER_SEOND
+    if p > 0:
+        sleep(p)
+    return [VAR_VOID]
+
 ##
 # the core
 ##
@@ -2444,7 +2496,8 @@ def xeval(x, env):
     if len(x) == 0:
         broken("empty form")
     if x[0] == OP_DEFINE:
-        env[x[1]] = run(x[2], env)
+        v = run(x[2], env)
+        env[x[1]] = v
         return [VAR_VOID]
     if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
         return make_fun(env, x[1:], x[0] == OP_LAMBDA_DOT)
@@ -2624,7 +2677,9 @@ def init_env(names):
             ("out-string-get", f_out_string_get),
             ("out-string-get-bytes", f_out_string_get_bytes),
             ("in-string", f_in_string),
-            ("in-string-bytes", f_in_string_bytes)]:
+            ("in-string-bytes", f_in_string_bytes),
+            ("current-jiffy", f_current_jiffy),
+            ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN, b], env, names)
 
     return env
@@ -2690,7 +2745,7 @@ def inc_macros(names, env, macros):
     t = parse(s, names, macros, env.keys())
     run_top(t, env, names)
 
-def init_top():
+def init_top(extra_f=()):
     global filename
     N = 14
     names = [None] * N
@@ -2710,6 +2765,9 @@ def init_top():
     names[NAM_SETJJ] = "set!!"
     assert N == len(names)
     env = init_env(names)
+    for a, b in extra_f:
+        with_new_name(a, [VAR_FUN, b], env, names)
+
     macros = init_macros(env, names)
 
     filename = "inc-functions"
@@ -2723,6 +2781,54 @@ def init_top():
 
     filename = None
     return names, env, macros
+
+##
+# extra functions (example of injection atop interp)
+##
+
+import curses
+
+def ef_nc_initscr(*args):
+    fn = "nc-initscr"
+    fargc_must_eq(fn, args, 0)
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.curs_set(0)
+    stdscr.nodelay(1)
+    return [VAR_EXTRA, stdscr]
+
+def ef_nc_addstr(*args):
+    fn = "nc-addstr"
+    fargc_must_eq(fn, args, 4)
+    fargt_must_eq(fn, args, 0, VAR_EXTRA)
+    fargt_must_eq(fn, args, 1, VAR_NUM)
+    fargt_must_eq(fn, args, 2, VAR_NUM)
+    fargt_must_eq(fn, args, 3, VAR_STRING)
+    stdscr = args[0][1]
+    y = args[1][1]
+    x = args[2][1]
+    s = args[3][1]
+    stdscr.addstr(y, x, s)
+    return [VAR_VOID]
+
+def ef_nc_getch(*args):
+    fn = "nc-getch"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_EXTRA)
+    stdscr = args[0][1]
+    c = stdscr.getch()
+    return [VAR_NUM, c]
+
+def ef_nc_endwin(*args):
+    fn = "nc-endwin"
+    fargc_must_eq(fn, args, 0)
+    curses.endwin()
+    return [VAR_VOID]
+
+ef_nc = [("nc-initscr", ef_nc_initscr),
+        ("nc-addstr", ef_nc_addstr),
+        ("nc-getch", ef_nc_getch),
+        ("nc-endwin", ef_nc_endwin)]
 
 ##
 # ui
@@ -2789,21 +2895,21 @@ def is_fun_ops(s):
     assert len(s) == 2
     return False
 
-def vrepr(s, names, rf=True):
+def vrepr(s, names, q=None):
     if s[0] in (VAR_LIST, VAR_NONLIST):
-        w  = [vrepr(x, names, rf) for x in s[1]]
+        w  = [vrepr(x, names, q) for x in s[1]]
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
         return "(%s)" % " ".join(w)
     if s[0] == VAR_SPLICE:
         return "#@(%s)" % " ".join(
-                vrepr(x, names, rf) for x in s[1])
+                vrepr(x, names, q) for x in s[1])
     if s[0] == VAR_CONS:
         # alt: show as usual
         if s[1] is None:
             return "#:()"
         else:
-            return "#:%s" % vrepr(s[1].to_list_var(), names, rf)
+            return "#:%s" % vrepr(s[1].to_list_var(), names, q)
     if s[0] == VAR_NAM:
         return names[s[1]]
     if s[0] == VAR_NUM:
@@ -2814,18 +2920,24 @@ def vrepr(s, names, rf=True):
         if s[1] is None:
             return "#{}"
         return "#{ " + " ".join(
-                ["(%s . %s)" % (vrepr(x, names, rf), vrepr(y, names, rf))
+                ["(%s . %s)" % (vrepr(x, names, q), vrepr(y, names, q))
                     for x, y in s[1].ditems()]) + " }"
     if s[0] in (VAR_FUN, VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
-        if is_fun_ops(s) and rf:
+        if is_fun_ops(s):
             le = s[2]
-            lnames = [names[k] for k in le.names]
             p = le.n_parms
+            lnames = [names[k] for k in le.names]
+            g = id(s[1])
+            if not q:
+                q = set()
+            elif g in q:
+                return "..."
+            rf.add(g)
             return "%s(%s)[%s]{ %s }" % (r,
                     " ".join(lnames[:p]),
                     "|".join("%s %s"
-                        % (lnames[k], vrepr(s[1][k - p], names, False))
+                        % (lnames[k], vrepr(s[1][k - p], names, q))
                         for k in range(p, le.n_init)),
                     " ".join(xrepr(x, lnames) for x in s[3]))
         else:
@@ -2836,6 +2948,8 @@ def vrepr(s, names, rf=True):
         return "#~port"
     if s[0] == VAR_EOF:
         return "#~eof-object"
+    if s[0] == VAR_EXTRA:
+        return "#~extra"
     if s[0] == VAR_BOOL:
         if type(s[1]) != bool:
             warning("dirty bool")
@@ -2849,8 +2963,10 @@ def vrepr(s, names, rf=True):
     return "#~ %r" % (s,)
 
 if __name__ == "__main__":
+    # when running a file, add extra functions ncurses example.
+    # in C this could be a dynlib that loads and gets to register
     if len(sys.argv) == 2:
-        names, env, macros = init_top()
+        names, env, macros = init_top(ef_nc)
         filename = sys.argv[1]
         with open(filename) as f:
             try:
