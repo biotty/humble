@@ -366,6 +366,13 @@ test(""" [ define y 1 ]
 (let ((f (in-string-bytes '(120 120 10 120))))
   (list (read-line f)
          (read-byte f)));
-(list->string '(#\\Ø #\\i #\\e #\\n))
+(define (cls foo)
+  (define (get-foo) foo)
+  (define (set-foo! v) (set! foo v))
+  (class get-foo set-foo!))
+(define obj (cls 123))
+(obj 'set-foo! 321)
+(chk (obj 'get-foo) 321)
+(list->string '(#\\Ø 0x69 #\\e 0o156))
 """)
 

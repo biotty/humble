@@ -2741,6 +2741,16 @@ def inc_macros(names, env, macros):
     ,@getter-defs
     ,@setter-defs
 ))
+(macro class procs
+  (define (gen-case proc)
+    `((',proc) ,proc))
+  `(lambda (cmd . args)
+     (apply
+       (case cmd
+         ,@(map gen-case procs)
+         (else => error))
+       args))
+)
 """
     t = parse(s, names, macros, env.keys())
     run_top(t, env, names)
@@ -2868,7 +2878,7 @@ def xrepr(s, names):
     if s[0] == LEX_SPLICE:
         return "#<splice %s #>" % (xrepr(s[1], names),)
     if s[0] == LEX_SYM:
-        return "'%s" % (names[s[1]],)
+        return "'#|%d|#" % (s[1],)
     if s[0] == LEX_NAM:
         return names[s[1]]
     if s[0] == LEX_NUM:
@@ -2933,7 +2943,7 @@ def vrepr(s, names, q=None):
                 q = set()
             elif g in q:
                 return "..."
-            rf.add(g)
+            q.add(g)
             return "%s(%s)[%s]{ %s }" % (r,
                     " ".join(lnames[:p]),
                     "|".join("%s %s"
