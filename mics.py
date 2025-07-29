@@ -1822,15 +1822,15 @@ def f_dict_if_get(*args):
     fargc_must_eq(fn, args, 4)
     fargt_must_eq(fn, args, 0, VAR_DICT)
     fargt_must_in(fn, args, 3, (VAR_FUN, VAR_FUN_DOT))
-    if args[0][1] is None:
-        return xapply([args[3], v])
-    if args[0][1].t != args[1][0]:
+    if args[0][1] is None or args[0][1].t != args[1][0]:
         v = args[2]
-    try:
-        v = args[0][1].d[args[1][1]]
-    except KeyError:
-        v = args[2]
-    return xapply([args[3], v])
+    else:
+        try:
+            v = args[0][1].d[args[1][1]]
+            return xapply([args[3], v])
+        except KeyError:
+            v = args[2]
+    return v
 
 def f_dictp(*args):
     return typep(args, "dict?", VAR_DICT)
