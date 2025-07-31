@@ -1690,7 +1690,9 @@ def setjj(a, b, fn):
 def f_setj(*args):
     fn = "set!"
     fargc_must_eq(fn, args, 2)
-    if args[0][0] != args[1][0]:
+    if not ((args[0][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS)
+        and args[1][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS))
+        or args[0][0] == args[1][0]):
         raise SchemeRunError("set! %s with %s"
                 % (var_type_names[args[0][0]],
                     var_type_names[args[1][0]]))
@@ -2807,6 +2809,14 @@ def ef_nc_initscr(*args):
     stdscr.nodelay(1)
     return [VAR_EXTRA, stdscr]
 
+def ef_nc_getmaxyx(*args):
+    fn = "nc-getmaxyx"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_EXTRA)
+    stdscr = args[0][1]
+    y, x = stdscr.getmaxyx()
+    return [VAR_LIST, [[VAR_NUM, y], [VAR_NUM, x]]]
+
 def ef_nc_addstr(*args):
     fn = "nc-addstr"
     fargc_must_eq(fn, args, 4)
@@ -2827,6 +2837,9 @@ def ef_nc_getch(*args):
     fargt_must_eq(fn, args, 0, VAR_EXTRA)
     stdscr = args[0][1]
     c = stdscr.getch()
+    if c == curses.KEY_RESIZE:
+        ef_nc_endwin()
+        sys.exit(0)
     return [VAR_NUM, c]
 
 def ef_nc_endwin(*args):
@@ -2836,6 +2849,7 @@ def ef_nc_endwin(*args):
     return [VAR_VOID]
 
 ef_nc = [("nc-initscr", ef_nc_initscr),
+        ("nc-getmaxyx", ef_nc_getmaxyx),
         ("nc-addstr", ef_nc_addstr),
         ("nc-getch", ef_nc_getch),
         ("nc-endwin", ef_nc_endwin)]
