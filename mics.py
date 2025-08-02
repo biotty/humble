@@ -31,7 +31,7 @@
 # For byte access there are byte-io functions. )
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
-# in-string and out-string provides port interface
+# in-string and out-string provide port interface
 #
 # Excluded:  (non-features)
 #
@@ -111,7 +111,7 @@ LEX_NONLIST    = (1 << 7)
 
 # run-types
 
-BIT_VAR        = (1 << 14)
+BIT_VAR        = (1 << 15)
 
 # offsets with LEX_
 # no SYM 15
@@ -589,41 +589,41 @@ def unbound(s, defs, is_block):
     r.update(from_branches)
     return r
 
-def locate_unbound(s, y):
+def find_unbound(s, y):
     for x in s:
         if type(x) != list:
             if x[0] == LEX_NAM and x[1] == y:
                 return x
             r = None
             if x[0] in (LEX_LIST, LEX_NONLIST):
-                r = locate_unbound(x[1], y)
+                r = find_unbound(x[1], y)
             elif x[0] == LEX_SPLICE:
-                r = locate_unbound([x[1]], y)
+                r = find_unbound([x[1]], y)
             if r:
                 return r
             continue
         if x[0] == OP_DEFINE:
-            r = locate_unbound([x[2]], y)
+            r = find_unbound([x[2]], y)
             if r:
                 return r
             continue
         if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             if y in x[2]:
-                return locate_unbound(x[3:], y)
+                return find_unbound(x[3:], y)
             continue
         if x[0] == OP_COND:
-            r = locate_unbound(x[1:], y)
+            r = find_unbound(x[1:], y)
             if r:
                 return r
             continue
         if x[0] in (OP_IMPORT, OP_EXPORT):
             continue
         if x[0] == OP_SEQ:
-            r = locate_unbound(x[1:], y)
+            r = find_unbound(x[1:], y)
             if r:
                 return r
             continue
-        r = locate_unbound(x, y)
+        r = find_unbound(x, y)
         if r:
             return r
 
@@ -646,7 +646,7 @@ def parse(s, names, macros, env_keys):
         return t
     a = []
     for y in u:
-        x = locate_unbound(t, y)
+        x = find_unbound(t, y)
         if x:
             a.append(info_unbound(x, names))
         else:
@@ -676,6 +676,11 @@ class LocalEnv:
             r[i + self.n_parms] = v
         return r
 
+# meaning of "zloc" is: relocate the
+# identifiers in a lexical scope (lambda)
+# to use monotonically increasing indexes
+# as keys.  the code is rewritten to fit
+# the created LocalEnv
 def zloc_scopes(t, local_env):
     for i, x in enumerate(t):
         if type(x) != list:
@@ -1060,12 +1065,12 @@ def m_cond(s):
             return s[:i] + [[(LEX_BOOL, True),
                 m_begin([-99, *s[i][1:]])]]
         if len(s[i]) != 2:
+            s[i] = [s[i][0], m_begin([-99, *s[i][1:]])]
+        if blex(s[i][1]) == nam_then:
             break
         i += 1
     if i == n:
         return s
-    if blex(s[i][1]) != nam_then:
-        raise SchemeSrcError("cond expected =>")
     return s[:i] + [[(LEX_BOOL, True),
         m_let([-99, [[nam_then, s[i][0]]],
             m_cond([-99, [nam_then, [s[i][2], nam_then]], *s[i + 1:]])])]]
@@ -1232,7 +1237,7 @@ def m_import(names, macros):
 # on the variable.  set!! is needed to change its type.
 # list-set! replaces the list member and does not affect
 # the previous member variable.  special forms such as
-# DEFINE operates on the environment.
+# DEFINE operate on the environment itself.
 #
 # a list variable is represented by a contiguous container
 # until cdr-usage requires it to convert to a cons chain.
@@ -2339,6 +2344,18 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
+from random import randint
+
+def f_random(*args):
+    fn = "random"
+    fargc_must_ge(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    b = args[0][1]
+    if len(args) > 1:
+        fargt_must_eq(fn, args, 1, VAR_NUM)
+        a, b = b, args[1][1]
+    return [VAR_NUM, randint(a, b)]
+
 from time import time, sleep
 
 JIFFIES_PER_SEOND = 1000
@@ -2680,6 +2697,7 @@ def init_env(names):
             ("out-string-get-bytes", f_out_string_get_bytes),
             ("in-string", f_in_string),
             ("in-string-bytes", f_in_string_bytes),
+            ("random", f_random),
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN, b], env, names)
@@ -2806,7 +2824,15 @@ def ef_nc_initscr(*args):
     stdscr = curses.initscr()
     curses.noecho()
     curses.curs_set(0)
+    curses.start_color()
     stdscr.nodelay(1)
+    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+    curses.init_pair(7, curses.COLOR_WHITE, curses.COLOR_BLACK)
     return [VAR_EXTRA, stdscr]
 
 def ef_nc_getmaxyx(*args):
@@ -2819,16 +2845,21 @@ def ef_nc_getmaxyx(*args):
 
 def ef_nc_addstr(*args):
     fn = "nc-addstr"
-    fargc_must_eq(fn, args, 4)
+    fargc_must_ge(fn, args, 4)
     fargt_must_eq(fn, args, 0, VAR_EXTRA)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     fargt_must_eq(fn, args, 2, VAR_NUM)
     fargt_must_eq(fn, args, 3, VAR_STRING)
+    if len(args) >= 5:
+        fargt_must_eq(fn, args, 4, VAR_NUM)
+        c = args[4][1]
+    else:
+        c = 7
     stdscr = args[0][1]
     y = args[1][1]
     x = args[2][1]
     s = args[3][1]
-    stdscr.addstr(y, x, s)
+    stdscr.addstr(y, x, s, curses.color_pair(c))
     return [VAR_VOID]
 
 def ef_nc_getch(*args):
