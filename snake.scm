@@ -3,6 +3,11 @@
 (macro inc! (v) `(set! ,v (+ ,v 1)))
 (macro dec! (v) `(set! ,v (- ,v 1)))
 
+; ideas: * purple frog gives hazard direction after 3 turns
+;        * speedy toggle by space
+;        * show points and have ~/.games/snake.hiscore
+; bugs: * using trace color for erase, notice that first
+;         step has butt more than one initial head.  why.
 (define JPFR 100)
 (define JGOVER 800)
 (define GROWPF 6)
@@ -16,10 +21,10 @@
 (define (grid-set-str y x s c) (nc-addstr scr y (* x 2) s c))
 (define (grid-unset y x) (grid-set-str y x SP 7))
 (define (grid-sq y x c) (grid-set-str y x SQ c))
-(define (grid-wall y x) (grid-sq y x 2))
-(define (grid-snake y x) (grid-sq y x 3))
-(define (grid-frog y x) (grid-sq y x 6))
-(define (grid-bad y x) (grid-sq y x 1))
+(define (grid-wall . yx) (grid-sq @yx 2))
+(define (grid-snake . yx) (grid-sq @yx 3))
+(define (grid-frog . yx) (grid-sq @yx 6))
+(define (grid-bad . yx) (grid-sq @yx 1))
 (let loop ((x (- grid-width 1)))
   (when (>= x 1)
     (grid-wall 0 x) (grid-wall grid-height x) (loop (- x 1))))

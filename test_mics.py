@@ -236,8 +236,8 @@ test(""" [ define y 1 ]
 `(a ,(+ 1 2) ,(map abs '(4 -5 6)) b)
 ``,'e
 ``,(quote e)
-(let ((foo '(foo bar)) (@baz 'baz))
-  `(list ,@foo , @baz))
+(let ((foo '(foo bar)) (a@baz 'baz))
+  `(list ,@foo , a@baz))
 (macro xx (yy) (let ((zz (gensym))) `(list ',zz ,yy)))
 (xx 78)
 (cdr '(1 . 2))
@@ -374,5 +374,9 @@ test(""" [ define y 1 ]
 (obj 'set-foo! 321)
 (chk (obj 'get-foo) 321)
 (list->string '(#\\Ø 0x69 #\\e 0o156))
+(let ((li '(1 2 3)))
+  (chk (list @(list 1 2 3)) li)
+  (chk (list @li) li)
+  )
 """)
 

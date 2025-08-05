@@ -78,7 +78,8 @@ LEX_DOT        = 3
 LEX_QT         = 4
 LEX_QQ         = 5
 LEX_UNQ        = 6
-LEX_UNQ_SPLICE = 7
+LEX_UNQSPL     = 7  # <-- improve: do without this
+LEX_SPL        = 8
 
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
@@ -98,7 +99,7 @@ LEX_NAM        = 20
 LEX_QUOTE      = 23
 LEX_QUASIQUOTE = 24
 LEX_UNQUOTE    = 25
-LEX_UNQUOTE_SPLICE = 26
+LEX_UNQUOTE_SPLICE = 26  # <-- improve: do without this
 LEX_SPLICE     = 27
 # no APPLY 28
 # no VAR_PORT 29
@@ -294,6 +295,11 @@ def tok(s, i):
                 i += 1
                 if i == n:
                     raise SchemeSrcError("terminated in string at '\\'")
+    if s[i] == "@":
+        i += 1
+        if i == n:
+            raise SchemeSrcError("terminated at @")
+        return s[w : i], i
     if s[i] in quotes:
         i += 1
         if i == n:
@@ -406,7 +412,10 @@ def lex(s, names):
             v = (LEX_DOT,)
         elif t.startswith(",@"):
             assert len(t) == 2
-            v = (LEX_UNQ_SPLICE,)
+            v = (LEX_UNQSPL,)
+        elif t.startswith("@"):
+            assert len(t) == 1
+            v = (LEX_SPL,)
         elif t[0] in quotes:
             assert len(t) == 1
             v = (quotes.index(t[0]) + LEX_QT,)
@@ -439,7 +448,7 @@ def parse_r(z, i, paren_mode, d):
         elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
             r.append(s)
-        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQ_SPLICE):
+        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQSPL, LEX_SPL):
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
             assert len(x) == 1
             if c == LEX_QT:
@@ -448,8 +457,10 @@ def parse_r(z, i, paren_mode, d):
                 x = [nam_quasiquote, *x]
             elif c == LEX_UNQ:
                 x = [nam_unquote, *x]
-            elif c == LEX_UNQ_SPLICE:
+            elif c == LEX_UNQSPL:
                 x = [nam_unquote_splice, *x]
+            elif c == LEX_SPL:
+                x = (LEX_SPLICE, *x)
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
@@ -922,7 +933,7 @@ def quote(v, quasi):
     if quasi:
         if v[0] == LEX_UNQ:
             return (LEX_NAM, v[1])
-        if v[0] == LEX_UNQ_SPLICE:
+        if v[0] == LEX_UNQSPL:
             return (LEX_SPLICE, (LEX_NAM, v[1]))
         if v[0] == LEX_UNQUOTE:
             return v[1]
@@ -975,9 +986,13 @@ def from_lex(s):
         return from_lex([nam_nonlist, *s[1]])
     if s[0] == LEX_SYM:
         return from_lex([nam_quote, (LEX_NAM, s[1])])
+    if s[0] == LEX_SPLICE:
+        return [VAR_SPLICE, from_lex(s[1])]
+    if s[0] == LEX_VOID:
+        return (VAR_VOID,)
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
-        raise SchemeSrcError("from lex %s" % (xrepr(s),))
+        raise SchemeSrcError("from lex %r" % (s,))
     return [s[0] + BIT_VAR, s[1]]
 
 def to_lex(s):
@@ -987,12 +1002,12 @@ def to_lex(s):
         r = [to_lex(x) for x in s[1]]
         return with_dot(r) if s[0] == VAR_NONLIST else r
     if s[0] == VAR_SPLICE:
-        return (LEX_SPLICE, [to_lex(x) for x in s[1]])
+        return (LEX_SPLICE, to_lex(s[1]))
     if s[0] == VAR_VOID:
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
             VAR_QUOTE, VAR_UNQUOTE):
-        raise SchemeSrcError("to lex %s" % (vrepr(s),))
+        raise SchemeSrcError("to lex %r" % (s,))
     return (s[0] - BIT_VAR, s[1])
 
 def m_macro(macros, names):
@@ -1064,10 +1079,10 @@ def m_cond(s):
         if blex(s[i][0]) == nam_else:
             return s[:i] + [[(LEX_BOOL, True),
                 m_begin([-99, *s[i][1:]])]]
-        if len(s[i]) != 2:
-            s[i] = [s[i][0], m_begin([-99, *s[i][1:]])]
         if blex(s[i][1]) == nam_then:
             break
+        if len(s[i]) != 2:
+            s[i] = [s[i][0], m_begin([-99, *s[i][1:]])]
         i += 1
     if i == n:
         return s
@@ -2463,7 +2478,7 @@ def flatten_splices(a):
     return r
 
 def run_each(x, env):
-    return [run(y, env) for y in x]
+    return flatten_splices([run(y, env) for y in x])
 
 i_env = {}
 # initial subset of env -- conceptually part of
@@ -2472,10 +2487,10 @@ def xeval(x, env):
     debug("eval", x)
     if type(x) != list:
         if x[0] == LEX_LIST:
-            r = flatten_splices(run_each(x[1], env))
+            r = run_each(x[1], env)
             return [VAR_LIST, r]
         if x[0] == LEX_NONLIST:
-            r = flatten_splices(run_each(x[1], env))
+            r = run_each(x[1], env)
             if r[-1][0] == VAR_LIST:
                 a = r[-1][1]
                 return [VAR_LIST, r[:-1] + a]
