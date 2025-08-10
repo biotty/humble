@@ -78,8 +78,7 @@ LEX_DOT        = 3
 LEX_QT         = 4
 LEX_QQ         = 5
 LEX_UNQ        = 6
-LEX_UNQSPL     = 7  # <-- improve: do without this
-LEX_SPL        = 8
+LEX_SPL        = 7
 
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
@@ -99,7 +98,7 @@ LEX_NAM        = 20
 LEX_QUOTE      = 23
 LEX_QUASIQUOTE = 24
 LEX_UNQUOTE    = 25
-LEX_UNQUOTE_SPLICE = 26  # <-- improve: do without this
+# UNQUOTE_SPLICE no-need
 LEX_SPLICE     = 27
 # no APPLY 28
 # no VAR_PORT 29
@@ -155,8 +154,8 @@ NAM_THEN       = 0  #| identifiers pre-interned as syntax but also
 NAM_ELSE       = 1  #| to re-use for local names in a few macros
 NAM_QUOTE      = 2      #| quote-processing are performed by macros
 NAM_QUASIQUOTE = 3      #| on names
-NAM_UNQUOTE    = 4      #|
-NAM_UNQUOTE_SPLICE = 5  #| .
+NAM_UNQUOTE    = 4      #| .
+# 5
 NAM_MACRO      = 6   #| the macro macro; defines a user-macro
 NAM_CAR        = 7   #| names of functions used in some of the
 NAM_EQVP       = 8   #| language-macros
@@ -171,7 +170,6 @@ nam_else = (LEX_NAM, NAM_ELSE)
 nam_quote = (LEX_NAM, NAM_QUOTE)
 nam_quasiquote = (LEX_NAM, NAM_QUASIQUOTE)
 nam_unquote = (LEX_NAM, NAM_UNQUOTE)
-nam_unquote_splice = (LEX_NAM, NAM_UNQUOTE_SPLICE)
 nam_macro = (LEX_NAM, NAM_MACRO)
 nam_car = (LEX_NAM, NAM_CAR)
 nam_eqvp = (LEX_NAM, NAM_EQVP)
@@ -304,12 +302,6 @@ def tok(s, i):
         i += 1
         if i == n:
             raise SchemeSrcError("terminated at quote")
-        if s[i].isspace() or s[i].isdecimal():
-            return s[w : i], i
-        if s[i] == "@":
-            i += 1
-            if i == n:
-                raise SchemeSrcError("terminated at @")
         return s[w : i], i
     while s[i].isalnum() or s[i] in name_cs:
         i += 1
@@ -410,9 +402,6 @@ def lex(s, names):
         elif t.startswith("."):
             assert len(t) == 1
             v = (LEX_DOT,)
-        elif t.startswith(",@"):
-            assert len(t) == 2
-            v = (LEX_UNQSPL,)
         elif t.startswith("@"):
             assert len(t) == 1
             v = (LEX_SPL,)
@@ -448,7 +437,7 @@ def parse_r(z, i, paren_mode, d):
         elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
             r.append(s)
-        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_UNQSPL, LEX_SPL):
+        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_SPL):
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
             assert len(x) == 1
             if c == LEX_QT:
@@ -457,8 +446,6 @@ def parse_r(z, i, paren_mode, d):
                 x = [nam_quasiquote, *x]
             elif c == LEX_UNQ:
                 x = [nam_unquote, *x]
-            elif c == LEX_UNQSPL:
-                x = [nam_unquote_splice, *x]
             elif c == LEX_SPL:
                 x = (LEX_SPLICE, *x)
             else:
@@ -491,7 +478,12 @@ def with_dot(x):
     return x[:-1] + [(LEX_DOT, None), x[-1]]
 
 def expand_macros(t, macros, qq):
-    if type(t) != list or len(t) == 0:
+    if type(t) != list:
+        if t[0] == LEX_SPLICE:
+            t = (LEX_SPLICE, expand_macros(t[1], macros, qq))
+            debug("expand splice", t)
+        return t
+    if len(t) == 0:
         return t
     is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
     is_user = is_macro and hasattr(macros[t[0][1]], "user")
@@ -502,7 +494,7 @@ def expand_macros(t, macros, qq):
             is_quote = True
         elif t[0][1] == NAM_QUASIQUOTE:
             qq += 1
-        elif t[0][1] in (NAM_UNQUOTE, NAM_UNQUOTE_SPLICE):
+        elif t[0][1] == NAM_UNQUOTE:
             qq -= 1
             if qq == 0:
                 current = True
@@ -514,14 +506,12 @@ def expand_macros(t, macros, qq):
         # in addition to eventually on their output.
         args_exp = { NAM_QUOTE: macros[NAM_QUOTE],
                 NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
-                NAM_UNQUOTE: macros[NAM_UNQUOTE],
-                NAM_UNQUOTE_SPLICE: macros[NAM_UNQUOTE_SPLICE] }
+                NAM_UNQUOTE: macros[NAM_UNQUOTE] }
     elif is_quote:
         # normal quote arguments must not know of macros except
         # for quasi-quotation processing.
         args_exp = { NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
-                NAM_UNQUOTE: macros[NAM_UNQUOTE],
-                NAM_UNQUOTE_SPLICE: macros[NAM_UNQUOTE_SPLICE] }
+                NAM_UNQUOTE: macros[NAM_UNQUOTE] }
     else:
         args_exp = macros
     for i in range(len(t)):
@@ -933,14 +923,12 @@ def quote(v, quasi):
     if quasi:
         if v[0] == LEX_UNQ:
             return (LEX_NAM, v[1])
-        if v[0] == LEX_UNQSPL:
-            return (LEX_SPLICE, (LEX_NAM, v[1]))
         if v[0] == LEX_UNQUOTE:
             return v[1]
-        if v[0] == LEX_UNQUOTE_SPLICE:
-            return (LEX_SPLICE, v[1])
+        #if v[1] == LEX_SPLICE:
+        #    return (LEX_SPLICE, quote(v[1], quasi))
     if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-        raise SchemeSrcError("quote of %s" % (xrepr(v),))
+        raise SchemeSrcError("quote of %r" % (v,))
     return v
 
 def m_quote(s):
@@ -960,19 +948,14 @@ def m_unquote(s):
             return v[1]
         if v[0] == LEX_NONLIST:
             return with_dot(v[1])
-        if v[0] in (LEX_UNQ, LEX_NAM, LEX_UNQUOTE_SPLICE, LEX_UNQUOTE):
+        if v[0] in (LEX_UNQ, LEX_NAM, LEX_UNQUOTE):
             return (LEX_UNQUOTE, v)
         if v[0] == LEX_SYM:
             return (LEX_NAM, v[1])
         if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-            raise SchemeSrcError("unquote of %s" % (xrepr(v),))
-        # note: no (un)quote-level for literals)
+            raise SchemeSrcError("unquote of %r" % (v,))
         return v
     return unquote(s[1])
-
-def m_unquote_splice(s):
-    margc_must_eq("unquote-splice", s, 2)
-    return (LEX_UNQUOTE_SPLICE, s[1])
 
 def from_lex(s):
     if type(s) == list:
@@ -2593,7 +2576,6 @@ def init_macros(env, names):
     macros[NAM_QUOTE] = m_quote
     macros[NAM_QUASIQUOTE] = m_quasiquote
     macros[NAM_UNQUOTE] = m_unquote
-    macros[NAM_UNQUOTE_SPLICE] = m_unquote_splice
     macros[NAM_MACRO] = m_macro(macros, names)
     with_new_name("gensym", m_gensym(names), macros, names)
     for a, b in [
@@ -2799,7 +2781,6 @@ def init_top(extra_f=()):
     names[NAM_QUOTE] = "quote"
     names[NAM_QUASIQUOTE] = "quasiquote"
     names[NAM_UNQUOTE] = "unquote"
-    names[NAM_UNQUOTE_SPLICE] = "unquote-splice"
     names[NAM_MACRO] = "macro"
     names[NAM_CAR] = "car"
     names[NAM_EQVP] = "eqv?"
