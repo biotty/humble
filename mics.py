@@ -2342,21 +2342,32 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
-from random import randint
+from random import Random
 
-def f_random(*args):
-    fn = "random"
-    fargc_must_ge(fn, args, 1)
+def f_prng(*args):
+    fn = "prng"
+    fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_NUM)
-    b = args[0][1]
-    if len(args) > 1:
-        fargt_must_eq(fn, args, 1, VAR_NUM)
-        a, b = b, args[1][1]
-    return [VAR_NUM, randint(a, b)]
+    seed = args[0][1]
+    prng = Random(seed)
+    def r(*args):
+        fn = "prng.r"
+        fargc_must_ge(fn, args, 1)
+        fargt_must_eq(fn, args, 0, VAR_NUM)
+        b = args[0][1]
+        if len(args) > 1:
+            fargt_must_eq(fn, args, 1, VAR_NUM)
+            a, b = b, args[1][1]
+        return [VAR_NUM, prng.randint(a, b)]
+    return [VAR_FUN, r]
 
 from time import time, sleep
 
-JIFFIES_PER_SEOND = 1000
+def f_clock(*args):
+    fargc_must_eq("clock", args, 0)
+    return [VAR_NUM, int(time())]
+
+JIFFIES_PER_SECOND = 1000
 zt = None
 
 def f_current_jiffy(*args):
@@ -2366,14 +2377,14 @@ def f_current_jiffy(*args):
     if not zt:
         zt = time()
     else:
-        r = int((time() - zt) * JIFFIES_PER_SEOND)
+        r = int((time() - zt) * JIFFIES_PER_SECOND)
     return [VAR_NUM, r]
 
 def f_pause(*args):
     fn = "pause"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_NUM)
-    p = args[0][1] / JIFFIES_PER_SEOND
+    p = args[0][1] / JIFFIES_PER_SECOND
     if p > 0:
         sleep(p)
     return [VAR_VOID]
@@ -2694,7 +2705,8 @@ def init_env(names):
             ("out-string-get-bytes", f_out_string_get_bytes),
             ("in-string", f_in_string),
             ("in-string-bytes", f_in_string_bytes),
-            ("random", f_random),
+            ("prng", f_prng),
+            ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN, b], env, names)

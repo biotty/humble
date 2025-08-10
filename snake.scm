@@ -3,6 +3,8 @@
 (macro inc! (v) `(set! ,v (+ ,v 1)))
 (macro dec! (v) `(set! ,v (- ,v 1)))
 
+(define random (prng (clock)))
+
 ; ideas: * purple frog gives hazard direction after 3 turns
 ;        * speedy toggle by space
 ;        * show points and have ~/.games/snake.hiscore
