@@ -1,21 +1,41 @@
 #!/usr/bin/env mics.py
 
+; humble scheme demonstration, where ncurses functions
+; (nc-) has been brought in (lumped into the core
+; example interpreter implementation) so to provide a
+; classic snake game at the terminal.  we here examplify
+; the lisp-style macro, the lone "@", a class, use of
+; a dictionary, and the "define@" -- also note
+; that "case" does no implicit quote on its key
+; expressions, and that all numbers are integers.
+
 (macro inc! (v) `(set! ,v (+ ,v 1)))
 (macro dec! (v) `(set! ,v (- ,v 1)))
+; handy macro for mutating number-variables
 
 (define random (prng (clock)))
+; initialize a pseudo random sequence
 
-; ideas: * purple frog gives hazard direction after 3 turns
-;        * speedy toggle by space
+; ideas: * at times have frog purple which gives hazard
+;          direction after 3 turns -- its right/left,
+;          50% chance on two consecurive turns and then
+;          back to deterministic turns again.
 ;        * show points and have ~/.games/snake.hiscore
-; bugs: * using trace color for erase, notice that first
-;         step has butt more than one initial head.  why.
+
 (define JPFR 100)
 (define JGOVER 800)
-(define GROWPF 6)
+(define GROWPF 6)  ; <-- snake growth per frog
 (define SP "  ")
 (define SQ (list->string '(0x2588 0x2588)))
-(define scr (nc-initscr))
+; will operate on grid of double characters, so the
+; filled "square" are defined by this unicode string
+; and we may erase with two spaces.
+
+(define scr (nc-initscr 1))
+; halfdelay takes tenths, and jiffies-per-second is
+; fixed to thousand by humble scheme, so we give
+; JPFR (jiffies-per-frame) 100x the nc-initscr arg.
+
 (define@ grid-height grid-width
          (let ((yx (nc-getmaxyx scr)))
            (list (- (list-ref yx 0) 1)
@@ -25,14 +45,18 @@
 (define (grid-sq y x c) (grid-set-str y x SQ c))
 (define (grid-wall . yx) (grid-sq @yx 2))
 (define (grid-snake . yx) (grid-sq @yx 3))
-(define (grid-frog . yx) (grid-sq @yx 6))
+(define (grid-frog . yx) (grid-sq @yx 4))
 (define (grid-bad . yx) (grid-sq @yx 1))
+
+; frame the screen except for the very corners
 (let loop ((x (- grid-width 1)))
   (when (>= x 1)
     (grid-wall 0 x) (grid-wall grid-height x) (loop (- x 1))))
 (let loop ((y (- grid-height 1)))
   (when (>= y 1)
     (grid-wall y 0) (grid-wall y grid-width) (loop (- y 1))))
+
+; arbitrarily choose non-occupied place for frog
 (define (rnd-frog body)
   (let loop ()
     (let ((y (random 1 (- grid-height 1)))
@@ -44,10 +68,11 @@
           (apply grid-frog r)
           r)))))
 
+; game-state, unaware of two-char cells for display
 (define (make-game maxy maxx)
   (let ((y (random 1 (- maxy 1)))
         (x (random 1 (/ maxx 2))))
-    (define body-length 5)
+    (define body-length 15)
     (define butt (list (+ y) (+ x)))
     (define (butt-dup n)
       (let loop ((b '()) (i n))
@@ -96,6 +121,7 @@
 
 (define (quit) (nc-endwin) (exit 0))
 (define game (make-game grid-height grid-width))
+(grid-snake @(game 'get-head))
 (let loop ((t (current-jiffy)))
     (define ch (nc-getch scr))
     (cond ((eq? ch #\q)

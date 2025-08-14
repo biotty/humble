@@ -164,6 +164,7 @@ NAM_APPLY      = 10  #| .
 NAM_LIST       = 11  #| used for conversions of macro-argument
 NAM_NONLIST    = 12  #| into data-variable representation.
 NAM_SETJJ      = 13  #| for letrec, letrecx
+NAM_ERROR      = 14  #| for default else in case
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -178,6 +179,7 @@ nam_apply = (LEX_NAM, NAM_APPLY)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
 nam_setjj = (LEX_NAM, NAM_SETJJ)
+nam_error = (LEX_NAM, NAM_ERROR)
 
 ##
 # diagnostics
@@ -1126,6 +1128,15 @@ def xcase_target(t):
     return (LEX_LIST, t)
 
 def xcase(s):
+    if blex(s[-1][0]) != nam_else:
+        s.append([nam_else, nam_then, nam_error])
+    # deviation: from r7rs which states that result is unspecified
+    # when no cases match and no "else".  if not using this result
+    # in such a situation there wouls be no ill-effect.
+    # rationale: hard to find issues may arise if returning the
+    # VOID value, so early detection saves this problem that is
+    # then addressed by programming a propper else-case.
+    # alt: instead have [nam_else, (LEX_VOID,)] above.
     m = len(s) - 1
     return m_or([-99, *[
         m_and([-99, xcase_test(ce[0], i == m),
@@ -2623,8 +2634,8 @@ def init_env(names):
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
     env[NAM_SETJJ] = [VAR_FUN, f_setjj]
+    env[NAM_ERROR] = [VAR_FUN, f_error(names)]
     with_new_name("display", [VAR_FUN, f_display(names)], env, names)
-    with_new_name("error", [VAR_FUN, f_error(names)], env, names)
     with_new_name("symbol->string", [VAR_FUN, f_symbol_z_string(names)],
             env, names)
     for a, b in [
@@ -2786,7 +2797,7 @@ def inc_macros(names, env, macros):
 
 def init_top(extra_f=()):
     global filename
-    N = 14
+    N = 15
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -2801,6 +2812,7 @@ def init_top(extra_f=()):
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
     names[NAM_SETJJ] = "set!!"
+    names[NAM_ERROR] = "error"
     assert N == len(names)
     env = init_env(names)
     for a, b in extra_f:
@@ -2828,12 +2840,16 @@ import curses
 
 def ef_nc_initscr(*args):
     fn = "nc-initscr"
-    fargc_must_eq(fn, args, 0)
+    tenths = None
+    if len(args) > 0:
+        fargt_must_eq(fn, args, 0, VAR_NUM)
+        tenths = args[0][1]
     stdscr = curses.initscr()
     curses.noecho()
     curses.curs_set(0)
     curses.start_color()
-    stdscr.nodelay(1)
+    if tenths is not None:
+        curses.halfdelay(tenths)
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
@@ -2878,7 +2894,7 @@ def ef_nc_getch(*args):
     c = stdscr.getch()
     if c == curses.KEY_RESIZE:
         ef_nc_endwin()
-        sys.exit(0)
+        sys.exit(1)
     return [VAR_NUM, c]
 
 def ef_nc_endwin(*args):
