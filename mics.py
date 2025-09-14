@@ -4,6 +4,21 @@
 #
 # My Scheme is more humble than yours!
 #
+# Deviations:
+#
+# Lambda-parm vars are not copied, but taken "by reference":
+# (alias? a b) reports whether a and b refers to the same var.
+# No mutation of lambda vars (env instances) as of set!
+# but instead setv! that operates on the variable, even for
+# numbers.  This means that you may have a member of a list
+# and setv! this member as observed in said list.
+# A name always refers to a variable that may thus be mutated.
+# To facilitate against "reference hell" we provide (dup) and (local),
+# and have renamed (define) to (ref) as a reminder.
+# The rationale is that such mutation is contained in scheme
+# anyway, but only for boxes or lambda(captures) such as
+# lists (that them-selves may be held by reference thus mutated).
+#
 # Features:
 #
 # Checked parens-pairs (), [] and {} - no meanings
@@ -13,12 +28,14 @@
 # The dict type (an alist with efficient repr)
 # macro (exactly as lisp defmacro) -- and gensym
 # import of file (that needs "export" as first expr)
-# define@ -- define with list values (no multi-value)
+# ref is as define (allows (recursive) function syntax)
+# def allows usage of same (previous) name in expression
+# ref@ -- define with list values (no multi-value)
 # seq -- lexical block without own scope
 # scope -- an import with contents, not loading file
 #       -- export certain names from "here-doc"
 # Record type -- not provided for user -- but;
-# define-record-type provided as a macro
+# def-record-type provided as a macro
 # Cadar combinations
 # A nonlist function (like list)
 # Functions and special forms as specified in r7rs
@@ -32,6 +49,7 @@
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
 # in-string and out-string provide port interface
+# ,@ propperly separated as two valid operators
 #
 # Excluded:  (non-features)
 #
@@ -40,23 +58,14 @@
 # Implicit quoting in case (we evaluate the <datum>s)
 # Other commenting than ; and #| .. |#
 # Label-syntax for data-loops, or output-representation
-# Float, exact, complex, char, only number
+# Float, exact, complex, char (but only integral numbers)
 # No |n a m e s| and no fold-case mode
 # FS/System ops, as there is i.e input-from-pipe
 # define-syntax; instead powerful "unhygienic" lisp macro
-# set! operates on the variable (no magic location concept)
-# Make-list, prone to err i-e all to one int and the set!
+# set! -- setv!(!) operates on the variable, not an env location.
 # Char, but number parsed for #\ and with utf-8 support.
 # pipe-port closes when input/output lambda done (don't keep).
-#
-# Known Bugs:
-#
-# case with no match and no else gives #f to car --
-# the fix in m_case is to add else branch when not exists.
-#
-# an octal escape above \0377 will encode uni-code point,
-# and not a byte part of the encoding.  maybe not expected.
-# hexadecimal escape missing.
+# only octal escape for bytes in string, but unicode assumed.
 #
 
 # C-Only:
@@ -163,8 +172,9 @@ NAM_LENGTH     = 9   #|
 NAM_APPLY      = 10  #| .
 NAM_LIST       = 11  #| used for conversions of macro-argument
 NAM_NONLIST    = 12  #| into data-variable representation.
-NAM_SETJJ      = 13  #| for letrec, letrecx
-NAM_ERROR      = 14  #| for default else in case
+NAM_SETVJJ     = 13  #| letrec, letrecx
+NAM_DUP        = 14  #| def
+NAM_ERROR      = 15  #| default else in case
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -178,7 +188,8 @@ nam_length = (LEX_NAM, NAM_LENGTH)
 nam_apply = (LEX_NAM, NAM_APPLY)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
-nam_setjj = (LEX_NAM, NAM_SETJJ)
+nam_setvjj = (LEX_NAM, NAM_SETVJJ)
+nam_dup = (LEX_NAM, NAM_DUP)
 nam_error = (LEX_NAM, NAM_ERROR)
 
 ##
@@ -322,7 +333,7 @@ def unescape_string(s):
         if c == "\\":
             i += 1
             if i == n:
-                raise SchemeSrcError("at %d in string on line %d" % (i, linenumber))
+                raise SchemeSrcError("string ends at \\ on line %d" % (i, linenumber))
             c = s[i]
             if c == "t":
                 c = "\t"
@@ -335,7 +346,8 @@ def unescape_string(s):
                 while i + 1 != n:
                     c = s[i + 1]
                     if c not in "01234567":
-                        break
+                        raise SchemeSrcError(
+                                "bad octal in string[%d] on line %d" % (i, linenumber))
                     b *= 8
                     b += int(c)
                     i += 1
@@ -397,6 +409,8 @@ def lex(s, names):
                     v = (LEX_NUM, 32)
                 else:
                     raise SchemeSrcError("#\ token at line %d" % (linenumber,))
+            elif t == "#void":
+                v = (LEX_VOID,)
             else:
                 raise SchemeSrcError("# token at line %d" % (linenumber,))
         elif t[0] == "\"":
@@ -557,15 +571,8 @@ def unbound(s, defs, is_block):
                 raise SchemeSrcError("define in non-block")
             i = x[1]
             u = unbound([x[2]], defs, False)
-            # if i in defs:
-            #    # if defined by means of itself, the wrap in
-            #    # a letrec done in m_define will use void
-            #    # (tmp.binding) instead of the previous value
-            #    # emitting this warning predicts this
-            #    # possibility, but if indeed so then when
-            #    # run an error on whatever usage of the void
-            #    # will happen.  i-e (define v v) is silent.
-            #    warning("re-define")
+            if i in defs:
+                debug("re-define")
             r.update(u)
             defs.add(x[1])
             continue
@@ -742,26 +749,34 @@ def m_seq(s):
     s[0] = OP_SEQ
     return s
 
-def m_define(s):
+def m_ref(s):
     s[0] = OP_DEFINE
     if type(s[1]) == list:
         n = s[1][0]
         s[2] = m_lambda([-99, s[1][1:], *s[2:]])
         s[1] = n
-        s = m_define(s)
+        s = m_ref(s)
     else:
-        mchk_or_fail(s[1][0] == LEX_NAM, "define.1 expects name")
+        mchk_or_fail(s[1][0] == LEX_NAM, "ref.1 expects name")
         s[1] = s[1][1]
     i = s[1]
     d = s[2]
     u = unbound([d], set(), False)
     if i in u:
         # permit define of recursive lambda by wrapping with
-        # a letrec.  this leaves immediate i-e (define i (+ i))
-        # "non-working", then instead use set!  'nuf said.
+        # a letrec.  this leaves immediate i-e (ref i (+ i))
+        # "non-working", then instead use def
         y = (LEX_NAM, i)
         return [OP_DEFINE, i,
                 m_letrec([-99, [[y, d]], y])]
+    return s
+
+def m_def(s):
+    s[0] = OP_DEFINE
+    mchk_or_fail(s[1][0] == LEX_NAM, "def.1 expects name")
+    s[1] = s[1][1]
+    d = s[2]
+    s[2] = [nam_dup, d]
     return s
 
 def m_lambda(s):
@@ -812,8 +827,8 @@ def recset(let):
         assert z < 0
         n = -z
         b.append(n)
-        let[0].insert(3, [nam_setjj, (LEX_NAM, n), (LEX_NAM, z)])
-    u.add(NAM_SETJJ)
+        let[0].insert(3, [nam_setvjj, (LEX_NAM, n), (LEX_NAM, z)])
+    u.add(NAM_SETVJJ)
     u.update(b)
     u.update(unbound(let[1:], a, False))
 
@@ -1242,8 +1257,8 @@ def m_import(names, macros):
 # to may be referred from other variables (shared), and
 # by different environments or by lists as a member.
 #
-# no function operates on the environment.  set! operates
-# on the variable.  set!! is needed to change its type.
+# no function operates on the environment.  setv! operates
+# on the variable.  setv!! is needed to change its type.
 # list-set! replaces the list member and does not affect
 # the previous member variable.  special forms such as
 # DEFINE operate on the environment itself.
@@ -1252,7 +1267,7 @@ def m_import(names, macros):
 # until cdr-usage requires it to convert to a cons chain.
 #
 # the contigous representation of a cons chain as mentioned,
-# uses a specific type to denotes if it represent a normal
+# uses a specific type to denote if it represents a normal
 # list, or that it represents a non-list; a cons-chain
 # where the last CDR is not NIL, by type respectively
 # VAR_LIST and VAR_NONLIST.
@@ -1262,14 +1277,13 @@ def m_import(names, macros):
 # a whole and owned privately by this variable.
 # the latter list value is not shared by other variables
 # (but the variable itself may be refered to by several
-# environments).  the cons-cell on the other hand, may be,
-# and typically is shared by different variables.
+# environments).  a cons-cell, on the other hand, may be.
 #
 # dict is an explicit type for efficient lookup operations
 # and is converted from an alist or back, VAR_DICT.
 #
 # the record type VAR_REC is not meant for a program but used
-# by the define-record-type macro.
+# by the def-record-type macro.
 #
 
 def is_cons(y):
@@ -1693,7 +1707,7 @@ def f_lte(*args):
 def f_gte(*args):
     return n2_pred(args, ">=", lambda x, y: x >= y)
 
-def setjj(a, b, fn):
+def setvjj(a, b, fn):
     if id(a) == id(b):
         warning("%s self-ref %s" % (fn, fargt_repr(a[0])))
     else:
@@ -1701,21 +1715,25 @@ def setjj(a, b, fn):
         a.extend(b)
     return [VAR_VOID]
 
-def f_setj(*args):
-    fn = "set!"
+def f_setvj(*args):
+    fn = "setv!"
     fargc_must_eq(fn, args, 2)
     if not ((args[0][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS)
         and args[1][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS))
         or args[0][0] == args[1][0]):
-        raise SchemeRunError("set! %s with %s"
+        raise SchemeRunError("setv! %s with %s"
                 % (var_type_names[args[0][0]],
                     var_type_names[args[1][0]]))
-    return setjj(args[0], args[1], fn)
+    return setvjj(args[0], args[1], fn)
 
-def f_setjj(*args):
-    fn = "set!!"
+def f_setvjj(*args):
+    fn = "setv!!"
     fargc_must_eq(fn, args, 2)
-    return setjj(args[0], args[1], fn)
+    return setvjj(args[0], args[1], fn)
+
+def f_aliasp(*args):
+    fargc_must_eq("alias?", args, 2)
+    return [VAR_BOOL, id(args[0]) == id(args[1])]
 
 def f_eqp(*args):
     fargc_must_eq("eq?", args, 2)
@@ -2353,6 +2371,16 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
+def f_dup(*args):
+    fargc_must_eq("dup", args, 1)
+    if args[0][0] == VAR_VOID:
+        warning("dup of void")
+        return args[0]
+    # optimization: if ref-count indicates we are holding
+    # the one and only reference to the variable, return
+    # args[0] instead if the following shallow-copy.
+    return [args[0][0], args[0][1]]
+
 from random import Random
 
 def f_prng(*args):
@@ -2558,7 +2586,7 @@ def xeval(x, env):
             env[a] = e[b]
         return [VAR_VOID]
     if x[0] == OP_EXPORT:
-        # idea: feature when running a library
+        # idea: feature when invoking from command line
         return [VAR_VOID]
     if x[0] == OP_SEQ:
         for y in x[1:]:
@@ -2601,7 +2629,8 @@ def init_macros(env, names):
     macros[NAM_MACRO] = m_macro(macros, names)
     with_new_name("gensym", m_gensym(names), macros, names)
     for a, b in [
-            ("define", m_define),
+            ("ref", m_ref),
+            ("def", m_def),
             ("seq", m_seq),
             ("lambda", m_lambda),
             ("case-lambda", m_case_lambda),
@@ -2633,7 +2662,8 @@ def init_env(names):
     env[NAM_APPLY] = [VAR_FUN, f_apply]
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
-    env[NAM_SETJJ] = [VAR_FUN, f_setjj]
+    env[NAM_SETVJJ] = [VAR_FUN, f_setvjj]
+    env[NAM_DUP] = [VAR_FUN, f_dup]
     env[NAM_ERROR] = [VAR_FUN, f_error(names)]
     with_new_name("display", [VAR_FUN, f_display(names)], env, names)
     with_new_name("symbol->string", [VAR_FUN, f_symbol_z_string(names)],
@@ -2657,7 +2687,8 @@ def init_env(names):
             ("take", f_take),
             ("member", f_member),
             ("assoc", f_assoc),
-            ("set!", f_setj),
+            ("setv!", f_setvj),
+            ("alias?", f_aliasp),
             ("eq?", f_eqp),
             ("equal?", f_equalp),
             ("cdr", f_cdr),
@@ -2735,69 +2766,70 @@ import itertools
 def inc_functions(names, env, macros):
     a = []
     for w in itertools.product( * ["ad"] * 2):
-        a.append("(define (c%s%sr x) (c%sr (c%sr x)))" % (2 * w))
+        a.append("(ref (c%s%sr x) (c%sr (c%sr x)))" % (2 * w))
     for w in itertools.product( * ["ad"] * 3):
-        a.append("(define (c%s%s%sr x) (c%sr (c%sr (c%sr x))))" % (2 * w))
+        a.append("(ref (c%s%s%sr x) (c%sr (c%sr (c%sr x))))" % (2 * w))
     t = parse("\n".join(a), names, macros, env.keys())
     run_top(t, env, names)
 
 def inc_macros(names, env, macros):
     s = """
-(macro define@ args
-  (define n (length args))
-  (define n_1 (- n 1))
-  (define syms (take n_1 args))
-  (define s (list-ref args n_1))
-  (define ls (gensym))
-  (define defs (let loop ((i 0) (r '()))
+(macro ref@ args
+  (ref n (length args))
+  (ref n_1 (- n 1))
+  (ref syms (take n_1 args))
+  (ref s (list-ref args n_1))
+  (ref ls (gensym))
+  (ref defs (let loop ((i 0) (r '()))
      (if (equal? i n_1) r
        (loop (+ 1 i)
-         (cons `(define ,(list-ref syms i) (list-ref ,ls ,i)) r))
+         (cons `(ref ,(list-ref syms i) (list-ref ,ls ,i)) r))
      )))
-  `(seq (define ,ls ,s) ,@defs)
+  `(seq (ref ,ls ,s) ,@defs)
 )
-(macro define-record-type (name constructor pred . accessors)
-  (define (getter x i)
-    `(define (,(cadr x) v) (record-get v ,i)))
-  (define getter-defs
+(macro def-record-type (name constructor pred . accessors)
+  (ref (getter x i)
+    `(ref (,(cadr x) v) (record-get v ,i)))
+  (ref getter-defs
     (let loop ((d accessors) (r '()) (i 0))
       (if (null? d) r
         (loop (cdr d) (cons (getter (car d) i) r) (+ i 1))
     )))
-  (define (setter x i)
+  (ref (setter x i)
     (if (eq? (length x) 2) #f
-      `(define (,(caddr x) v y) (record-set! v ,i y))))
-  (define setter-defs
+      `(ref (,(caddr x) v y) (record-set! v ,i y))))
+  (ref setter-defs
     (let loop ((d accessors) (r '()) (i 0))
       (if (null? d) r
         (let ((e (setter (car d) i)))
           (loop (cdr d) (if e (cons e r) r) (+ i 1))
     ))))
-  (define c-name (car constructor))
+  (ref c-name (car constructor))
   `(seq
-    (define ,constructor
+    (ref ,constructor
       (make-record ,@(cdr constructor)))
-    (define (,pred v) (record? v ',name))
+    (ref (,pred v) (record? v ',name))
     ,@getter-defs
     ,@setter-defs
 ))
 (macro class procs
-  (define (gen-case proc)
+  (ref (gen-case proc)
     `((',proc) ,proc))
   `(lambda (cmd . args)
      (apply
        (case cmd
          ,@(map gen-case procs)
          (else => error))
-       args))
-)
+       args)))
+(macro local args
+  (cons 'seq (map (lambda (n) `(def ,n ,n)) args)))
 """
     t = parse(s, names, macros, env.keys())
     run_top(t, env, names)
 
 def init_top(extra_f=()):
     global filename
-    N = 15
+    N = 16
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -2811,7 +2843,8 @@ def init_top(extra_f=()):
     names[NAM_APPLY] = "apply"
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
-    names[NAM_SETJJ] = "set!!"
+    names[NAM_SETVJJ] = "setv!!"
+    names[NAM_DUP] = "dup"
     names[NAM_ERROR] = "error"
     assert N == len(names)
     env = init_env(names)
@@ -3034,7 +3067,7 @@ def vrepr(s, names, q=None):
             warning("dirty bool")
         return "#" + "ft"[bool(s[1])]
     if s[0] == VAR_VOID:
-        return "#~void"
+        return "#void"
     if s[0] == VAR_QUOTE:
         return "#~quote %s" % xrepr(s[1], names)
     if s[0] == VAR_UNQUOTE:

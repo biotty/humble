@@ -30,29 +30,29 @@ test("")
 test("1")
 test("(+)")
 test("'(#f #t)")
-test("(define i '()) i")
-test("(define (f) 1) `(,(f))")
-test("""[ define y 1 ] ; a comment
+test("(ref i '()) i")
+test("(ref (f) 1) `(,(f))")
+test("""[ ref y 1 ] ; a comment
 (list y (list y y))
 {+ 1 2}
 y
 (append '(1) 2)
-(set! y (+ 1 y))
-(display (set! y (+ 1 y)))
+(setv! y (+ 1 y))
+(display (setv! y (+ 1 y)))
 (cond (#f 1) (1 y))
 ((lambda (x) (+ x 1)) 1)
-(define (adder a) (lambda (b) (define pluss +) (pluss a b)))
+(ref (adder a) (lambda (b) (ref pluss +) (pluss a b)))
 ((adder 3) 5)""")
-test("(macro M () 123) (define z (M))")
+test("(macro M () 123) (ref z (M))")
 test("""
-(macro incr! (yy) `(set! ,yy (+ 1 ,yy)))
-(define y 1)
+(macro incr! (yy) `(setv! ,yy (+ 1 ,yy)))
+(ref y 1)
 (incr! y)
 (unless (equal? y 2) (error))
 (display "alright") (newline)
-(define obj [lambda () (define i 0) (lambda () (incr! i) i)])
-(define a (obj))
-(define b (obj))
+(ref obj [lambda () (ref i 0) (lambda () (incr! i) i)])
+(ref a (obj))
+(ref b (obj))
 (unless
   (equal?
     (list (+ (a)) (+ (a)) (+ (b)) (+ (a)))
@@ -61,14 +61,14 @@ test("""
 (display "hello world!")
 (newline)
 """)
-test(""" [ define y 1 ]
+test(""" [ ref y 1 ]
 (let ((s 2))
   (let ((s 3) (t s)) (+ s t)))
 (let* ((A 300) (B (+ A 10))) (+ A B 9))
-(define foo
+(ref foo
 [lambda (x)
               {
-                (lambda (a) (define i 1) (+ a x i)) y
+                (lambda (a) (ref i 1) (+ a x i)) y
               }
 ])
 (foo 3)
@@ -99,11 +99,11 @@ test(""" [ define y 1 ]
 (cdr '(1 . 2))
 ((lambda (a b . c) c) 1 2)
 ((lambda (a b . c) c) 1 2 3 4)
-(define (f x) (+ x 1))
+(ref (f x) (+ x 1))
 (f 1)
-(define (g . x) x)
+(ref (g . x) x)
 (g 1 2 3)
-(define (((h . x) y) z) (+ (car x) y z))
+(ref (((h . x) y) z) (+ (car x) y z))
 (((h 1) 2) 3)
 (letrec ((even?
           (lambda (n)
@@ -117,8 +117,8 @@ test(""" [ define y 1 ]
                 (even? (- n 1))))))
   (even? 123))
 (let loop ((x 0) (y 0)) (if (eqv? x 9) `(,x ,y) (loop (+ x 1) (- y 3))))
-(define li_a '(1 2 3))
-(define li_b '(4 5 6))
+(ref li_a '(1 2 3))
+(ref li_b '(4 5 6))
 (list li_b)
 (append li_a li_b)
 (list li_a)
@@ -171,7 +171,7 @@ test(""" [ define y 1 ]
 (case 3 ((3) 111))
 `(foo ,(list 1 2))
 `(foo ,@(list 1 2))
-(define li '(1 2 3))
+(ref li '(1 2 3))
 `(doo ,li)
 `(doo ,@li)
 ((lambda x x) 1 2 3)
@@ -186,7 +186,7 @@ test(""" [ define y 1 ]
 (let ((a 1)) `,a)
 `(a ,li)
 `,(list 'a)
-(define e 1)
+(ref e 1)
 `(,@(list e))
 (quasiquote (1 2 (unquote (+ 3 4))))
 (quote (unquote 1))
@@ -204,22 +204,22 @@ test(""" [ define y 1 ]
 (let ((a 3)) `((1 2) ,a ,4 ,'five 6))
 (let ((a 3)) (list (list 1 2) a 4 'five 6))
 (cdr '(1 2 3))
-(define x '(1 2 3))
+(ref x '(1 2 3))
 `(list ,@(cdr x))
 (let ((x '(1 2 399))) `(list ,@(cdr x)))
 (macro fu x ` (list ,@ (cdr x)))
 (fu 1 22 3)
 (macro fi (x . y) `(list ,@y))
 (fi 4 5 6)
-(define ix 'a)
+(ref ix 'a)
 `(foo ((,ix 123)) ,ix)
 `(let ((,ix 123)) ,ix)
 ``(a ,,(+ 1 2))
 `(( foo ,(- 10 3)) ,@(cdr '(c)) . ,(car '(cons)))
 ((case-lambda ((x) x) ((x y) (+ x y))) 123 1)
-(define qw (lambda (x) (if (zero? x) 0 (qw (- x 1)))))
+(ref qw (lambda (x) (if (zero? x) 0 (qw (- x 1)))))
 (qw 9)
-(define range
+(ref range
 (case-lambda
 ((e) (range 0 e))
 ((b e) (do ((r '() (cons e r))
@@ -247,12 +247,12 @@ test(""" [ define y 1 ]
 (letrec ((y (lambda (x) (if (not (zero? x)) (y (- x 1)) 0)))) (y 99))
 (list-ref (cons 1 '(2)) 1)
 (list-ref (cons 1 '(2 . 3)) 1)
-(define z (list 1 2))
-(define w '(3 3 . 4))
+(ref z (list 1 2))
+(ref w '(3 3 . 4))
 (append (cdr z) (cdr z))
 (append (cdr z) (cdr w))
 (list-copy (cons 1 '(2 3)))
-(define range
+(ref range
 (case-lambda
 ((e) (range 0 e))
 ((b e) (do ((r '() (cons e r))
@@ -260,14 +260,14 @@ test(""" [ define y 1 ]
 ((< e b) r)))))
 (range 3)
 (range 3 5)
-(define (aa s) 2)
+(ref (aa s) 2)
 '(#\\tab #\\@ #\\# #\\")
 (macro zx (a) a)
 (zx (aa ''e))
 (* 1 2 3)
 (/ 99 3 2)
 (div 11 3)
-(define a '(2 4 6))
+(ref a '(2 4 6))
 (list-tail a 1)
 (list-set! a 1 5)a
 (let ((x 1) (y 2)) x y)
@@ -293,15 +293,15 @@ test(""" [ define y 1 ]
     (unless (string<? "a" "b") (error 'juv))
     (error 'esh)); #| multi-
 ;    line comment |# 123
-(define-record-type <nm> (drt i j) tt? (i iget) (j jget jset))
-(define v (drt 1 2))
+(def-record-type <nm> (drt i j) tt? (i iget) (j jget jset))
+(ref v (drt 1 2))
 (tt? v)
 (iget v)
 (jset v 9)
 (jget v)
 '(1 . (2 . ())); ==> (1 2)
 '(1 . (2 . 5)); ==> (1 2 . 5)
-(define d (alist->dict '[(1 . 2)]))
+(ref d (alist->dict '[(1 . 2)]))
 (chk (dict? d) #true)
 (dict-get-default! d 1 9)
 (dict-get-default! d 2 9)
@@ -324,7 +324,7 @@ test(""" [ define y 1 ]
         nonneg
         (cons (car numbers) neg)))))
 )
-(define fact
+(ref fact
 (lambda (n)
 (if (= n 0) 1 (* n (fact (- n 1))))))
 (fact 19)
@@ -335,7 +335,7 @@ test(""" [ define y 1 ]
 ; neither in input (label-syntax) nor output
 ; (let ((x (list 'a 'b 'c)))
 ; (set-cdr! (cddr x) x) x)
-(define add4
+(ref add4
      (let ((x 4))
      (lambda (y) (+ x y))))
 (chk (add4 6) 10)
@@ -344,7 +344,7 @@ test(""" [ define y 1 ]
        '(5 6))
 ; note:  quoted names needed in case, such as the following
 ; -- this deviates from r7rs specification (spec.typo?)
-(define c
+(ref c
   (case (car '(c d))
      (('a 'e 'i 'o 'u) 'vowel)
      (('w 'y) 'semivowel)
@@ -352,9 +352,9 @@ test(""" [ define y 1 ]
 (chk c 'c)
 ; ^ anomaly: when doing c inline -- as chk macro arg,
 ;            then chk report (~fun~ c), not equal
-(scope (export b+) (define a+ 11) (define b+ a+))
+(scope (export b+) (ref a+ 11) (ref b+ a+))
 (chk b+ 11)
-(define@ c+ d+ (list 22 33))
+(ref@ c+ d+ (list 22 33))
 (chk d+ 33)
 (chk '(2 3 4) (cdr '(1 2 3 4)))
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
@@ -366,11 +366,11 @@ test(""" [ define y 1 ]
 (let ((f (in-string-bytes '(120 120 10 120))))
   (list (read-line f)
          (read-byte f)));
-(define (cls foo)
-  (define (get-foo) foo)
-  (define (set-foo! v) (set! foo v))
+(ref (cls foo)
+  (ref (get-foo) foo)
+  (ref (set-foo! v) (setv! foo v))
   (class get-foo set-foo!))
-(define obj (cls 123))
+(ref obj (cls 123))
 (obj 'set-foo! 321)
 (chk (obj 'get-foo) 321)
 (list->string '(#\\Ø 0x69 #\\e 0o156))
