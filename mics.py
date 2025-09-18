@@ -120,7 +120,7 @@ LEX_NONLIST    = (1 << 7)
 
 # run-types
 
-BIT_VAR        = (1 << 15)
+BIT_VAR        = (1 << 12)
 
 # offsets with LEX_
 # no SYM 15
@@ -148,14 +148,16 @@ VAR_FUN_DOT    = (1 << 9) + BIT_VAR
 
 # interpreter ops
 
-# OP_DFLT "form" 0xC01 left as bare list for apply-semantics
-OP_DEFINE      = 0xC02
-OP_LAMBDA      = 0xC03
-OP_LAMBDA_DOT  = 0xC04
-OP_COND        = 0xC05
-OP_SEQ         = 0xC06
-OP_IMPORT      = 0xC07
-OP_EXPORT      = 0xC08
+BIT_OP         = (1 << 14)
+
+# OP_DFLT "form" 1 left as bare list for apply-semantics
+OP_DEFINE      = 2 + BIT_OP
+OP_COND        = 3 + BIT_OP
+OP_SEQ         = 4 + BIT_OP
+OP_IMPORT      = 6 + BIT_OP
+OP_EXPORT      = 7 + BIT_OP
+OP_LAMBDA      = (1 << 3) + BIT_OP
+OP_LAMBDA_DOT  = (1 << 4) + BIT_OP
 
 # known names
 
@@ -435,6 +437,29 @@ def lex(s, names):
 # parser
 ##
 
+def in_mask(k, a):
+    i = (k & ~(BIT_VAR | BIT_OP))
+    r = bool(i & a)
+    # # comment out slow asserts
+    # def single_bit(i):
+    #     return (i & (i - 1)) == 0
+    # # positive (false) result on non-applicable code-point
+    # assert r <= single_bit(i)
+    # # unnecessary call.  use ==
+    # assert not single_bit(a & ~(BIT_VAR | BIT_OP))
+    return r
+
+def var_members(a):
+    r = []
+    i = 1
+    a &= ~BIT_VAR
+    while a:
+        if (a & i) != 0:
+            r.append(i | BIT_VAR)
+            a &= ~i
+        i <<= 1
+    return r
+
 PARSE_MODE_TOP = -2  # inside no form paren
 PARSE_MODE_ONE = -1  # yield single element
 # otherwise 0..2:  par_beg most recent open
@@ -561,12 +586,13 @@ def unbound(s, defs, is_block):
         if type(x) != list:
             if x[0] == LEX_NAM and x[1] not in defs:
                 r.add(x[1])
-            if x[0] in (LEX_LIST, LEX_NONLIST):
+            if in_mask(x[0], LEX_LIST | LEX_NONLIST):
                 r.update(unbound(x[1], defs, False))
             if x[0] == LEX_SPLICE:
                 r.update(unbound([x[1]], defs, False))
-            continue
-        if x[0] == OP_DEFINE:
+        elif type(x[0]) != int:
+            r.update(unbound(x, defs, False))
+        elif x[0] == OP_DEFINE:
             if not is_block:
                 raise SchemeSrcError("define in non-block")
             i = x[1]
@@ -575,26 +601,22 @@ def unbound(s, defs, is_block):
                 debug("re-define")
             r.update(u)
             defs.add(x[1])
-            continue
-        if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
             from_branches.update(x[2])
-            continue
-        if x[0] == OP_COND:
+        elif x[0] == OP_COND:
             r.update(unbound(x[1:], defs, False))
-            continue
-        if x[0] == OP_IMPORT:
+        elif x[0] == OP_IMPORT:
             defs.update(x[1])
             # note: no recurse, as checked when generating it
-            continue
-        if x[0] == OP_EXPORT:
+        elif x[0] == OP_EXPORT:
+            pass
             # note: ignored here -- import handled above
-            continue
-        if x[0] == OP_SEQ:
+        elif x[0] == OP_SEQ:
             for y in x[1:]:
                 r.update(unbound([y], defs, True))
-            continue
+        else:
+            broken("unknown form")
 
-        r.update(unbound(x, defs, False))
     from_branches.difference_update(defs)
     r.update(from_branches)
     return r
@@ -605,37 +627,35 @@ def find_unbound(s, y):
             if x[0] == LEX_NAM and x[1] == y:
                 return x
             r = None
-            if x[0] in (LEX_LIST, LEX_NONLIST):
+            if in_mask(x[0], LEX_LIST | LEX_NONLIST):
                 r = find_unbound(x[1], y)
             elif x[0] == LEX_SPLICE:
                 r = find_unbound([x[1]], y)
             if r:
                 return r
-            continue
-        if x[0] == OP_DEFINE:
+        elif type(x[0]) != int:
+            r = find_unbound(x, y)
+            if r:
+                return r
+        elif x[0] == OP_DEFINE:
             r = find_unbound([x[2]], y)
             if r:
                 return r
-            continue
-        if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
             if y in x[2]:
                 return find_unbound(x[3:], y)
-            continue
-        if x[0] == OP_COND:
+        elif x[0] == OP_COND:
             r = find_unbound(x[1:], y)
             if r:
                 return r
-            continue
-        if x[0] in (OP_IMPORT, OP_EXPORT):
-            continue
-        if x[0] == OP_SEQ:
+        elif x[0] in (OP_IMPORT, OP_EXPORT):
+            pass
+        elif x[0] == OP_SEQ:
             r = find_unbound(x[1:], y)
             if r:
                 return r
-            continue
-        r = find_unbound(x, y)
-        if r:
-            return r
+        else:
+            broken("unknown form")
 
 def info_unbound(x, names):
     a = []
@@ -697,19 +717,19 @@ def zloc_scopes(t, local_env):
             if x[0] == LEX_NAM:
                 if local_env:
                     t[i] = (x[0], local_env.rewrite_name(x[1]))
-            elif x[0] in (LEX_LIST, LEX_NONLIST):
+            elif in_mask(x[0], LEX_LIST | LEX_NONLIST):
                 t[i] = (x[0], zloc_scopes(x[1], local_env))
             elif x[0] == LEX_SPLICE:
                 t[i] = (x[0], zloc_scopes([x[1]], local_env)[0])
-            continue
-        if x[0] in (OP_IMPORT, OP_EXPORT):
-            continue
-        if x[0] == OP_DEFINE:
+        elif type(x[0]) != int:
+            t[i] = zloc_scopes(x, local_env)
+        elif x[0] in (OP_IMPORT, OP_EXPORT):
+            pass
+        elif x[0] == OP_DEFINE:
             if local_env:
                 x[1] = local_env.rewrite_name(x[1])
             x[2:] = zloc_scopes([x[2]], local_env)
-            continue
-        if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
             c = sorted(x[2])
             fun_env = LocalEnv(x[1], c)
             x[3:] = zloc_scopes(x[3:], fun_env)
@@ -717,14 +737,12 @@ def zloc_scopes(t, local_env):
             if local_env:
                 c = local_env.rewrite_names(c)
             x[2] = c
-            continue
-        if x[0] == OP_COND:
+        elif x[0] == OP_COND:
             x[1:] = zloc_scopes(x[1:], local_env)
-            continue
-        if x[0] == OP_SEQ:
+        elif x[0] == OP_SEQ:
             x[1:] = zloc_scopes(x[1:], local_env)
-            continue
-        t[i] = zloc_scopes(x, local_env)
+        else:
+            broken("unknown form")
     return t
 
 ##
@@ -927,7 +945,8 @@ def quote(v, quasi):
     if type(v) == list:
         if is_dotform(v):
             w = [quote(x, quasi) for x in without_dot(v)]
-            if w[-1][0] in (LEX_LIST, LEX_NONLIST):
+            if type(w[-1]) == tuple \
+                    and in_mask(w[-1][0], LEX_LIST | LEX_NONLIST):
                 z = w.pop()
                 w.extend(z[1])
                 return (z[0], w)
@@ -1412,10 +1431,11 @@ def fargt_must_eq(fn, args, i, vt):
                 fargt_repr(vt), fargt_repr(args[i][0])))
 
 def fargt_must_in(fn, args, i, vts):
-    if args[i][0] not in vts:
+    if not in_mask(args[i][0], vts):
         raise SchemeRunError("%s args[%d] accepts %r got %s"
-            % (fn, i, "/".join(fargt_repr(vt) for vt in vts),
-                fargt_repr(args[i][0])))
+                % (fn, i, "/".join(fargt_repr(vt)
+                    for vt in var_members(vts)),
+                    fargt_repr(args[i][0])))
 
 def f_list(*args):
     return [VAR_LIST, list(args)]
@@ -1427,12 +1447,12 @@ def f_nonlist(*args):
 def f_list_copy(*args):
     fn = "list-copy"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     return [VAR_LIST, normal_list(args[0][1])]
 
 def f_cons(*args):
     fargc_must_eq("cons", args, 2)
-    if args[1][0] in (VAR_CONS, VAR_LIST, VAR_NONLIST):
+    if in_mask(args[1][0], VAR_CONS | VAR_LIST | VAR_NONLIST):
         c = to_cons(args[1])
         args[1][:] = [VAR_CONS, c]
         return [VAR_CONS, Cons(args[0], c)]
@@ -1441,8 +1461,8 @@ def f_cons(*args):
 def f_car(*args):
     fn = "car"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
-    if args[0][0] in (VAR_LIST, VAR_NONLIST):
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
+    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         return args[0][1][0]
     assert args[0][0] == VAR_CONS
     if not args[0][1]:
@@ -1459,7 +1479,7 @@ def f_list_ref(*args):
     fargt_must_eq("list-ref", args, 1, VAR_NUM)
     if args[0][0] == VAR_CONS:
         return c_list_ref(args[0][1], args[1][1])
-    if args[0][0] not in (VAR_LIST, VAR_NONLIST):
+    if not in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         raise SchemeRunError("list-ref on %s"
                 % (fargt_repr(args[0][0]),))
     return args[0][1][args[1][1]]
@@ -1467,11 +1487,11 @@ def f_list_ref(*args):
 def f_cdr(*args):
     fn = "cdr"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
     t = args[0][0]
     a = args[0][1]
     if t != VAR_CONS:
-        assert t in (VAR_LIST, VAR_NONLIST)
+        assert in_mask(t, VAR_LIST | VAR_NONLIST)
         if t == VAR_NONLIST:
             if len(a) <= 1:
                 broken("short nonlist")
@@ -1490,7 +1510,7 @@ def f_append(*args):
         return args[0]
     i_last = len(args) - 1
     last = args[i_last]
-    if last[0] in (VAR_LIST, VAR_NONLIST):
+    if in_mask(last[0], VAR_LIST | VAR_NONLIST):
         last[1] = to_cons(last)
         last[0] = VAR_CONS
     r = p = to_cons_copy(args[0])
@@ -1506,7 +1526,7 @@ def f_append(*args):
             else:
                 p = last
         else:
-            fargt_must_in("append", args, i, (VAR_CONS, VAR_LIST))
+            fargt_must_in("append", args, i, VAR_CONS | VAR_LIST)
             p = to_cons_copy(c)
         if q is not None:
             q.d = p
@@ -1515,7 +1535,7 @@ def f_append(*args):
 def f_set_carj(*args):
     fn = "set-car!"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
     if args[0][0] == VAR_CONS:
         args[0][1].a = args[1]
     else:
@@ -1525,8 +1545,8 @@ def f_set_carj(*args):
 def f_set_cdrj(*args):
     fn = "set-cdr!"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST, VAR_NONLIST))
-    if args[1][0] in (VAR_LIST, VAR_NONLIST):
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
+    if in_mask(args[1][0], VAR_LIST | VAR_NONLIST):
         args[1][1] = to_cons(args[1])
         args[1][0] = VAR_CONS
     if args[1][0] == VAR_CONS:
@@ -1536,7 +1556,7 @@ def f_set_cdrj(*args):
     if args[0][0] == VAR_CONS:
         args[0][1].d = d
         return [VAR_VOID]
-    if args[0][0] in (VAR_LIST, VAR_NONLIST):
+    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         a = args[0][1][0]
     else:
         a = args[0]
@@ -1547,7 +1567,7 @@ def f_set_cdrj(*args):
 def f_list_tail(*args):
     fn = "list-tail"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     n = args[1][1]
     r = to_cons(args[0])
@@ -1563,7 +1583,7 @@ def f_list_tail(*args):
 def f_list_setj(*args):
     fn = "list-set!"
     fargc_must_eq(fn, args, 3)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
     fargt_must_eq(fn, args, 1, VAR_NUM)
     n = args[1][1]
     if args[0][0] == VAR_LIST:
@@ -1576,7 +1596,7 @@ def f_list_setj(*args):
     return [VAR_VOID]
 
 def f_reverse(*args):
-    fargt_must_in("reverse", args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
     r = f_list_copy(args)
     r[1].reverse()
     return r
@@ -1585,7 +1605,7 @@ def f_take(*args):
     fn = "take"
     fargc_must_eq(fn, args, 2)
     fargt_must_eq(fn, args, 0, VAR_NUM)
-    fargt_must_in(fn, args, 1, (VAR_CONS, VAR_LIST))
+    fargt_must_in(fn, args, 1, VAR_CONS | VAR_LIST)
     n = args[0][1]
     if args[1][0] == VAR_LIST:
         return [VAR_LIST, args[1][1][:n]]
@@ -1718,8 +1738,8 @@ def setvjj(a, b, fn):
 def f_setvj(*args):
     fn = "setv!"
     fargc_must_eq(fn, args, 2)
-    if not ((args[0][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS)
-        and args[1][0] in (VAR_LIST, VAR_NONLIST, VAR_CONS))
+    if not ((in_mask(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
+        and in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
         or args[0][0] == args[1][0]):
         raise SchemeRunError("setv! %s with %s"
                 % (var_type_names[args[0][0]],
@@ -1739,10 +1759,11 @@ def f_eqp(*args):
     fargc_must_eq("eq?", args, 2)
     if args[0][0] != args[1][0]:
         return [VAR_BOOL, False]
-    if args[0][0] in (VAR_LIST, VAR_NONLIST):
+    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         return [VAR_BOOL, (len(args[0][1]) == 0 and len(args[1][1]) == 0)
                 or (id(args[0][1]) == id(args[1][1]))]
-    if args[0][0] in (VAR_CONS, VAR_DICT, VAR_FUN, VAR_FUN_DOT):
+    if in_mask(args[0][0], VAR_CONS | VAR_FUN | VAR_FUN_DOT) \
+            or args[0][0] == VAR_DICT:
         return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
     return [VAR_BOOL, args[0][1] == args[1][1]]
 
@@ -1750,8 +1771,8 @@ def f_equalp(*args):
     fargc_must_eq("equal?", args, 2)
     # note: DICT do not undergo value-comparison --
     #       it shall differ with itself under equal
-    if (args[0][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)
-            or args[1][0] not in (VAR_LIST, VAR_NONLIST, VAR_CONS)):
+    if (not in_mask(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
+            or not in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS)):
         return f_eqp(*args)
     r = [VAR_BOOL, False]
     if ((args[0][0] == VAR_LIST and args[1][0] == VAR_NONLIST)
@@ -1793,13 +1814,13 @@ class Dict:
 def f_alist_z_dict(*args):
     fn = "alist->dict"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     d = []
     for x in normal_list(args[0][1]):
         if x[0] == VAR_CONS:
             a = x[1].a
             b = x[1].d
-        elif x[0] in (VAR_NONLIST, VAR_LIST):
+        elif in_mask(x[0], VAR_NONLIST | VAR_LIST):
             a = x[1][0]
             b = x[1][1]
         else:
@@ -1855,7 +1876,7 @@ def f_dict_if_get(*args):
     fn = "dict-if-get"
     fargc_must_eq(fn, args, 4)
     fargt_must_eq(fn, args, 0, VAR_DICT)
-    fargt_must_in(fn, args, 3, (VAR_FUN, VAR_FUN_DOT))
+    fargt_must_in(fn, args, 3, VAR_FUN | VAR_FUN_DOT)
     if args[0][1] is None or args[0][1].t != args[1][0]:
         v = args[2]
     else:
@@ -1911,7 +1932,7 @@ def f_string_z_list(*args):
     return [VAR_LIST, [[VAR_NUM, ord(c)] for c in args[0][1]]]
 
 def f_list_z_string(*args):
-    fargt_must_in("list->string", args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in("list->string", args, 0, VAR_LIST | VAR_CONS)
     return [VAR_STRING, "".join([chr(n[1])
         for n in normal_list(args[0][1])])]
 
@@ -2069,7 +2090,7 @@ def f_newline(*args):
 def f_length(*args):
     fn = "length"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_CONS, VAR_LIST))
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
     if args[0][0] == VAR_CONS:
         if args[0][1] is None:
             r = 0
@@ -2082,16 +2103,16 @@ def f_length(*args):
 def f_apply(*args):
     fn = "apply"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 1, (VAR_CONS, VAR_LIST))
+    fargt_must_in(fn, args, 1, VAR_CONS | VAR_LIST)
     return xapply([args[0]] + normal_list(args[1][1]))
 
 def f_map(*args):
     fn = "map"
-    fargt_must_in(fn, args, 0, (VAR_FUN, VAR_FUN_DOT))
+    fargt_must_in(fn, args, 0, VAR_FUN | VAR_FUN_DOT)
     f = args[0]
     inputs = []
     for j in range(1, len(args)):
-        fargt_must_in(fn, args, j, (VAR_LIST, VAR_CONS))
+        fargt_must_in(fn, args, j, VAR_LIST | VAR_CONS)
         inputs.append(normal_list(args[j][1]))
     n = min(len(y) for y in inputs)
     r = []
@@ -2103,7 +2124,7 @@ def f_map(*args):
     return [VAR_LIST, r]
 
 def search_pred(a):
-    if a[0] in (VAR_FUN, VAR_FUN_DOT):
+    if in_mask(a[0], VAR_FUN | VAR_FUN_DOT):
         p = lambda x: fun_call([a, x])
     else:
         p = lambda x: f_equalp(a, x)
@@ -2114,7 +2135,7 @@ def search_pred(a):
 
 def f_member(*args):
     f = [VAR_BOOL, False]
-    fargt_must_in("member", args, 1, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fargt_must_in("member", args, 1, VAR_CONS | VAR_LIST | VAR_NONLIST)
     t = search_pred(args[0])
     if args[1][0] == VAR_CONS:
         if args[1][1] is None:
@@ -2142,7 +2163,7 @@ def f_member(*args):
 
 def f_assoc(*args):
     f = [VAR_BOOL, False]
-    fargt_must_in("assoc", args, 1, (VAR_CONS, VAR_LIST, VAR_NONLIST))
+    fargt_must_in("assoc", args, 1, VAR_CONS | VAR_LIST | VAR_NONLIST)
     t = search_pred(args[0])
     if args[1][0] == VAR_CONS:
         r = args[1][1]
@@ -2272,8 +2293,8 @@ import subprocess
 def f_input_from_pipe(*args):
     fn = "input-from-pipe"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
-    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
+    fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
     a = []
     for e in normal_list(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
@@ -2290,8 +2311,8 @@ def f_input_from_pipe(*args):
 def f_output_to_pipe(*args):
     fn = "output-to-pipe"
     fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
-    fargt_must_in(fn, args, 1, (VAR_FUN, VAR_FUN_DOT))
+    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
+    fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
     a = []
     for e in normal_list(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
@@ -2330,7 +2351,7 @@ def f_in_string(*args):
 def f_in_string_bytes(*args):
     fn = "in-string-bytes"
     fargc_must_eq(fn, args, 1)
-    fargt_must_in(fn, args, 0, (VAR_LIST, VAR_CONS))
+    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     b = []
     for e in normal_list(args[0][1]):
         fchk_or_fail(e[0] == VAR_NUM, "%s got %s expects number"
@@ -2480,7 +2501,7 @@ def fun_call_ops(x, args):
             v = xeval(w, env)
             if v[0] == VAR_APPLY:
                 a = v[1]
-                assert a[0][0] in (VAR_FUN, VAR_FUN_DOT)
+                assert in_mask(a[0][0], VAR_FUN | VAR_FUN_DOT)
                 if not is_last(w, block):
                     debug("active-apply", a)
                     v = fun_call_ops(a[0], a[1:])
@@ -2562,11 +2583,13 @@ def xeval(x, env):
         broken("form is non-form")
     if len(x) == 0:
         broken("empty form")
+    if type(x[0]) != int:
+        return xapply(run_each(x, env))
     if x[0] == OP_DEFINE:
         v = run(x[2], env)
         env[x[1]] = v
         return [VAR_VOID]
-    if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+    if in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
         return make_fun(env, x[1:], x[0] == OP_LAMBDA_DOT)
     if x[0] == OP_COND:
         for y in x[1:]:
@@ -2592,11 +2615,10 @@ def xeval(x, env):
         for y in x[1:]:
             r = run(y, env)
         return r
-    a = run_each(x, env)
-    return xapply(a)
+    broken("unknown form")
 
 def xapply(a):
-    if a[0][0] not in (VAR_FUN, VAR_FUN_DOT):
+    if not in_mask(a[0][0], VAR_FUN | VAR_FUN_DOT):
         raise SchemeRunError("apply %s"
                 % (fargt_repr(a[0][0])))
     if is_fun_ops(a[0]):
@@ -2953,7 +2975,7 @@ def xrepr(s, names):
         if s[0] == OP_DEFINE:
             return "#<define %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
-        if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
+        if in_mask(s[0], OP_LAMBDA | OP_LAMBDA_DOT):
             return "#<(%d)[%s] %s #>" % (s[1].n_parms,
                     " ".join(str(i) for i in s[2]),
                     xrepr(s[3], names))
@@ -2972,7 +2994,7 @@ def xrepr(s, names):
             return "#<seq%s #>" % (
                     "".join(" " + xrepr(x, names) for x in s[1:]))
         return "(%s)" % (" ".join(xrepr(x, names) for x in s),)
-    if s[0] in (LEX_LIST, LEX_NONLIST):
+    if in_mask(s[0], LEX_LIST | LEX_NONLIST):
         w  = [xrepr(x, names) for x in s[1]]
         if s[0] == LEX_NONLIST:
             w.insert(-1, ".")
@@ -3008,7 +3030,7 @@ def is_fun_ops(s):
     return False
 
 def vrepr(s, names, q=None):
-    if s[0] in (VAR_LIST, VAR_NONLIST):
+    if in_mask(s[0], VAR_LIST | VAR_NONLIST):
         w  = [vrepr(x, names, q) for x in s[1]]
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
@@ -3034,7 +3056,7 @@ def vrepr(s, names, q=None):
         return "#{ " + " ".join(
                 ["(%s . %s)" % (vrepr(x, names, q), vrepr(y, names, q))
                     for x, y in s[1].ditems()]) + " }"
-    if s[0] in (VAR_FUN, VAR_FUN_DOT):
+    if in_mask(s[0], VAR_FUN | VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
         if is_fun_ops(s):
             le = s[2]
