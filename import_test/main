@@ -1,6 +1,6 @@
 ;main
 (export 'aaG)
-(define aaargh 1255)
+(ref aaargh 1255)
 (import "import_test/foo" 'aa)
 (aamm)
 aai

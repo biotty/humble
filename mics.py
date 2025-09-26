@@ -166,17 +166,16 @@ NAM_ELSE       = 1  #| to re-use for local names in a few macros
 NAM_QUOTE      = 2      #| quote-processing are performed by macros
 NAM_QUASIQUOTE = 3      #| on names
 NAM_UNQUOTE    = 4      #| .
-# 5
+# 5 (hole - for no reason - no use five)
 NAM_MACRO      = 6   #| the macro macro; defines a user-macro
 NAM_CAR        = 7   #| names of functions used in some of the
 NAM_EQVP       = 8   #| language-macros
 NAM_LENGTH     = 9   #|
-NAM_APPLY      = 10  #| .
-NAM_LIST       = 11  #| used for conversions of macro-argument
-NAM_NONLIST    = 12  #| into data-variable representation.
-NAM_SETVJJ     = 13  #| letrec, letrecx
-NAM_DUP        = 14  #| def
-NAM_ERROR      = 15  #| default else in case
+NAM_LIST       = 10  #| used for conversions of macro-argument
+NAM_NONLIST    = 11  #| into data-variable representation.
+NAM_SETVJJ     = 12  #| letrec, letrecx
+NAM_DUP        = 13  #| def
+NAM_ERROR      = 14  #| default else in case
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -187,7 +186,6 @@ nam_macro = (LEX_NAM, NAM_MACRO)
 nam_car = (LEX_NAM, NAM_CAR)
 nam_eqvp = (LEX_NAM, NAM_EQVP)
 nam_length = (LEX_NAM, NAM_LENGTH)
-nam_apply = (LEX_NAM, NAM_APPLY)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
 nam_setvjj = (LEX_NAM, NAM_SETVJJ)
@@ -754,7 +752,7 @@ def mchk_or_fail(c, message):
         raise SchemeSrcError(message)
 
 def margc_must_chk(c, mn, x, z):
-    mchk_or_fail(c, "%s expects %d args but got %d"
+    mchk_or_fail(c, "%s requires %d args but got %d"
             % (mn, z - 1, x - 1))
 
 def margc_must_eq(mn, s, z):
@@ -763,9 +761,7 @@ def margc_must_eq(mn, s, z):
 def margc_must_ge(mn, s, z):
     margc_must_chk(len(s) >= z, mn, len(s), z)
 
-def m_seq(s):
-    s[0] = OP_SEQ
-    return s
+# naming - let
 
 def m_ref(s):
     s[0] = OP_DEFINE
@@ -815,12 +811,6 @@ def m_lambda(s):
     s[1] = a
     s.insert(2, unbound(s[2:], set(a), True))
     return s
-
-def m_case_lambda(s):
-    return m_lambda([-99, nam_then,
-        [nam_apply, m_case([-99, [nam_length, nam_then],
-            *[[[(LEX_NUM, len(c[0]))],
-                m_lambda([-99, *c])] for c in s[1:]]]), nam_then]])
 
 def bnd_unzip(s):
     if type(s) != list:
@@ -941,6 +931,8 @@ def m_do(s):
 def m_begin(s):
     return m_letx([-99, [], *s[1:]])
 
+# quotation
+
 def quote(v, quasi):
     if type(v) == list:
         if is_dotform(v):
@@ -992,6 +984,8 @@ def m_unquote(s):
             raise SchemeSrcError("unquote of %r" % (v,))
         return v
     return unquote(s[1])
+
+# macro
 
 def from_lex(s):
     if type(s) == list:
@@ -1055,14 +1049,14 @@ def m_macro(macros, names):
             env = Overlay(i_env)
             if dot:
                 last = len(parms) - 1
-                mchk_or_fail(len(args) >= last, "macro"
-                        " (dot) invoked with few args")
+                margc_must_chk(len(args) >= last, names[n],
+                        len(args) + 1, last + 1)
                 for i in range(last):
                     env[parms[i]] = args[i]
                 env[parms[last]] = [VAR_LIST, args[last:]]
             else:
-                mchk_or_fail(len(args) == len(parms), "macro"
-                        " invoked with bad arg-count")
+                margc_must_chk(len(args) == len(parms), names[n],
+                        len(args) + 1, len(parms) + 1)
                 for i, v in enumerate(args):
                     env[parms[i]] = v
             for x in block:
@@ -1083,10 +1077,16 @@ def m_gensym(names):
         return (LEX_SYM, i)
     return gensym
 
+def m_seq(s):
+    s[0] = OP_SEQ
+    return s
+
 # bare lex, skipping linenumber info
 # eases comparison
 def blex(y):
     return y[:2]
+
+# conditions
 
 def m_cond(s):
     s[0] = OP_COND
@@ -1182,6 +1182,8 @@ def xcase(s):
 def m_case(s):
     return [nam_car, m_letx([-99, [[nam_else, s[1]]],
         xcase(s[2:])])]
+
+# naming - modules
 
 def m_export(s):
     s[0] = OP_EXPORT
@@ -1413,7 +1415,7 @@ def fchk_or_fail(c, message):
         raise SchemeRunError(message)
 
 def fargs_count_fail(fn, k, n):
-    raise SchemeRunError("%s expects %d args but got %d"
+    raise SchemeRunError("%s requires %d args but got %d"
             % (fn, n, k))
 
 def fargc_must_eq(fn, args, n):
@@ -1750,6 +1752,16 @@ def f_setvjj(*args):
     fn = "setv!!"
     fargc_must_eq(fn, args, 2)
     return setvjj(args[0], args[1], fn)
+
+def f_dup(*args):
+    fargc_must_eq("dup", args, 1)
+    if args[0][0] == VAR_VOID:
+        warning("dup of void")
+        return args[0]
+    # optimization: if ref-count indicates we are holding
+    # the one and only reference to the variable, return
+    # args[0] instead if the following shallow-copy.
+    return [args[0][0], args[0][1]]
 
 def f_aliasp(*args):
     fargc_must_eq("alias?", args, 2)
@@ -2392,16 +2404,6 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
-def f_dup(*args):
-    fargc_must_eq("dup", args, 1)
-    if args[0][0] == VAR_VOID:
-        warning("dup of void")
-        return args[0]
-    # optimization: if ref-count indicates we are holding
-    # the one and only reference to the variable, return
-    # args[0] instead if the following shallow-copy.
-    return [args[0][0], args[0][1]]
-
 from random import Random
 
 def f_prng(*args):
@@ -2655,7 +2657,6 @@ def init_macros(env, names):
             ("def", m_def),
             ("seq", m_seq),
             ("lambda", m_lambda),
-            ("case-lambda", m_case_lambda),
             ("let", m_let),
             ("let*", m_letx),
             ("letrec", m_letrec),
@@ -2681,7 +2682,6 @@ def init_env(names):
     env[NAM_CAR] = [VAR_FUN, f_car]
     env[NAM_EQVP] = [VAR_FUN, f_eqp]  # impl: eq? is identical as eqv?
     env[NAM_LENGTH] = [VAR_FUN, f_length]
-    env[NAM_APPLY] = [VAR_FUN, f_apply]
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
     env[NAM_SETVJJ] = [VAR_FUN, f_setvjj]
@@ -2705,6 +2705,7 @@ def init_env(names):
             ("list-ref", f_list_ref),
             ("list-tail", f_list_tail),
             ("list-set!", f_list_setj),
+            ("apply", f_apply),
             ("reverse", f_reverse),
             ("take", f_take),
             ("member", f_member),
@@ -2796,6 +2797,12 @@ def inc_functions(names, env, macros):
 
 def inc_macros(names, env, macros):
     s = """
+(macro case-lambda args
+`(lambda =>
+   (apply (case (length =>)
+       ,@(map (lambda (=>) `((,(length (car =>)))
+                               (lambda ,@=>)))
+         args)) =>)))
 (macro ref@ args
   (ref n (length args))
   (ref n_1 (- n 1))
@@ -2851,7 +2858,7 @@ def inc_macros(names, env, macros):
 
 def init_top(extra_f=()):
     global filename
-    N = 16
+    N = 15
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -2862,7 +2869,6 @@ def init_top(extra_f=()):
     names[NAM_CAR] = "car"
     names[NAM_EQVP] = "eqv?"
     names[NAM_LENGTH] = "length"
-    names[NAM_APPLY] = "apply"
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
     names[NAM_SETVJJ] = "setv!!"
