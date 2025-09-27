@@ -35,21 +35,18 @@
 # scope -- an import with contents, not loading file
 #       -- export certain names from "here-doc"
 # Record type -- not provided for user -- but;
-# def-record-type provided as a macro
-# Cadar combinations
-# A nonlist function (like list)
+# def-record-type.  case-lambda.  cadar combos.
+# A nonlist function (like list).
+# ,@ propperly separated as two valid operators.
 # Functions and special forms as specified in r7rs
 # But limited for math and a very basic IO:
-# input-file output-file
-# write-byte read-byte eof-object?
-# read-line write-string
-# input-from-pipe output-to-pipe exit
+# input/output-file, r/w-byte, read-line, write-string
+# eof-object? input-from-pipe output-to-pipe exit
 # IO is utf-8 and there is no "file-mode".
-# For byte access there are byte-io functions. )
+# For byte access there are byte-io functions.
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
 # in-string and out-string provide port interface
-# ,@ propperly separated as two valid operators
 #
 # Excluded:  (non-features)
 #
@@ -107,16 +104,16 @@ LEX_NAM        = 20
 LEX_QUOTE      = 23
 LEX_QUASIQUOTE = 24
 LEX_UNQUOTE    = 25
-# UNQUOTE_SPLICE no-need
+# UNQUOTE_SPLICE no-need, as distinct
 LEX_SPLICE     = 27
 # no APPLY 28
-# no VAR_PORT 29
-# no VAR_EOF 30
-# no CONS (1 << 5)
+# no PORT 29
+# no EOF 30
+# no CONS        (1 << 5)
 LEX_LIST       = (1 << 6)
 LEX_NONLIST    = (1 << 7)
-# no VAR_FUN (1 << 8)
-# no VAR_FUN_DOT (1 << 9)
+# no FUN         (1 << 8)
+# no FUN_DOT     (1 << 9)
 
 # run-types
 
@@ -170,12 +167,11 @@ NAM_UNQUOTE    = 4      #| .
 NAM_MACRO      = 6   #| the macro macro; defines a user-macro
 NAM_CAR        = 7   #| names of functions used in some of the
 NAM_EQVP       = 8   #| language-macros
-NAM_LENGTH     = 9   #|
-NAM_LIST       = 10  #| used for conversions of macro-argument
-NAM_NONLIST    = 11  #| into data-variable representation.
-NAM_SETVJJ     = 12  #| letrec, letrecx
-NAM_DUP        = 13  #| def
-NAM_ERROR      = 14  #| default else in case
+NAM_LIST       = 9   #| used for conversions of macro-argument
+NAM_NONLIST    = 10  #| into data-variable representation.
+NAM_SETVJJ     = 11  #| letrec, letrecx
+NAM_DUP        = 12  #| def
+NAM_ERROR      = 13  #| default else in case
 
 nam_then = (LEX_NAM, NAM_THEN)
 nam_else = (LEX_NAM, NAM_ELSE)
@@ -185,7 +181,6 @@ nam_unquote = (LEX_NAM, NAM_UNQUOTE)
 nam_macro = (LEX_NAM, NAM_MACRO)
 nam_car = (LEX_NAM, NAM_CAR)
 nam_eqvp = (LEX_NAM, NAM_EQVP)
-nam_length = (LEX_NAM, NAM_LENGTH)
 nam_list = (LEX_NAM, NAM_LIST)
 nam_nonlist = (LEX_NAM, NAM_NONLIST)
 nam_setvjj = (LEX_NAM, NAM_SETVJJ)
@@ -364,14 +359,9 @@ def intern(name, names):
         names.append(name)
         return i
 
-def sysln(s):
-    if s.startswith("#!"):
-        return s.index("\n")
-    return 0
-
 def lex(s, names):
     n = len(s)
-    i = sysln(s)
+    i = s.index("\n") if s.startswith("#!") else 0
     a = []
     while i != n:
         t, i = tok(s, i)
@@ -525,7 +515,7 @@ def expand_macros(t, macros, qq):
     if len(t) == 0:
         return t
     is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
-    is_user = is_macro and hasattr(macros[t[0][1]], "user")
+    is_user = is_macro and isinstance(macros[t[0][1]], UserMacro)
     current = is_macro and qq == 0
     is_quote = False
     if is_macro:
@@ -953,10 +943,6 @@ def quote(v, quasi):
             return (LEX_NAM, v[1])
         if v[0] == LEX_UNQUOTE:
             return v[1]
-        #if v[1] == LEX_SPLICE:
-        #    return (LEX_SPLICE, quote(v[1], quasi))
-    if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-        raise SchemeSrcError("quote of %r" % (v,))
     return v
 
 def m_quote(s):
@@ -980,8 +966,6 @@ def m_unquote(s):
             return (LEX_UNQUOTE, v)
         if v[0] == LEX_SYM:
             return (LEX_NAM, v[1])
-        if v[0] not in (LEX_NUM, LEX_BOOL, LEX_STRING, LEX_SPLICE):
-            raise SchemeSrcError("unquote of %r" % (v,))
         return v
     return unquote(s[1])
 
@@ -1023,6 +1007,37 @@ def to_lex(s):
         raise SchemeSrcError("to lex %r" % (s,))
     return (s[0] - BIT_VAR, s[1])
 
+class UserMacro:
+    def __init__(self, mname, parms, isdot, block, names):
+        self.mname = mname
+        self.parms = parms
+        self.isdot = isdot
+        self.block = block
+        self.names = names
+
+    def __call__(self, t):
+        args = [from_lex(x) for x in t[1:]]
+        debug("user-macro args", args)
+        env = Overlay(i_env)
+        if self.isdot:
+            last = len(self.parms) - 1
+            margc_must_chk(len(args) >= last, self.mname,
+                    len(args) + 1, last + 1)
+            for i in range(last):
+                env[self.parms[i]] = args[i]
+            env[self.parms[last]] = [VAR_LIST, args[last:]]
+        else:
+            margc_must_chk(len(args) == len(self.parms), self.mname,
+                    len(args) + 1, len(self.parms) + 1)
+            for i, v in enumerate(args):
+                env[self.parms[i]] = v
+        for x in self.block:
+            r = run(x, env)
+        debug("user-macro result", r)
+        r = to_lex(r)
+        debug("result as lex", r)
+        return r
+
 def m_macro(macros, names):
     def macro(s):
         margc_must_ge("macro", s, 4)
@@ -1031,11 +1046,11 @@ def m_macro(macros, names):
         n = s[1][1]
         y = s[2]
         if type(y) != list:
-            dot = True
+            isdot = True
             y = [y]
         else:
-            dot = is_dotform(y)
-            if dot:
+            isdot = is_dotform(y)
+            if isdot:
                 y = without_dot(y)
         block = s[3:]
         zloc_scopes(block, None)
@@ -1043,30 +1058,7 @@ def m_macro(macros, names):
         for p in y:
             mchk_or_fail(p[0] == LEX_NAM, "macro params must be names")
             parms.append(p[1])
-        def m(t):
-            args = [from_lex(x) for x in t[1:]]
-            debug("user-macro args", args)
-            env = Overlay(i_env)
-            if dot:
-                last = len(parms) - 1
-                margc_must_chk(len(args) >= last, names[n],
-                        len(args) + 1, last + 1)
-                for i in range(last):
-                    env[parms[i]] = args[i]
-                env[parms[last]] = [VAR_LIST, args[last:]]
-            else:
-                margc_must_chk(len(args) == len(parms), names[n],
-                        len(args) + 1, len(parms) + 1)
-                for i, v in enumerate(args):
-                    env[parms[i]] = v
-            for x in block:
-                r = run(x, env)
-            debug("user-macro result", r)
-            r = to_lex(r)
-            debug("result as lex", r)
-            return r
-        m.user = True
-        macros[n] = m
+        macros[n] = UserMacro(names[n], parms, isdot, block, names)
         return (LEX_VOID,)
     return macro
 
@@ -1078,6 +1070,7 @@ def m_gensym(names):
     return gensym
 
 def m_seq(s):
+    # handly to impact scope with macro expr (one)
     s[0] = OP_SEQ
     return s
 
@@ -2681,7 +2674,6 @@ def init_env(names):
     env = dict()
     env[NAM_CAR] = [VAR_FUN, f_car]
     env[NAM_EQVP] = [VAR_FUN, f_eqp]  # impl: eq? is identical as eqv?
-    env[NAM_LENGTH] = [VAR_FUN, f_length]
     env[NAM_LIST] = [VAR_FUN, f_list]
     env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
     env[NAM_SETVJJ] = [VAR_FUN, f_setvjj]
@@ -2705,6 +2697,7 @@ def init_env(names):
             ("list-ref", f_list_ref),
             ("list-tail", f_list_tail),
             ("list-set!", f_list_setj),
+            ("length", f_length),
             ("apply", f_apply),
             ("reverse", f_reverse),
             ("take", f_take),
@@ -2858,7 +2851,7 @@ def inc_macros(names, env, macros):
 
 def init_top(extra_f=()):
     global filename
-    N = 15
+    N = 14
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -2868,7 +2861,6 @@ def init_top(extra_f=()):
     names[NAM_MACRO] = "macro"
     names[NAM_CAR] = "car"
     names[NAM_EQVP] = "eqv?"
-    names[NAM_LENGTH] = "length"
     names[NAM_LIST] = "list"
     names[NAM_NONLIST] = "nonlist"
     names[NAM_SETVJJ] = "setv!!"
@@ -2978,13 +2970,13 @@ def xrepr(s, names):
     if not s:
         return "#<>"
     if type(s) == list:
+        if type(s[0]) != int:
+            return "(%s)" % (" ".join(xrepr(x, names) for x in s),)
         if s[0] == OP_DEFINE:
             return "#<define %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
         if in_mask(s[0], OP_LAMBDA | OP_LAMBDA_DOT):
-            return "#<(%d)[%s] %s #>" % (s[1].n_parms,
-                    " ".join(str(i) for i in s[2]),
-                    xrepr(s[3], names))
+            return "#<lambda #>"  # - snip -
         if s[0] == OP_COND:
             return "#<cond%s #>" % (
                     "".join(" [%s %s]" % (xrepr(a, names), xrepr(b, names))
@@ -2999,7 +2991,7 @@ def xrepr(s, names):
         if s[0] == OP_SEQ:
             return "#<seq%s #>" % (
                     "".join(" " + xrepr(x, names) for x in s[1:]))
-        return "(%s)" % (" ".join(xrepr(x, names) for x in s),)
+        broken("unhandled %r" % (s,))
     if in_mask(s[0], LEX_LIST | LEX_NONLIST):
         w  = [xrepr(x, names) for x in s[1]]
         if s[0] == LEX_NONLIST:
