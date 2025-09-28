@@ -173,19 +173,22 @@ NAM_SETVJJ     = 11  #| letrec, letrecx
 NAM_DUP        = 12  #| def
 NAM_ERROR      = 13  #| default else in case
 
-nam_then = (LEX_NAM, NAM_THEN)
-nam_else = (LEX_NAM, NAM_ELSE)
-nam_quote = (LEX_NAM, NAM_QUOTE)
-nam_quasiquote = (LEX_NAM, NAM_QUASIQUOTE)
-nam_unquote = (LEX_NAM, NAM_UNQUOTE)
-nam_macro = (LEX_NAM, NAM_MACRO)
-nam_car = (LEX_NAM, NAM_CAR)
-nam_eqvp = (LEX_NAM, NAM_EQVP)
-nam_list = (LEX_NAM, NAM_LIST)
-nam_nonlist = (LEX_NAM, NAM_NONLIST)
-nam_setvjj = (LEX_NAM, NAM_SETVJJ)
-nam_dup = (LEX_NAM, NAM_DUP)
-nam_error = (LEX_NAM, NAM_ERROR)
+def xn(n):
+    return (LEX_NAM, n)
+
+nam_then = xn(NAM_THEN)
+nam_else = xn(NAM_ELSE)
+nam_quote = xn(NAM_QUOTE)
+nam_quasiquote = xn(NAM_QUASIQUOTE)
+nam_unquote = xn(NAM_UNQUOTE)
+nam_macro = xn(NAM_MACRO)
+nam_car = xn(NAM_CAR)
+nam_eqvp = xn(NAM_EQVP)
+nam_list = xn(NAM_LIST)
+nam_nonlist = xn(NAM_NONLIST)
+nam_setvjj = xn(NAM_SETVJJ)
+nam_dup = xn(NAM_DUP)
+nam_error = xn(NAM_ERROR)
 
 ##
 # diagnostics
@@ -673,10 +676,14 @@ def parse(s, names, macros, env_keys):
 
 class LocalEnv:
 
-    def __init__(self, parms, captured):
+    def __init__(self, parms, capture):
         self.n_parms = len(parms)
-        self.names = parms + captured
+        self.names = parms + capture
         self.n_init = len(self.names)
+
+    def __repr__(self):
+        return "<%r %r>" % (self.names[:self.n_parms],
+                self.names[self.n_parms:])
 
     def rewrite_name(self, n):
         return intern(n, self.names)
@@ -1008,6 +1015,7 @@ def to_lex(s):
     return (s[0] - BIT_VAR, s[1])
 
 class UserMacro:
+
     def __init__(self, mname, parms, isdot, block, names):
         self.mname = mname
         self.parms = parms
@@ -1159,7 +1167,7 @@ def xcase(s):
         s.append([nam_else, nam_then, nam_error])
     # deviation: from r7rs which states that result is unspecified
     # when no cases match and no "else".  if not using this result
-    # in such a situation there wouls be no ill-effect.
+    # in such a situation there would be no ill-effect.
     # rationale: hard to find issues may arise if returning the
     # VOID value, so early detection saves this problem that is
     # then addressed by programming a propper else-case.
@@ -2246,13 +2254,19 @@ def f_input_file(*args):
     fn = "input-file"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
-    return [VAR_PORT, File(open(args[0][1], "rb"))]
+    try:
+        return [VAR_PORT, File(open(args[0][1], "rb"))]
+    except:
+        return [VAR_BOOL, False]
 
 def f_output_file(*args):
     fn = "output-file"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
-    return [VAR_PORT, File(open(args[0][1], "wb"))]
+    try:
+        return [VAR_PORT, File(open(args[0][1], "wb"))]
+    except:
+        return [VAR_BOOL, False]
 
 def f_eof_objectp(*args):
     return typep(args, "eof-object?", VAR_EOF)
@@ -2976,7 +2990,10 @@ def xrepr(s, names):
             return "#<define %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
         if in_mask(s[0], OP_LAMBDA | OP_LAMBDA_DOT):
-            return "#<lambda #>"  # - snip -
+            return "#<lambda #>"
+            # omitted: content of lambda, as names only contains
+            # the local env (as invoked from vrepr), and we would
+            # need the complete interned names lookup to recurse
         if s[0] == OP_COND:
             return "#<cond%s #>" % (
                     "".join(" [%s %s]" % (xrepr(a, names), xrepr(b, names))
@@ -3056,7 +3073,7 @@ def vrepr(s, names, q=None):
                     for x, y in s[1].ditems()]) + " }"
     if in_mask(s[0], VAR_FUN | VAR_FUN_DOT):
         r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
-        if is_fun_ops(s):
+        if is_fun_ops(s) and verbose:
             le = s[2]
             p = le.n_parms
             lnames = [names[k] for k in le.names]

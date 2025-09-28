@@ -8,6 +8,7 @@
 ; a dictionary, and the "ref@" -- also note
 ; that "case" does no implicit quote on its key
 ; expressions, and that all numbers are integers.
+; demo of io: the high-score is recorded in a file.
 
 (ref (inc! v) (setv! v (+ v 1)))
 (ref (dec! v) (setv! v (- v 1)))
@@ -20,7 +21,6 @@
 ;          direction after 3 turns -- its right/left,
 ;          50% chance on two consecurive turns and then
 ;          back to deterministic turns again.
-;        * show points and have ~/.games/snake.hiscore
 
 (ref JPFR 100)
 (ref JGOVER 800)
@@ -72,7 +72,8 @@
 (ref (make-game maxy maxx)
   (let ((y (random 1 (- maxy 1)))
         (x (random 1 (/ maxx 2))))
-    (ref body-length 15)
+    (ref INIT-LENGTH 15)
+    (def body-length INIT-LENGTH)
     (ref butt (list (+ y) (+ x)))
     (ref (butt-dup n)
       (let loop ((b '()) (i n))
@@ -86,7 +87,7 @@
     (ref (get-head) (list y x))
     (ref frog (rnd-frog '()))
     (ref (set-dir! v) (setv! dir v))
-    (ref (step!)
+    (ref (step! score-fun)
       (setv! body (cons (nonlist (+ y) (+ x)) body))
       (ref d (list-tail body (- body-length 1)))
       (setv! butt (list (caar d) (cdar d)))
@@ -100,7 +101,8 @@
       (when (equal? (list y x) frog)
         (setv! frog (rnd-frog body))
         (setv! body (append body (butt-dup GROWPF)))
-        (setv! body-length (+ GROWPF body-length))))
+        (setv! body-length (+ GROWPF body-length))
+        (score-fun (/ (- body-length INIT-LENGTH) GROWPF))))
     (ref (get-frog) frog)
     (ref (is-over)
       (or (>= y maxy) (<= y 0)
@@ -119,7 +121,37 @@
                  (#\o . left)
                  (#\p . right))))
 
-(ref (quit) (nc-endwin) (exit 0))
+(ref (show-score x n)
+     (nc-addstr scr 0 x (number->string n) 2))
+
+(ref score-path ".snake_score")
+(ref hiscore (case (input-file score-path)
+               ((#f) 0)
+               (else => (lambda (f)
+                 (ref s (read-line f))
+                 (if (eof-object? s) 0
+                   (string->number s))))))
+
+(ref score 0)
+(ref has-record #f)
+(ref (up-score n)
+     (setv! score n)
+     (show-score 8 n)
+     (when (> score hiscore)
+       (setv! hiscore score)
+       (setv! has-record #t)
+       (show-score 14 score)))
+(show-score 14 hiscore)
+(up-score 0)
+
+(ref (quit) (nc-endwin)
+     (exit (if has-record
+       (case (output-file score-path)
+         ((#f) 1)
+         (else => (lambda (f)
+           (write-string (number->string score) f)
+           0)))0)))
+
 (ref game (make-game grid-height grid-width))
 (grid-snake @(game 'get-head))
 (let loop ((t (current-jiffy)))
@@ -135,7 +167,7 @@
             (dict-if-get keys ch 'ign
                          (lambda (d)
                            (game 'set-dir! d)))
-            (game 'step!)
+            (game 'step! up-score)
             (apply grid-snake (game 'get-head))
             (apply grid-unset (game 'get-butt))
             (ref nt (current-jiffy))
