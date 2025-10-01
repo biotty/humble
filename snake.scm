@@ -1,13 +1,12 @@
 #!/usr/bin/env mics.py
 
 ; humble scheme demonstration, where ncurses functions
-; (nc-) has been brought in (lumped into the core
-; example interpreter implementation) so to provide a
+; (nc-) has been brought in (example of extension
+; mechanism onto interpreter) so to provide a
 ; classic snake game at the terminal.  we here exemplify
 ; pass-by-reference, the lone "@", a class, use of
-; a dictionary, and the "ref@" -- also note
-; that "case" does no implicit quote on its key
-; expressions, and that all numbers are integers.
+; a dictionary, and the "ref@", the "class" macro,
+; alternative parens, unicode, and the many r7rs forms.
 ; demo of io: the high-score is recorded in a file.
 
 (ref (inc! v) (setv! v (+ v 1)))
@@ -16,11 +15,6 @@
 
 (ref random (prng (clock)))
 ; initialize a pseudo random sequence
-
-; ideas: * at times have frog purple which gives hazard
-;          direction after 3 turns -- its right/left,
-;          50% chance on two consecurive turns and then
-;          back to deterministic turns again.
 
 (ref JPFR 100)
 (ref JGOVER 800)
@@ -146,24 +140,24 @@
 
 (ref (quit) (nc-endwin)
      (exit (if has-record
-       (case (output-file score-path)
+       {case (output-file score-path)
          ((#f) 1)
-         (else => (lambda (f)
+         (else => [lambda (f)
            (write-string (number->string score) f)
-           0)))0)))
+           0])} 0)))
 
 (ref game (make-game grid-height grid-width))
 (grid-snake @(game 'get-head))
 (let loop ((t (current-jiffy)))
     (ref ch (nc-getch scr))
-    (cond ((eq? ch #\q)
-           (quit))
-          ((game 'is-over)
+    (cond [(eq? ch #\q)
+           (quit)]
+          [(game 'is-over)
            (apply grid-bad (game 'get-head))
            (nc-getch scr)
            (pause JGOVER)
-           (quit))
-          (else
+           (quit)]
+          [else
             (dict-if-get keys ch 'ign
                          (lambda (d)
                            (game 'set-dir! d)))
@@ -172,5 +166,5 @@
             (apply grid-unset (game 'get-butt))
             (ref nt (current-jiffy))
             (pause (- JPFR (- nt t)))
-            (loop (+ t JPFR)))))
+            (loop (+ t JPFR))]))
 

@@ -6,18 +6,27 @@
 #
 # Deviations:
 #
-# Lambda-parm vars are not copied, but taken "by reference":
-# (alias? a b) reports whether a and b refers to the same var.
-# No mutation of lambda vars (env instances) as of set!
-# but instead setv! that operates on the variable, even for
-# numbers.  This means that you may have a member of a list
-# and setv! this member as observed in said list.
-# A name always refers to a variable that may thus be mutated.
-# To facilitate against "reference hell" we provide (dup) and (local),
-# and have renamed (define) to (ref) as a reminder.
-# The rationale is that such mutation is contained in scheme
-# anyway, but only for boxes or lambda(captures) such as
-# lists (that them-selves may be held by reference thus mutated).
+# The environment cannot be mutated from an inner scope,
+# as (set!) does (we don't have it).  Only (re-)defining
+# a variable alters the environment, which can only be
+# done at its own lexical scope.  Instead of such env mutation
+# we permit mutation of variables themselves, with (setv!).
+# Variable names in the program works as in usual scheme.
+# The environment does not contain variable entries directly
+# but references to them.  The variables themselves may be
+# shared with a list or with another environment:
+# Lambda-parameters are not copied,
+# but taken "by reference".  We have (alias? a b) to report
+# whether a and b refers to the same variable.
+#
+# To facilitate against "reference hell" we provide (dup)
+# and (local), and have renamed (define) to (ref) as a reminder.
+# The rationale is that scheme already operates wuth such mutation,
+# when we hold cons-cells or lambda-captures.
+# There is both simplification and practical benefit in
+# generalizing such means to mere variables, as a consistent
+# mutation mechanism, replacing set! with its external mutation
+# on the environment.
 #
 # Features:
 #
@@ -47,6 +56,16 @@
 # char- and string-literals with a few escapes
 # Otherwise rely on source encoding -- utf-8
 # in-string and out-string provide port interface
+# #void -- unit type i-e is returned on r7rs "unspec"
+# (error) function that reports given value and exits.
+# "dynload" Load dynamic library that gets to register
+# a list of functions to initial environment.  An example
+# of curses is provided and always loaded when file-run.
+# code-points for extra var-types are checked for
+# collisions, but are blindly set from the library-side.
+# a floating-point extension could thus be created.
+# note that one could arrange the interpreter to plug
+# such extensions in at start instead of dynamically.
 #
 # Excluded:  (non-features)
 #
@@ -64,12 +83,10 @@
 # pipe-port closes when input/output lambda done (don't keep).
 # only octal escape for bytes in string, but unicode assumed.
 #
-
-# C-Only:
+# Bugs:  (known)
 #
-# (dynload) Load dynamic library that gets to register
-# a list of functions to initial environment.  An example
-# of curses is provided (but always "loaded" for python)
+# The datums in a case are evaluated, when they should as of
+# r7rs implicitly be quoted.
 #
 
 ##
@@ -109,15 +126,17 @@ LEX_SPLICE     = 27
 # no APPLY 28
 # no PORT 29
 # no EOF 30
-# no CONS        (1 << 5)
-LEX_LIST       = (1 << 6)
-LEX_NONLIST    = (1 << 7)
-# no FUN         (1 << 8)
-# no FUN_DOT     (1 << 9)
+# LEX_OP 31 not in py, instead OP_x directly
+# no EXTRA MIN..MAX
+# no CONS        (1 << 7)
+LEX_LIST       = (1 << 8)
+LEX_NONLIST    = (1 << 9)
+# no FUN         (1 << 10)
+# no FUN_DOT     (1 << 11)
 
 # run-types
 
-BIT_VAR        = (1 << 12)
+BIT_VAR        = (1 << 14)
 
 # offsets with LEX_
 # no SYM 15
@@ -136,25 +155,25 @@ VAR_SPLICE     = 27 + BIT_VAR
 VAR_APPLY      = 28 + BIT_VAR
 VAR_PORT       = 29 + BIT_VAR
 VAR_EOF        = 30 + BIT_VAR
-VAR_EXTRA      = 31 + BIT_VAR
-VAR_CONS       = (1 << 5) + BIT_VAR
-VAR_LIST       = (1 << 6) + BIT_VAR
-VAR_NONLIST    = (1 << 7) + BIT_VAR
-VAR_FUN        = (1 << 8) + BIT_VAR
-VAR_FUN_DOT    = (1 << 9) + BIT_VAR
+# no OP
+VAR_EXTRA_MIN  = 32 + BIT_VAR
+VAR_EXTRA_MAX  = 127 + BIT_VAR
+VAR_CONS       = (1 << 7) + BIT_VAR
+VAR_LIST       = (1 << 8) + BIT_VAR
+VAR_NONLIST    = (1 << 9) + BIT_VAR
+VAR_FUN        = (1 << 10) + BIT_VAR
+VAR_FUN_DOT    = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
-BIT_OP         = (1 << 14)
-
 # OP_DFLT "form" 1 left as bare list for apply-semantics
-OP_DEFINE      = 2 + BIT_OP
-OP_COND        = 3 + BIT_OP
-OP_SEQ         = 4 + BIT_OP
-OP_IMPORT      = 6 + BIT_OP
-OP_EXPORT      = 7 + BIT_OP
-OP_LAMBDA      = (1 << 3) + BIT_OP
-OP_LAMBDA_DOT  = (1 << 4) + BIT_OP
+OP_DEFINE      = 2
+OP_COND        = 3
+OP_SEQ         = 4
+OP_IMPORT      = 6
+OP_EXPORT      = 7
+OP_LAMBDA      = (1 << 10) # aligned w VAR_FUN
+OP_LAMBDA_DOT  = (1 << 11) #           VAR_FUN_OP
 
 # known names
 
@@ -429,7 +448,7 @@ def lex(s, names):
 ##
 
 def in_mask(k, a):
-    i = (k & ~(BIT_VAR | BIT_OP))
+    i = (k & ~BIT_VAR)
     r = bool(i & a)
     # # comment out slow asserts
     # def single_bit(i):
@@ -437,7 +456,7 @@ def in_mask(k, a):
     # # positive (false) result on non-applicable code-point
     # assert r <= single_bit(i)
     # # unnecessary call.  use ==
-    # assert not single_bit(a & ~(BIT_VAR | BIT_OP))
+    # assert not single_bit(a & ~BIT_VAR))
     return r
 
 def var_members(a):
@@ -1397,17 +1416,19 @@ def normal_list(a):
     assert type(a) == list
     return a
 
-var_type_names = {
-        VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list",
+def var_type_name(vt):
+    if vt >= VAR_EXTRA_MIN and vt <= VAR_EXTRA_MAX:
+        return "extra-%x" % (~BIT_VAR & vt,)
+    return { VAR_VOID: "void", VAR_CONS: "cons", VAR_LIST: "list",
         VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
         VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
         VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply",
-        VAR_PORT: "port", VAR_EOF: "eof-object", VAR_EXTRA: "extra" }
+        VAR_PORT: "port", VAR_EOF: "eof-object" }[vt]
 
 def fargt_repr(vt):
     try:
-        return var_type_names[vt]
+        return var_type_name(vt)
     except KeyError:
         return "[%d]" % (vt,)
 
@@ -1745,8 +1766,8 @@ def f_setvj(*args):
         and in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
         or args[0][0] == args[1][0]):
         raise SchemeRunError("setv! %s with %s"
-                % (var_type_names[args[0][0]],
-                    var_type_names[args[1][0]]))
+                % (var_type_name(args[0][0]),
+                    var_type_name(args[1][0])))
     return setvjj(args[0], args[1], fn)
 
 def f_setvjj(*args):
@@ -2079,6 +2100,10 @@ def f_pairp(*args):
     if args[0][0] == VAR_CONS:
         return [VAR_BOOL, args[0][1] is not None]
     return [VAR_BOOL, False]
+
+def f_voidp(*args):
+    fargc_must_eq("void?", args, 1)
+    return [VAR_BOOL, args[0][0] == VAR_VOID]
 
 def f_not(*args):
     fargc_must_eq("not", args, 1)
@@ -2522,13 +2547,13 @@ def fun_call_ops(x, args):
                     done = False
     return v
 
-def make_fun(up, x, fun_dot):
+def make_fun(up, x, lambda_op):
     local_env = x[0]
     captured = []
     for k in x[1]:
         captured.append(up[k])
     fun_block = x[2:]
-    t = VAR_FUN_DOT if fun_dot else VAR_FUN
+    t = (lambda_op | BIT_VAR)
     return [t, captured, local_env, fun_block]
 
 def flatten_splices(a):
@@ -2599,7 +2624,7 @@ def xeval(x, env):
         env[x[1]] = v
         return [VAR_VOID]
     if in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
-        return make_fun(env, x[1:], x[0] == OP_LAMBDA_DOT)
+        return make_fun(env, x[1:], x[0])
     if x[0] == OP_COND:
         for y in x[1:]:
             t = run(y[0], env)
@@ -2733,6 +2758,7 @@ def init_env(names):
             ("null?", f_nullp),
             ("list?", f_listp),
             ("pair?", f_pairp),
+            ("void?", f_voidp),
             ("not", f_not),
             ("=", f_eq),
             ("<", f_lt),
@@ -2900,81 +2926,28 @@ def init_top(extra_f=()):
     return names, env, macros
 
 ##
-# extra functions (example of injection atop interp)
+# extension loader
 ##
 
-import curses
+class Extensions:
+    def __init__(self):
+        self.fns = []
+        self.tps = []
 
-def ef_nc_initscr(*args):
-    fn = "nc-initscr"
-    tenths = None
-    if len(args) > 0:
-        fargt_must_eq(fn, args, 0, VAR_NUM)
-        tenths = args[0][1]
-    stdscr = curses.initscr()
-    curses.noecho()
-    curses.curs_set(0)
-    curses.start_color()
-    if tenths is not None:
-        curses.halfdelay(tenths)
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
-    curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
-    curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-    curses.init_pair(7, curses.COLOR_WHITE, curses.COLOR_BLACK)
-    return [VAR_EXTRA, stdscr]
+    def check_types(self, tps):
+        for t in tps:
+            if t < VAR_EXTRA_MIN or t > VAR_EXTRA_MAX:
+                broken("%d illegal for extendion type" % (t,))
+            if t in self.tps:
+                broken("%d already used" % (t,))
+            self.tps.append(t)
 
-def ef_nc_getmaxyx(*args):
-    fn = "nc-getmaxyx"
-    fargc_must_eq(fn, args, 1)
-    fargt_must_eq(fn, args, 0, VAR_EXTRA)
-    stdscr = args[0][1]
-    y, x = stdscr.getmaxyx()
-    return [VAR_LIST, [[VAR_NUM, y], [VAR_NUM, x]]]
+    def load(self, m):
+        tps, fns = m.load()
+        self.check_types(tps)
+        self.fns.extend(fns)
 
-def ef_nc_addstr(*args):
-    fn = "nc-addstr"
-    fargc_must_ge(fn, args, 4)
-    fargt_must_eq(fn, args, 0, VAR_EXTRA)
-    fargt_must_eq(fn, args, 1, VAR_NUM)
-    fargt_must_eq(fn, args, 2, VAR_NUM)
-    fargt_must_eq(fn, args, 3, VAR_STRING)
-    if len(args) >= 5:
-        fargt_must_eq(fn, args, 4, VAR_NUM)
-        c = args[4][1]
-    else:
-        c = 7
-    stdscr = args[0][1]
-    y = args[1][1]
-    x = args[2][1]
-    s = args[3][1]
-    stdscr.addstr(y, x, s, curses.color_pair(c))
-    return [VAR_VOID]
-
-def ef_nc_getch(*args):
-    fn = "nc-getch"
-    fargc_must_eq(fn, args, 1)
-    fargt_must_eq(fn, args, 0, VAR_EXTRA)
-    stdscr = args[0][1]
-    c = stdscr.getch()
-    if c == curses.KEY_RESIZE:
-        ef_nc_endwin()
-        sys.exit(1)
-    return [VAR_NUM, c]
-
-def ef_nc_endwin(*args):
-    fn = "nc-endwin"
-    fargc_must_eq(fn, args, 0)
-    curses.endwin()
-    return [VAR_VOID]
-
-ef_nc = [("nc-initscr", ef_nc_initscr),
-        ("nc-getmaxyx", ef_nc_getmaxyx),
-        ("nc-addstr", ef_nc_addstr),
-        ("nc-getch", ef_nc_getch),
-        ("nc-endwin", ef_nc_endwin)]
+extensions = Extensions()
 
 ##
 # ui
@@ -3097,8 +3070,6 @@ def vrepr(s, names, q=None):
         return "#~port"
     if s[0] == VAR_EOF:
         return "#~eof-object"
-    if s[0] == VAR_EXTRA:
-        return "#~extra"
     if s[0] == VAR_BOOL:
         if type(s[1]) != bool:
             warning("dirty bool")
@@ -3109,13 +3080,18 @@ def vrepr(s, names, q=None):
         return "#~quote %s" % xrepr(s[1], names)
     if s[0] == VAR_UNQUOTE:
         return "#~unquote %s" % xrepr(s[1], names)
+    if s[0] >= VAR_EXTRA_MIN and s[0] <= VAR_EXTRA_MAX:
+        return "#~%s" % (var_type_name(s[0]),)
     return "#~ %r" % (s,)
 
 if __name__ == "__main__":
-    # when running a file, add extra functions ncurses example.
-    # in C this could be a dynlib that loads and gets to register
     if len(sys.argv) == 2:
-        names, env, macros = init_top(ef_nc)
+
+        # ncurses
+        import ext_nc
+        extensions.load(ext_nc)
+
+        names, env, macros = init_top(extensions.fns)
         filename = sys.argv[1]
         with open(filename) as f:
             try:
