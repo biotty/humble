@@ -21,19 +21,22 @@
 #
 # To facilitate against "reference hell" we provide (dup)
 # and (local), and have renamed (define) to (ref) as a reminder.
-# The rationale is that scheme already operates wuth such mutation,
-# when we hold cons-cells or lambda-captures.
+# The rationale is that scheme already operates with such mutation,
+# when you hold cons-cells or lambda-captures.
 # There is both simplification and practical benefit in
 # generalizing such means to mere variables, as a consistent
-# mutation mechanism, replacing set! with its external mutation
-# on the environment.
+# mutation mechanism, replacing set! and its external mutation
+# on the environment.  setv! instead operates on the variable
+# (L-values) that a name refers to.
 #
 # Features:
 #
 # Checked parens-pairs (), [] and {} - no meanings
 # Optimized "tail call" - impl/w deferred-apply var
-# Contigous (non)lists until cdr-usage on which list-
-# variable transforms to a cons chain.
+# Contigous (non)lists until sharing, on which list-
+# variable transforms to a cons chain.  sharing
+# happens on cdr-usage or otherhow that more than
+# one variable owns any of head or tail.
 # The dict type (an alist with efficient repr)
 # macro (exactly as lisp defmacro) -- and gensym
 # import of file (that needs "export" as first expr)
@@ -182,15 +185,14 @@ NAM_ELSE       = 1  #| to re-use for local names in a few macros
 NAM_QUOTE      = 2      #| quote-processing are performed by macros
 NAM_QUASIQUOTE = 3      #| on names
 NAM_UNQUOTE    = 4      #| .
-# 5 (hole - for no reason - no use five)
-NAM_MACRO      = 6   #| the macro macro; defines a user-macro
-NAM_CAR        = 7   #| names of functions used in some of the
-NAM_EQVP       = 8   #| language-macros
-NAM_LIST       = 9   #| used for conversions of macro-argument
-NAM_NONLIST    = 10  #| into data-variable representation.
-NAM_SETVJJ     = 11  #| letrec, letrecx
-NAM_DUP        = 12  #| def
-NAM_ERROR      = 13  #| default else in case
+NAM_MACRO      = 5   #| the macro macro; defines a user-macro
+NAM_CAR        = 6   #| names of functions used in some of the
+NAM_EQVP       = 7   #| language-macros
+NAM_LIST       = 8   #| used for conversions of macro-argument
+NAM_NONLIST    = 9   #| into data-variable representation.
+NAM_SETVJJ     = 10  #| letrec, letrecx
+NAM_DUP        = 11  #| def
+NAM_ERROR      = 12  #| default else in case
 
 def xn(n):
     return (LEX_NAM, n)
@@ -737,8 +739,6 @@ def zloc_scopes(t, local_env):
                 t[i] = (x[0], zloc_scopes([x[1]], local_env)[0])
         elif type(x[0]) != int:
             t[i] = zloc_scopes(x, local_env)
-        elif x[0] in (OP_IMPORT, OP_EXPORT):
-            pass
         elif x[0] == OP_DEFINE:
             if local_env:
                 x[1] = local_env.rewrite_name(x[1])
@@ -755,6 +755,10 @@ def zloc_scopes(t, local_env):
             x[1:] = zloc_scopes(x[1:], local_env)
         elif x[0] == OP_SEQ:
             x[1:] = zloc_scopes(x[1:], local_env)
+        elif x[0] in (OP_EXPORT, OP_IMPORT):
+            # an import has already parsed (zloc performed),
+            # and we therefore in m_scope also zloc.
+            pass
         else:
             broken("unknown form")
     return t
@@ -1237,7 +1241,7 @@ def m_scope(s):
             raise SchemeSrcError("export of non-name")
         y = n[1]
         set_up[y] = y
-    return [OP_IMPORT, set_up, *s[2:]]
+    return [OP_IMPORT, set_up, *zloc_scopes(s[2:], None)]
 
 def m_import(names, macros):
     def ximport(s):
@@ -1406,6 +1410,10 @@ def to_cons_copy(a):
     return to_cons(a)
 
 def normal_list(a):
+    # optimize:  all usages of "for e in normal_list(k)" should
+    # use an iterator wrapper that operates on CONS or LIST as-is.
+    # also, f_equalp can check length if both are already LIST,
+    # but otherwise use iterators on each to compare elements.
     if a is None:
         return []
     if is_cons(a):
@@ -1753,8 +1761,11 @@ def f_gte(*args):
 
 def setvjj(a, b, fn):
     if id(a) == id(b):
-        warning("%s self-ref %s" % (fn, fargt_repr(a[0])))
+        debug("%s self-ref %s" % (fn, fargt_repr(a[0])))
     else:
+        if in_mask(b[0], VAR_LIST | VAR_NONLIST):
+            k = to_cons(b)
+            b[:] = [VAR_CONS, k]
         a.clear()
         a.extend(b)
     return [VAR_VOID]
@@ -1780,10 +1791,14 @@ def f_dup(*args):
     if args[0][0] == VAR_VOID:
         warning("dup of void")
         return args[0]
-    # optimization: if ref-count indicates we are holding
-    # the one and only reference to the variable, return
-    # args[0] instead if the following shallow-copy.
-    return [args[0][0], args[0][1]]
+    rc = sys.getrefcount(args[0])
+    if rc < 4:
+        broken("assumption of refs to an arg")
+    if rc == 4:
+        return args[0]
+    r = [VAR_VOID]
+    setvjj(r, args[0], "dup")
+    return r
 
 def f_aliasp(*args):
     fargc_must_eq("alias?", args, 2)

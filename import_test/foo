@@ -4,3 +4,4 @@
 (ref i 1)
 (G)
 (macro mm () 123)
+(display (doo 5))

@@ -378,5 +378,30 @@ test(""" [ ref y 1 ]
   (chk (list @(list 1 2 3)) li)
   (chk (list @li) li)
   )
+(scope (export fo0)
+  ; vfy that dup will list->cons
+  (ref a (list 0 1 9))
+  (display a " ")
+  ; shows (0 1 9)
+  (def b a)
+  (display b " ")
+  ; shows #:(0 1 9)
+  (chk #t (eq? a b))
+  (ref c (cdr b))
+  (chk c (list 1 9))
+  (set-car! c 2);
+  (chk a (list 0 2 9))
+  (local c);
+  (setv! c (list 3))
+  (chk b (list 0 2 9))
+  ; but not when sole ref
+  (def d (list 1 2 3))
+  (display d ".\n")
+  ; ^ display (1 2 3)
+  ; and not #:(1 2 3)
+  (ref (fo0) "ok")
+  ; lambda in a here-import
+) ; v invoke it as exported
+(chk (fo0) "ok")
 """)
 

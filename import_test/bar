@@ -1,4 +1,5 @@
 ;bar
-(export j 'G)
+(export j 'G doo)
 (ref j 123)
 (macro G () 7)
+(ref (doo x) (+ x j))

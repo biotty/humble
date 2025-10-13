@@ -82,7 +82,7 @@
     (ref frog (rnd-frog '()))
     (ref (set-dir! v) (setv! dir v))
     (ref (step! score-fun)
-      (setv! body (cons (nonlist (+ y) (+ x)) body))
+      (setv! body (cons (nonlist (dup y) (dup x)) body))
       (ref d (list-tail body (- body-length 1)))
       (setv! butt (list (caar d) (cdar d)))
       (set-cdr! d '())
