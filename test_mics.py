@@ -403,5 +403,13 @@ test(""" [ ref y 1 ]
   ; lambda in a here-import
 ) ; v invoke it as exported
 (chk (fo0) "ok")
+(chk #t (equal? (cdr '(0 1 2))   '(1 2)))
+(chk #t (equal? (cdr '(0 1 . 2)) '(1 . 2)))
+(chk #f (equal? (cdr '(0 1 2))   '(1 2 3)))
+(chk #f (equal? (cdr '(0 1 . 2)) '(1 2 . 3)))
+(chk #f (equal? (cdr '(0 1 2 3)) '(1 2)))
+(chk #f (equal? (cdr '(0 1 2 . 3)) '(1 . 2)))
+(chk '((1 3) (2 4) (3 5))
+  (map list (cdr '(0 1 2 3)) '(3 4 5 6)))
 """)
 

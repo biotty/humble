@@ -1409,11 +1409,23 @@ def to_cons_copy(a):
         return a[1].xcopy(0)
     return to_cons(a)
 
+def ConsOrListIter(c):
+    if type(c) == list:
+        return iter(c)
+    class ConsIter:
+        def __init__(self, c):
+            self.c = c
+        def __iter__(self):
+            return self
+        def __next__(self):
+            c = self.c
+            if c is None:
+                raise StopIteration
+            self.c = c.d
+            return c.a
+    return ConsIter(c)
+
 def normal_list(a):
-    # optimize:  all usages of "for e in normal_list(k)" should
-    # use an iterator wrapper that operates on CONS or LIST as-is.
-    # also, f_equalp can check length if both are already LIST,
-    # but otherwise use iterators on each to compare elements.
     if a is None:
         return []
     if is_cons(a):
@@ -1811,8 +1823,8 @@ def f_eqp(*args):
     if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         return [VAR_BOOL, (len(args[0][1]) == 0 and len(args[1][1]) == 0)
                 or (id(args[0][1]) == id(args[1][1]))]
-    if in_mask(args[0][0], VAR_CONS | VAR_FUN | VAR_FUN_DOT) \
-            or args[0][0] == VAR_DICT:
+    if (in_mask(args[0][0], VAR_CONS | VAR_FUN | VAR_FUN_DOT)
+            or args[0][0] == VAR_DICT):
         return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
     return [VAR_BOOL, args[0][1] == args[1][1]]
 
@@ -1824,26 +1836,55 @@ def f_equalp(*args):
             or not in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS)):
         return f_eqp(*args)
     r = [VAR_BOOL, False]
-    if ((args[0][0] == VAR_LIST and args[1][0] == VAR_NONLIST)
-            or (args[0][0] == VAR_NONLIST and args[1][0] == VAR_LIST)):
+    if ((args[0][0] == VAR_LIST and args[1][0] == VAR_LIST)
+            or (args[0][0] == VAR_NONLIST and args[1][0] == VAR_NONLIST)):
+        if len(args[0][1]) != len(args[1][1]):
+            return r
+        for i, v in enumerate(args[0][1]):
+            r = f_equalp(v, args[1][1][i])
+            if not r[1]:
+                break
         return r
     if args[0][0] == VAR_CONS and args[1][0] == VAR_CONS:
         x = args[0][1]
         y = args[1][1]
         while x is not None:
-            if not (y is not None and f_equalp(x.a, y.a)[1]):
+            if not is_cons(x):
+                if is_cons(y):
+                    return r
+                else:
+                    return f_equalp(x, y)
+            if y is None or not is_cons(y):
+                return r
+            if not f_equalp(x.a, y.a)[1]:
                 return r
             x = x.d
             y = y.d
         return [VAR_BOOL, y is None]
-    a = normal_list(args[0][1])
-    b = normal_list(args[1][1])
-    if len(a) != len(b):
-        return r
-    for i in range(len(a)):
-        r = f_equalp(a[i], b[i])
-        if not r[1]:
-            break
+    if args[0][0] == VAR_CONS or args[1][0] == VAR_CONS:
+        if args[1][0] == VAR_CONS:
+            is_nonlist = args[0][0] == VAR_NONLIST
+            a = args[0][1]
+            c = args[1][1]
+        else:
+            is_nonlist = args[1][0] == VAR_NONLIST
+            c = args[0][1]
+            a = args[1][1]
+        n = len(a)
+        i = 0
+        while c is not None:
+            if i == n:
+                return r
+            if not is_cons(c):
+                if not is_nonlist or i + 1 != n:
+                    return r
+                return f_equalp(c, a[i])
+            if not f_equalp(c.a, a[i])[1]:
+                return r
+            c = c.d
+            i += 1
+        return [VAR_BOOL, i == n]
+    # note: must now be NONLIST and LIST -- hence not equal
     return r
 
 # the DICT type supports keys only of the specific types
@@ -1865,7 +1906,7 @@ def f_alist_z_dict(*args):
     fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     d = []
-    for x in normal_list(args[0][1]):
+    for x in ConsOrListIter(args[0][1]):
         if x[0] == VAR_CONS:
             a = x[1].a
             b = x[1].d
@@ -1983,7 +2024,7 @@ def f_string_z_list(*args):
 def f_list_z_string(*args):
     fargt_must_in("list->string", args, 0, VAR_LIST | VAR_CONS)
     return [VAR_STRING, "".join([chr(n[1])
-        for n in normal_list(args[0][1])])]
+        for n in ConsOrListIter(args[0][1])])]
 
 def f_symbol_z_string(names):
     def to_name_string(*args):
@@ -2164,16 +2205,19 @@ def f_map(*args):
     fargt_must_in(fn, args, 0, VAR_FUN | VAR_FUN_DOT)
     f = args[0]
     inputs = []
-    for j in range(1, len(args)):
-        fargt_must_in(fn, args, j, VAR_LIST | VAR_CONS)
-        inputs.append(normal_list(args[j][1]))
-    n = min(len(y) for y in inputs)
+    for i in range(1, len(args)):
+        fargt_must_in(fn, args, i, VAR_LIST | VAR_CONS)
+        inputs.append(ConsOrListIter(args[i][1]))
     r = []
-    for i in range(n):
-        w = []
-        for j in range(len(inputs)):
-            w.append(inputs[j][i])
-        r.append(fun_call([f] + w))
+    try:
+        while True:
+            w = []
+            for j in range(len(inputs)):
+                x = next(inputs[j])
+                w.append(x)
+            r.append(fun_call([f] + w))
+    except StopIteration:
+        pass
     return [VAR_LIST, r]
 
 def search_pred(a):
@@ -2355,7 +2399,7 @@ def f_input_from_pipe(*args):
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
     a = []
-    for e in normal_list(args[0][1]):
+    for e in ConsOrListIter(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
                 % (fn, fargt_repr(e[0])))
         a.append(e[1])
@@ -2373,7 +2417,7 @@ def f_output_to_pipe(*args):
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
     a = []
-    for e in normal_list(args[0][1]):
+    for e in ConsOrListIter(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
                 % (fn, fargt_repr(e[0])))
         a.append(e[1])
@@ -2412,7 +2456,7 @@ def f_in_string_bytes(*args):
     fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     b = []
-    for e in normal_list(args[0][1]):
+    for e in ConsOrListIter(args[0][1]):
         fchk_or_fail(e[0] == VAR_NUM, "%s got %s expects number"
                 % (fn, fargt_repr(e[0])))
         b.append(e[1])
