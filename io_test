@@ -1,4 +1,4 @@
-(let ((f (output-file "foo"))) (write-string "hi there\n" f));
-(let ((f (input-file "foo"))) (read-line f));
-(output-to-pipe '("wc") (lambda (p) (write-string "foo bar\n" p)));
-(input-from-pipe '("ls") (lambda (p) (display (read-line p))));
+(let ((f (output-file "foo"))) (write-string "hi there\n" f))
+(let ((f (input-file "foo"))) (read-line f))
+(output-to-pipe '("wc") (lambda (p) (write-string "foo bar\n" p)))
+(input-from-pipe '("ls") (lambda (p) (display (read-line p))))

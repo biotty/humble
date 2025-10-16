@@ -3143,6 +3143,24 @@ def vrepr(s, names, q=None):
         return "#~%s" % (var_type_name(s[0]),)
     return "#~ %r" % (s,)
 
+# feature: last successfully parsed text is saved aside
+# so that difficulty on dropped parenths can be easily
+# reverted when having done a too eager edit.
+
+import os, shutil
+
+def ok_parse_bak(f, fn):
+    def get_m(fn):
+        try:
+            return os.stat(fn).st_mtime
+        except FileNotFoundError:
+            return 0
+    txt_m = os.fstat(f.fileno()).st_mtime
+    bak = fn + ".ok"
+    bak_m = get_m(bak)
+    if txt_m > bak_m:
+        shutil.copyfile(fn, bak)
+
 if __name__ == "__main__":
     if len(sys.argv) == 2:
 
@@ -3160,6 +3178,7 @@ if __name__ == "__main__":
                 sys.stderr.write(e.args[0] + "\n")
                 sys.exit(1)
             else:
+                ok_parse_bak(f, filename)
                 try:
                     run_top(tree, env, names)
                 except SchemeRunError as e:
