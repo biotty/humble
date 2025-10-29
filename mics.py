@@ -136,6 +136,7 @@ LEX_LIST       = (1 << 8)
 LEX_NONLIST    = (1 << 9)
 # no FUN         (1 << 10)
 # no FUN_DOT     (1 << 11)
+# no FUN_HOST    (1 << 12)
 
 # run-types
 
@@ -164,8 +165,8 @@ VAR_EXTRA_MAX  = 127 + BIT_VAR
 VAR_CONS       = (1 << 7) + BIT_VAR
 VAR_LIST       = (1 << 8) + BIT_VAR
 VAR_NONLIST    = (1 << 9) + BIT_VAR
-VAR_FUN        = (1 << 10) + BIT_VAR
-VAR_FUN_DOT    = (1 << 11) + BIT_VAR
+VAR_FUN_OPS    = (1 << 10) + BIT_VAR
+VAR_FUN_HOST   = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
@@ -175,8 +176,8 @@ OP_COND        = 3
 OP_SEQ         = 4
 OP_IMPORT      = 6
 OP_EXPORT      = 7
-OP_LAMBDA      = (1 << 10) # aligned w VAR_FUN
-OP_LAMBDA_DOT  = (1 << 11) #           VAR_FUN_OP
+OP_LAMBDA      = 8
+OP_LAMBDA_DOT  = 9
 
 # known names
 
@@ -450,16 +451,7 @@ def lex(s, names):
 ##
 
 def in_mask(k, a):
-    i = (k & ~BIT_VAR)
-    r = bool(i & a)
-    # # comment out slow asserts
-    # def single_bit(i):
-    #     return (i & (i - 1)) == 0
-    # # positive (false) result on non-applicable code-point
-    # assert r <= single_bit(i)
-    # # unnecessary call.  use ==
-    # assert not single_bit(a & ~BIT_VAR))
-    return r
+    return bool(k & a & ~BIT_VAR)
 
 def var_members(a):
     r = []
@@ -613,7 +605,7 @@ def unbound(s, defs, is_block):
                 debug("re-define")
             r.update(u)
             defs.add(x[1])
-        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
+        elif x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             from_branches.update(x[2])
         elif x[0] == OP_COND:
             r.update(unbound(x[1:], defs, False))
@@ -653,7 +645,7 @@ def find_unbound(s, y):
             r = find_unbound([x[2]], y)
             if r:
                 return r
-        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
+        elif x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             if y in x[2]:
                 return find_unbound(x[3:], y)
         elif x[0] == OP_COND:
@@ -716,11 +708,25 @@ class LocalEnv:
             r.append(self.rewrite_name(n))
         return r
 
-    def activation(self, captured):
-        r = [None] * len(self.names)
+    def activation(self, captured, dot, args):
+        env = [None] * len(self.names)
         for i, v in enumerate(captured):
-            r[i + self.n_parms] = v
-        return r
+            env[i + self.n_parms] = v
+        if dot:
+            last = self.n_parms - 1
+            if len(args) < last:
+                raise SchemeRunError("fun-dot expected %d args got %d"
+                        % (self.n_parms, len(args)))
+            for i in range(last):
+                env[i] = args[i]
+            env[last] = [VAR_LIST, list(args[last:])]
+        else:
+            if len(args) != self.n_parms:
+                raise SchemeRunError("fun expected %d args got %d"
+                        % (self.n_parms, len(args)))
+            for i, v in enumerate(args):
+                env[i] = v
+        return env
 
 # meaning of "zloc" is: relocate the
 # identifiers in a lexical scope (lambda)
@@ -743,7 +749,7 @@ def zloc_scopes(t, local_env):
             if local_env:
                 x[1] = local_env.rewrite_name(x[1])
             x[2:] = zloc_scopes([x[2]], local_env)
-        elif in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
+        elif x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             c = sorted(x[2])
             fun_env = LocalEnv(x[1], c)
             x[3:] = zloc_scopes(x[3:], fun_env)
@@ -1443,8 +1449,8 @@ def var_type_name(vt):
         VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
         VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
-        VAR_FUN: "fun", VAR_FUN_DOT: "dotfun", VAR_APPLY: "apply",
-        VAR_PORT: "port", VAR_EOF: "eof-object" }[vt]
+        VAR_FUN_OPS: "fun", VAR_FUN_HOST: "builtin",
+        VAR_APPLY: "apply", VAR_PORT: "port", VAR_EOF: "eof-object" }[vt]
 
 def fargt_repr(vt):
     try:
@@ -1823,7 +1829,7 @@ def f_eqp(*args):
     if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
         return [VAR_BOOL, (len(args[0][1]) == 0 and len(args[1][1]) == 0)
                 or (id(args[0][1]) == id(args[1][1]))]
-    if (in_mask(args[0][0], VAR_CONS | VAR_FUN | VAR_FUN_DOT)
+    if (in_mask(args[0][0], VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)
             or args[0][0] == VAR_DICT):
         return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
     return [VAR_BOOL, args[0][1] == args[1][1]]
@@ -1966,7 +1972,7 @@ def f_dict_if_get(*args):
     fn = "dict-if-get"
     fargc_must_eq(fn, args, 4)
     fargt_must_eq(fn, args, 0, VAR_DICT)
-    fargt_must_in(fn, args, 3, VAR_FUN | VAR_FUN_DOT)
+    fargt_must_in(fn, args, 3, VAR_FUN_OPS | VAR_FUN_HOST)
     if args[0][1] is None or args[0][1].t != args[1][0]:
         v = args[2]
     else:
@@ -2116,10 +2122,8 @@ def f_numberp(*args):
 
 def f_procedurep(*args):
     fn = "procedure?"
-    r = typep(args, fn, VAR_FUN)
-    if not r[1]:
-        r = typep(args, fn, VAR_FUN_DOT)
-    return r
+    return [VAR_BOOL, in_mask(args[0][0],
+        VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)]
 
 def f_symbolp(*args):
     return typep(args, "symbol?", LEX_NAM)
@@ -2202,7 +2206,7 @@ def f_apply(*args):
 
 def f_map(*args):
     fn = "map"
-    fargt_must_in(fn, args, 0, VAR_FUN | VAR_FUN_DOT)
+    fargt_must_in(fn, args, 0, VAR_FUN_OPS | VAR_FUN_HOST)
     f = args[0]
     inputs = []
     for i in range(1, len(args)):
@@ -2221,7 +2225,7 @@ def f_map(*args):
     return [VAR_LIST, r]
 
 def search_pred(a):
-    if in_mask(a[0], VAR_FUN | VAR_FUN_DOT):
+    if in_mask(a[0], VAR_FUN_OPS | VAR_FUN_HOST):
         p = lambda x: fun_call([a, x])
     else:
         p = lambda x: f_equalp(a, x)
@@ -2397,7 +2401,7 @@ def f_input_from_pipe(*args):
     fn = "input-from-pipe"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
-    fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
+    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
     a = []
     for e in ConsOrListIter(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
@@ -2415,7 +2419,7 @@ def f_output_to_pipe(*args):
     fn = "output-to-pipe"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
-    fargt_must_in(fn, args, 1, VAR_FUN | VAR_FUN_DOT)
+    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
     a = []
     for e in ConsOrListIter(args[0][1]):
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
@@ -2512,7 +2516,7 @@ def f_prng(*args):
             fargt_must_eq(fn, args, 1, VAR_NUM)
             a, b = b, args[1][1]
         return [VAR_NUM, prng.randint(a, b)]
-    return [VAR_FUN, r]
+    return [VAR_FUN_HOST, r]
 
 from time import time, sleep
 
@@ -2549,62 +2553,55 @@ def f_pause(*args):
 def is_last(w, block):
     return id(w) == id(block[-1])
 
+class FunOps:
+
+    def __init__(self, dot, captured, le, block):
+        self.dot = dot
+        self.captured = captured
+        self.le = le
+        self.block = block
+
+    def guts(self):
+        return self.dot, self.captured, self.le, self.block
+
+    def tco(self, args):
+        dot, captured, le, block = self.guts()
+        done = False
+        while not done:
+            env = le.activation(captured, dot, args)
+            done = True
+            for w in block:
+                v = xeval(w, env)
+                if v[0] == VAR_APPLY:
+                    a = v[1]
+                    f = a[0]
+                    assert f[0] == VAR_FUN_OPS
+                    args = a[1:]
+                    if not is_last(w, block):
+                        debug("rec-apply", a)
+                        v = f[1].tco(args)
+                    else:
+                        debug("iter-apply", a)
+                        dot, captured, le, block = f[1].guts()
+                        done = False
+        return v
+
+
 def fun_call(a):
     debug("fun-call", a)
-    x = a[0]
+    f = a[0]
     args = a[1:]
     # note: native function call, for builtins
-    if not is_fun_ops(x):
+    if f[0] == VAR_FUN_HOST:
         debug("native-fun")
-        a = x[1](*args)
+        a = f[1](*args)
         if a[0] != VAR_APPLY:
             return a
         b = a[1]
-        x = b[0]
+        f = b[0]
         args = b[1:]
-        if not is_fun_ops(x):
-            broken("apply-var with native")
-    return fun_call_ops(x, args)
-
-def fun_call_ops(x, args):
-    dot = x[0] == VAR_FUN_DOT
-    captured = x[1]
-    le = x[2]
-    block = x[3]
-    done = False
-    while not done:
-        env = le.activation(captured)
-        if dot:
-            last = le.n_parms - 1
-            if len(args) < last:
-                raise SchemeRunError("fun-dot expected %d args got %d"
-                        % (le.n_parms, len(args)))
-            for i in range(last):
-                env[i] = args[i]
-            env[last] = [VAR_LIST, list(args[last:])]
-        else:
-            if len(args) != le.n_parms:
-                raise SchemeRunError("fun expected %d args got %d"
-                        % (le.n_parms, len(args)))
-            for i, v in enumerate(args):
-                env[i] = v
-        # consider: move above into the def activation
-        done = True
-        for w in block:
-            v = xeval(w, env)
-            if v[0] == VAR_APPLY:
-                a = v[1]
-                assert in_mask(a[0][0], VAR_FUN | VAR_FUN_DOT)
-                if not is_last(w, block):
-                    debug("active-apply", a)
-                    v = fun_call_ops(a[0], a[1:])
-                else:
-                    debug("iter-apply", a)
-                    args = a[1:]
-                    captured, le, block = a[0][1:]
-                    dot = a[0][0] == VAR_FUN_DOT
-                    done = False
-    return v
+    assert f[0] == VAR_FUN_OPS
+    return f[1].tco(args)
 
 def make_fun(up, x, lambda_op):
     local_env = x[0]
@@ -2612,8 +2609,8 @@ def make_fun(up, x, lambda_op):
     for k in x[1]:
         captured.append(up[k])
     fun_block = x[2:]
-    t = (lambda_op | BIT_VAR)
-    return [t, captured, local_env, fun_block]
+    dot = (lambda_op == OP_LAMBDA_DOT)
+    return [VAR_FUN_OPS, FunOps(dot, captured, local_env, fun_block)]
 
 def flatten_splices(a):
     r = []
@@ -2682,7 +2679,7 @@ def xeval(x, env):
         v = run(x[2], env)
         env[x[1]] = v
         return [VAR_VOID]
-    if in_mask(x[0], OP_LAMBDA | OP_LAMBDA_DOT):
+    if x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
         return make_fun(env, x[1:], x[0])
     if x[0] == OP_COND:
         for y in x[1:]:
@@ -2711,10 +2708,10 @@ def xeval(x, env):
     broken("unknown form")
 
 def xapply(a):
-    if not in_mask(a[0][0], VAR_FUN | VAR_FUN_DOT):
+    if not in_mask(a[0][0], VAR_FUN_OPS | VAR_FUN_HOST):
         raise SchemeRunError("apply %s"
                 % (fargt_repr(a[0][0])))
-    if is_fun_ops(a[0]):
+    if a[0][0] == VAR_FUN_OPS:
         return [VAR_APPLY, a]
     return a[0][1](*a[1:])
 
@@ -2722,7 +2719,9 @@ def run(x, env):
     y = xeval(x, env)
     if y[0] == VAR_APPLY:
         a = y[1]
-        y = fun_call_ops(a[0], a[1:])
+        f = a[0]
+        assert f[0] == VAR_FUN_OPS
+        y = f[1].tco(a[1:])
     return y
 
 ##
@@ -2770,15 +2769,15 @@ def init_macros(env, names):
 
 def init_env(names):
     env = dict()
-    env[NAM_CAR] = [VAR_FUN, f_car]
-    env[NAM_EQVP] = [VAR_FUN, f_eqp]  # impl: eq? is identical as eqv?
-    env[NAM_LIST] = [VAR_FUN, f_list]
-    env[NAM_NONLIST] = [VAR_FUN, f_nonlist]
-    env[NAM_SETVJJ] = [VAR_FUN, f_setvjj]
-    env[NAM_DUP] = [VAR_FUN, f_dup]
-    env[NAM_ERROR] = [VAR_FUN, f_error(names)]
-    with_new_name("display", [VAR_FUN, f_display(names)], env, names)
-    with_new_name("symbol->string", [VAR_FUN, f_symbol_z_string(names)],
+    env[NAM_CAR] = [VAR_FUN_HOST, f_car]
+    env[NAM_EQVP] = [VAR_FUN_HOST, f_eqp]  # impl: eq? is identical as eqv?
+    env[NAM_LIST] = [VAR_FUN_HOST, f_list]
+    env[NAM_NONLIST] = [VAR_FUN_HOST, f_nonlist]
+    env[NAM_SETVJJ] = [VAR_FUN_HOST, f_setvjj]
+    env[NAM_DUP] = [VAR_FUN_HOST, f_dup]
+    env[NAM_ERROR] = [VAR_FUN_HOST, f_error(names)]
+    with_new_name("display", [VAR_FUN_HOST, f_display(names)], env, names)
+    with_new_name("symbol->string", [VAR_FUN_HOST, f_symbol_z_string(names)],
             env, names)
     for a, b in [
             ("+", f_pluss),
@@ -2866,7 +2865,7 @@ def init_env(names):
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:
-        with_new_name(a, [VAR_FUN, b], env, names)
+        with_new_name(a, [VAR_FUN_HOST, b], env, names)
 
     return env
 
@@ -2968,7 +2967,7 @@ def init_top(extra_f=()):
     assert N == len(names)
     env = init_env(names)
     for a, b in extra_f:
-        with_new_name(a, [VAR_FUN, b], env, names)
+        with_new_name(a, [VAR_FUN_HOST, b], env, names)
 
     macros = init_macros(env, names)
 
@@ -3021,7 +3020,7 @@ def xrepr(s, names):
         if s[0] == OP_DEFINE:
             return "#<define %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
-        if in_mask(s[0], OP_LAMBDA | OP_LAMBDA_DOT):
+        if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             return "#<lambda #>"
             # omitted: content of lambda, as names only contains
             # the local env (as invoked from vrepr), and we would
@@ -3070,12 +3069,6 @@ def xrepr(s, names):
         return "#<unquote %s #>" % (xrepr(s[1], names),)
     return "#< %r #>" % (s,)
 
-def is_fun_ops(s):
-    if len(s) == 4:
-        return True
-    assert len(s) == 2
-    return False
-
 def vrepr(s, names, q=None):
     if in_mask(s[0], VAR_LIST | VAR_NONLIST):
         w  = [vrepr(x, names, q) for x in s[1]]
@@ -3103,28 +3096,26 @@ def vrepr(s, names, q=None):
         return "#{ " + " ".join(
                 ["(%s . %s)" % (vrepr(x, names, q), vrepr(y, names, q))
                     for x, y in s[1].ditems()]) + " }"
-    if in_mask(s[0], VAR_FUN | VAR_FUN_DOT):
-        r = "#~fun" if s[0] == VAR_FUN else "#~dotfun"
-        if is_fun_ops(s) and verbose:
-            le = s[2]
-            p = le.n_parms
-            lnames = [names[k] for k in le.names]
-            g = id(s[1])
-            if not q:
-                q = set()
-            elif g in q:
-                return "..."
-            q.add(g)
-            return "%s(%s)[%s]{ %s }" % (r,
-                    " ".join(lnames[:p]),
-                    "|".join("%s %s"
-                        % (lnames[k], vrepr(s[1][k - p], names, q))
-                        for k in range(p, le.n_init)),
-                    " ".join(xrepr(x, lnames) for x in s[3]))
-        else:
-            return r
-    if s[0] == VAR_FUN_DOT:
-        return "#~dotfun"
+    if in_mask(s[0], VAR_FUN_OPS | VAR_FUN_HOST):
+        if s[0] == VAR_FUN_HOST:
+            return "#~builtin"
+        if not verbose:
+            return "#~fun"
+        le = s[2]
+        p = le.n_parms
+        lnames = [names[k] for k in le.names]
+        g = id(s[1])
+        if not q:
+            q = set()
+        elif g in q:
+            return "..."
+        q.add(g)
+        return "#~fun(%s)[%s]{ %s }" % (
+                " ".join(lnames[:p]),
+                "|".join("%s %s"
+                    % (lnames[k], vrepr(s[1][k - p], names, q))
+                    for k in range(p, le.n_init)),
+                " ".join(xrepr(x, lnames) for x in s[3]))
     if s[0] == VAR_PORT:
         return "#~port"
     if s[0] == VAR_EOF:
