@@ -83,13 +83,13 @@
 # define-syntax; instead powerful "unhygienic" lisp macro
 # set! -- setv!(!) operates on the variable, not an env location.
 # Char, but number parsed for #\ and with utf-8 support.
-# pipe-port closes when input/output lambda done (don't keep).
 # only octal escape for bytes in string, but unicode assumed.
 #
-# Bugs:  (known)
+# Note:  (beware)
 #
-# The datums in a case are evaluated, when they should as of
-# r7rs implicitly be quoted.
+# pipe-port will hang if lambda gives away port to keep.
+# The datums in a case are evaluated, when they are as of
+# r7rs implicitly to be quoted.
 #
 
 ##
@@ -1647,7 +1647,7 @@ def f_list_setj(*args):
 
 def f_reverse(*args):
     fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
-    r = f_list_copy(args)
+    r = f_list_copy(*args)
     r[1].reverse()
     return r
 
@@ -2052,6 +2052,12 @@ def f_substring(*args):
     else:
         r = s[i:]
     return [VAR_STRING, r]
+
+def f_string_length(*args):
+    fn = "string-length"
+    fargc_must_ge(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    return [VAR_NUM, len(args[0][1])]
 
 def f_string_append(*args):
     r = []
@@ -2840,6 +2846,7 @@ def init_env(names):
             ("list->string", f_list_z_string),
             ("string-ref", f_string_ref),
             ("substring", f_substring),
+            ("string-length", f_string_length),
             ("string-append", f_string_append),
             ("string=?", f_stringeqp),
             ("string<?", f_stringltp),

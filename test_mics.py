@@ -411,5 +411,12 @@ test(""" [ ref y 1 ]
 (chk #f (equal? (cdr '(0 1 2 . 3)) '(1 . 2)))
 (chk '((1 3) (2 4) (3 5))
   (map list (cdr '(0 1 2 3)) '(3 4 5 6)))
+; strings are utf8
+(chk '(945     231     64) (string->list "αç@"))
+(chk '(206 177 195 167 64)
+  (reverse (let loop ((p (in-string "αç@")) (r '()))
+    (let ((s (read-byte p)))
+      (if (eof-object? s)
+        r (loop p (cons s r)))))))
 """)
 
