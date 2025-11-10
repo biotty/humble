@@ -49,7 +49,7 @@ test("""
 (ref y 1)
 (incr! y)
 (unless (equal? y 2) (error))
-(display "alright") (newline)
+(display "alright" "\n")
 (ref obj [lambda () (ref i 0) (lambda () (incr! i) i)])
 (ref a (obj))
 (ref b (obj))
@@ -58,8 +58,7 @@ test("""
     (list (+ (a)) (+ (a)) (+ (b)) (+ (a)))
     '(1 2 1 3))
   (error))
-(display "hello world!")
-(newline)
+(display "hello world!\n")
 """)
 test(""" [ ref y 1 ]
 (let ((s 2))
@@ -179,10 +178,9 @@ test(""" [ ref y 1 ]
 (unless #f #f 2)
 (unless #t)
 (unless #f)
-(display 123)
-(newline)
+(display 123 "\n")
 (let loop ((a 9)) (cond (#f 0) (1 (if (eqv? a 0) `(,a) (loop (- a 1))))))
-(do ((a 0 (+ a 1)) (b 1)) ((eqv? a 9) 1 `(,a ,b)) (display a) (newline))
+(do ((a 0 (+ a 1)) (b 1)) ((eqv? a 9) 1 `(,a ,b)) (display a "\n"))
 (let ((a 1)) `,a)
 `(a ,li)
 `,(list 'a)
@@ -342,16 +340,12 @@ test(""" [ ref y 1 ]
 (chk ((lambda (x y . z) z)
     3 4 5 6)
        '(5 6))
-; note:  quoted names needed in case, such as the following
-; -- this deviates from r7rs specification (spec.typo?)
 (ref c
   (case (car '(c d))
      (('a 'e 'i 'o 'u) 'vowel)
      (('w 'y) 'semivowel)
      (else => (lambda (x) x))))
 (chk c 'c)
-; ^ anomaly: when doing c inline -- as chk macro arg,
-;            then chk report (~fun~ c), not equal
 (scope (export b+) (ref a+ 11) (ref b+ a+))
 (chk b+ 11)
 (ref@ c+ d+ (list 22 33))
@@ -418,5 +412,13 @@ test(""" [ ref y 1 ]
     (let ((s (read-byte p)))
       (if (eof-object? s)
         r (loop p (cons s r)))))))
+; impl-defined observations:
+(macro echo (a) a);
+(chk #f (cont?? (echo '())))
+(chk #f (cont?? (list @(list))))
+(chk #f (cont?? '()))
+(chk #f (cont?? '(@(list))))  ; weird behavior: quoted splice
+(chk '(3) '(@(list (+ 1 2))));  ; same: quote ignored
+(chk '(3) '(@(list (cond (#t 3)))));  ; same: ignored quote
 """)
 

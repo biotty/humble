@@ -4,92 +4,140 @@
 #
 # My Scheme is more humble than yours!
 #
-# Deviations:
+# Deviations:  (concept)
 #
 # The environment cannot be mutated from an inner scope,
 # as (set!) does (we don't have it).  Only (re-)defining
-# a variable alters the environment, which can only be
+# a name alters the environment, which can only be
 # done at its own lexical scope.  Instead of such env mutation
 # we permit mutation of variables themselves, with (setv!).
+# Names are detached from the variables they refer to so that
+# the variables here resemble (assignable) value entities.
 # Variable names in the program works as in usual scheme.
 # The environment does not contain variable entries directly
 # but references to them.  The variables themselves may be
 # shared with a list or with another environment:
-# Lambda-parameters are not copied,
+# Parameter variables to a procedure are not copied,
 # but taken "by reference".  We have (alias? a b) to report
 # whether a and b refers to the same variable.
 #
-# To facilitate against "reference hell" we provide (dup)
+# To facilitate value-semantics clone (such as use of
+# a names number) and prevent "a reference mess" we provide (dup)
 # and (local), and have renamed (define) to (ref) as a reminder.
+# Surprises with references obviously only occur due to mutation.
+# Given this layout of names and variables, we allow mutation
+# of the variables themselves (like the concept of "lvalues" in C)
+# and we drop the mutation of set! that replaces on the location
+# of a name (list-set! is not dropped).
 # The rationale is that scheme already operates with such mutation,
 # when you hold cons-cells or lambda-captures.
 # There is both simplification and practical benefit in
-# generalizing such means to mere variables, as a consistent
-# mutation mechanism, replacing set! and its external mutation
-# on the environment.  setv! instead operates on the variable
-# (L-values) that a name refers to.
+# generalizing mutation to "values" but eliminating remote
+# mutation on the environments, as done by set! --
+# Instead we have the general setv! that instead operates on what
+# the name refers to.  A local name can only be re-defined
+# in the very same scope -- as opposed to traditional scheme.
 #
-# Features:
+# Features:  (language)
 #
-# Checked parens-pairs (), [] and {} - no meanings
-# Optimized "tail call" - impl/w deferred-apply var
-# Contigous (non)lists until sharing, on which list-
-# variable transforms to a cons chain.  sharing
-# happens on cdr-usage or otherhow that more than
-# one variable owns any of head or tail.
-# The dict type (an alist with efficient repr)
-# macro (exactly as lisp defmacro) -- and gensym
-# import of file (that needs "export" as first expr)
-# ref is as define (allows (recursive) function syntax)
-# def allows usage of same (previous) name in expression
-# ref@ -- define with list values (no multi-value)
-# seq -- lexical block without own scope
-# scope -- an import with contents, not loading file
-#       -- export certain names from "here-doc"
-# Record type -- not provided for user -- but;
-# def-record-type.  case-lambda.  cadar combos.
-# A nonlist function (like list).
-# ,@ propperly separated as two valid operators.
-# Functions and special forms as specified in r7rs
-# But limited for math and a very basic IO:
-# input/output-file, r/w-byte, read-line, write-string
-# eof-object? input-from-pipe output-to-pipe exit
-# IO is utf-8 and there is no "file-mode".
-# For byte access there are byte-io functions.
-# char- and string-literals with a few escapes
-# Otherwise rely on source encoding -- utf-8
-# in-string and out-string provide port interface
-# #void -- unit type i-e is returned on r7rs "unspec"
-# (error) function that reports given value and exits.
+# * Checked parens-pairs (), [] and {} - no meanings
+# * Optimized "tail call" - impl/w deferred-apply var
+# * Contigous (non)lists until sharing, on which list-
+#     variable transforms to a cons chain.  sharing
+#     happens on cdr-usage or otherhow that more than
+#     one variable owns any of head or tail.
+# * The dict type (an alist with efficient repr)
+# * macro (exactly as lisp defmacro) -- and gensym
+# * import of file (that needs "export" as first expr)
+# * ref is as define (allows (recursive) function syntax)
+# * def allows usage of same (previous) name in expression
+# * ref@ -- define with list values (no multi-value)
+# * seq -- lexical block without own scope
+# * scope -- an import with contents, not loading file
+#     -- export certain names from "here-doc"
+# * Record type -- not provided for user -- but;
+#     def-record-type.  case-lambda.  cadar combos.
+# * A nonlist function (like list).
+# * ,@ propperly separated as two valid operators.
+# * Functions and special forms as specified in r7rs
+#     but limited for math and a very basic IO:
+#     input/output-file, r/w-byte, read-line, write-string
+#     eof-object? input-command output-command exit
+# * IO is utf-8 and there is no "file-mode".
+# * For byte access there are byte-io functions.
+# * char- and string-literals with a few escapes
+#     and otherwise rely on source encoding -- utf-8
+# * in-string and out-string provide port interface
+# * #void -- unit type i-e is returned on r7rs "unspec"
+# * (error) function that reports given value and exits.
+
+# Word-in-Progress:  (elaboration)
+
 # "dynload" Load dynamic library that gets to register
 # a list of functions to initial environment.  An example
 # of curses is provided and always loaded when file-run.
 # code-points for extra var-types are checked for
-# collisions, but are blindly set from the library-side.
+# collisions, but are blindly set from the library-side;
 # a floating-point extension could thus be created.
 # note that one could arrange the interpreter to plug
 # such extensions in at start instead of dynamically.
+# It would also be valuable to have a means to utilize
+# libraries left unaware and with no need of any compiled
+# wrapper, in order words a facility to arrange for native
+# function calls from within the humble language.  For
+# example by allowing manipulation of a pinned byte-buffer
+# (start-address may be queried) as well as populating
+# registers and thus also the stack for call and return.
 #
 # Excluded:  (non-features)
 #
-# Multi-value, eval, call/cc, dyn-param, except, force-delay
-# str->sym (because parse-time intern of all names)
-# Implicit quoting in case (we evaluate the <datum>s)
-# Other commenting than ; and #| .. |#
-# Label-syntax for data-loops, or output-representation
-# Float, exact, complex, char (but only integral numbers)
-# No |n a m e s| and no fold-case mode
-# FS/System ops, as there is i.e input-from-pipe
-# define-syntax; instead powerful "unhygienic" lisp macro
-# set! -- setv!(!) operates on the variable, not an env location.
-# Char, but number parsed for #\ and with utf-8 support.
-# only octal escape for bytes in string, but unicode assumed.
+# * Multi-value, eval, call/cc, dyn-param, except, force-delay
+# * str->sym (because parse-time intern of all names)
+# * Implicit quoting in case (we evaluate the <datum>s)
+# * Other commenting than ; and #| .. |#
+# * Label-syntax for data-loops, or output-representation
+# * Float, exact, complex, char (but only integral numbers)
+# * No |n a m e s| and no fold-case mode
+# * FS/System ops, as there is i.e input-command
+# * define-syntax; instead powerful "unhygienic" lisp macro
+# * set! -- setv!(!) operates on the variable, not an env location.
+# * Char, but number parsed for #\ and with utf-8 support.
+# * only octal escape for bytes in string, but unicode assumed.
 #
 # Note:  (beware)
 #
-# pipe-port will hang if lambda gives away port to keep.
-# The datums in a case are evaluated, when they are as of
-# r7rs implicitly to be quoted.
+# * a command port will hang if lambda gives away a ref to it.
+# * The datums in a case are evaluated, when they are as of
+#     r7rs implicitly to be quoted.
+# * cont?? and #void shall be considered non-existent and
+#     provided merely for inspection in development of a program.
+#     They are peek-under-the-hood facilities.  Likewise,
+#     make-record is not expected to be useful by itself.
+#
+# Implementation-defined:  (detail)
+#
+# '() may naturally create an instance of an empty list.  This
+# is a internal representation detail, and not observed except
+# for (as always for list/cons transitions) with cont??
+# Use of an empty list is constrained to cons, which means
+# it will transition to its cons-chain representation and
+# become NULL.  Therefore, the implementation is recommended
+# to create a VAR_CONS with the NULL value in these cases
+# (each at the discretion of the implementation).
+# However, a non-empty list shall be a cont?? on creation (such
+# as from list, list-copy, reverse, make-list) and shall
+# transition to a cons-chain on need such as dup or cdr-usage.
+#
+# In general, the same instance of [VAR_VOID] may be utilized
+# to generate such a value, or a new instance may be
+# created in any such occurance.  alias? is therefore
+# unspecified for [VAR_VOID] in general.  However,
+# for make-list all resulting elements contain one and the
+# same instance.
+#
+# The effect of using splice inside a hard-quoted expression
+# is undefined.  This is more of a known bug that is outside
+# area of interest.  The observed behavior is undo of quote.
 #
 
 ##
@@ -141,6 +189,11 @@ LEX_NONLIST    = (1 << 9)
 # run-types
 
 BIT_VAR        = (1 << 14)
+# may be set to zero, but for development
+# handy to distinguish these values from
+# the LEX entities.  this implementation
+# uses the alignment of these values in
+# conversion (i-e macro args and return)
 
 # offsets with LEX_
 # no SYM 15
@@ -414,16 +467,16 @@ def lex(s, names):
             elif t[1] == "\\":
                 if len(t) == 3:
                     v = (LEX_NUM, ord(t[2]))
-                elif t[2:] == "tab":
-                    v = (LEX_NUM, 9)
-                elif t[2:] == "newline":
-                    v = (LEX_NUM, 10)
-                elif t[2:] == "return":
-                    v = (LEX_NUM, 13)
-                elif t[2:] == "space":
-                    v = (LEX_NUM, 32)
                 else:
-                    raise SchemeSrcError("#\ token at line %d" % (linenumber,))
+                    v = None
+                    for m, c in [("alarm", 7), ("backspace", 8), ("tab", 9),
+                            ("newline", 10), ("return", 13), ("escape", 27),
+                            ("space", 32), ("delete", 127)]:
+                        if t[2:] == m:
+                            v = (LEX_NUM, c)
+                            break
+                    if v is None:
+                        raise SchemeSrcError("#\ token at line %d" % (linenumber,))
             elif t == "#void":
                 v = (LEX_VOID,)
             else:
@@ -1301,41 +1354,75 @@ def m_import(names, macros):
 # builtin functions
 ##
 
-# notes on variables
+# Arguments to functions are variables, which makes this
+# a good place to describe them, right prior to the
+# definitions of the builtin functions that need to
+# operate on them in a consistent manner.  Support such
+# as the internal types held by them are defined just
+# before the using functions.
 #
-# a variable is the value of an entry in the environment.
-# it is a mutable pair (type, value).  the value referred
-# to may be referred from other variables (shared), and
-# by different environments or by lists as a member.
+# Notes on Variables
 #
-# no function operates on the environment.  setv! operates
+# A variable is the value of an entry in the environment.
+# It is a mutable pair (type, value).  The value referred
+# to may be referred from other variables (i-e list), and
+# by name-entries in (other) environments.
+#
+# No function operates on the environment.  setv! operates
 # on the variable.  setv!! is needed to change its type.
 # list-set! replaces the list member and does not affect
 # the previous member variable.  special forms such as
-# DEFINE operate on the environment itself.
+# DEFINE (i-e ref) operate on the environment itself.
 #
-# a list variable is represented by a contiguous container
-# until cdr-usage requires it to convert to a cons chain.
+# A new non-empty list variable is represented by a
+# contiguous container.  When another reference to
+# it (not to an element, which is irrelevant) at any
+# index is given out (either by "cdr-usage" or by
+# "dup" of the list so that another variable holds it)
+# requires it to convert to a cons-chain, so that
+# any observation of mutation (such as inserting an
+# element) is shared.  Note that it is a choice to
+# not have a "shared-list" type that would avoid the
+# need to transform the representation on "dup".
 #
-# the contigous representation of a cons chain as mentioned,
+# The contigous representation of a cons chain as mentioned,
 # uses a specific type to denote if it represents a normal
 # list, or that it represents a non-list; a cons-chain
-# where the last CDR is not NIL, by type respectively
+# where the last CDR is not NULL, by type respectively
 # VAR_LIST and VAR_NONLIST.
 #
-# the value of a CONS variable is a cons-cell, while the
+# The value of a CONS variable is a cons-cell, while the
 # value of a (NON)LIST variable is the contigous list as
 # a whole and owned privately by this variable.
-# the latter list value is not shared by other variables
+# The latter list value is not shared by other variables
 # (but the variable itself may be refered to by several
 # environments).  a cons-cell, on the other hand, may be.
 #
-# dict is an explicit type for efficient lookup operations
-# and is converted from an alist or back, VAR_DICT.
+# DICT is an explicit type for efficient lookup operations
+# and is converted from an alist or back, VAR_DICT.  such a
+# variable is not eqv? itself.
 #
-# the record type VAR_REC is not meant for a program but used
+# The record type VAR_REC is not meant for a program but used
 # by the def-record-type macro.
 #
+# VAR_STRING owns the value.  setv! will require a complete
+# copy of the value.  An implementation may introduce a
+# (not visible to the language used) variable type for
+# "big strings" that could instead own a shared pointer,
+# to avoid such copy.  String values are immutable,
+# so operations such as concatenation on strings, will
+# copy memory to a significant degree anyway.
+#
+# VAR_NUM is trivial.  However, semantics may be surprising
+# as we expect any numerical expression to yield creation of
+# a new instanceof:  evaluating a single number will not.
+#
+# VAR_VOID is used for "unspecified value" as in r7rs.
+# object identity under alias? is not well defined,
+# except for the result of make-list.
+#
+
+# support for CONS
 
 def is_cons(y):
     return isinstance(y, Cons)
@@ -1442,6 +1529,8 @@ def normal_list(a):
     assert type(a) == list
     return a
 
+# arg checks
+
 def var_type_name(vt):
     if vt >= VAR_EXTRA_MIN and vt <= VAR_EXTRA_MAX:
         return "extra-%x" % (~BIT_VAR & vt,)
@@ -1488,6 +1577,8 @@ def fargt_must_in(fn, args, i, vts):
                     fargt_repr(args[i][0])))
 
 def f_list(*args):
+    if len(args) == 0:
+        return [VAR_CONS, None]
     return [VAR_LIST, list(args)]
 
 def f_nonlist(*args):
@@ -1631,6 +1722,7 @@ def f_list_tail(*args):
     return [VAR_CONS, r]
 
 def f_list_setj(*args):
+    fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
     fn = "list-set!"
     fargc_must_eq(fn, args, 3)
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
@@ -1644,6 +1736,12 @@ def f_list_setj(*args):
         if c[1] is not None:
             c[1].a = args[2]
     return [VAR_VOID]
+
+def f_make_list(*args):
+    fargt_must_eq("make-list", args, 0, VAR_NUM)
+    v = [VAR_VOID]
+    n = args[0][1]
+    return [VAR_LIST, [v] * n]
 
 def f_reverse(*args):
     fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
@@ -1660,6 +1758,8 @@ def f_take(*args):
     if args[1][0] == VAR_LIST:
         return [VAR_LIST, args[1][1][:n]]
     return args[1][1].xcopy(n)
+
+# functions on NUM
 
 def f_pluss(*args):
     r = 0
@@ -1777,6 +1877,8 @@ def f_lte(*args):
 def f_gte(*args):
     return n2_pred(args, ">=", lambda x, y: x >= y)
 
+# mutation of a variable itself
+
 def setvjj(a, b, fn):
     if id(a) == id(b):
         debug("%s self-ref %s" % (fn, fargt_repr(a[0])))
@@ -1817,6 +1919,8 @@ def f_dup(*args):
     r = [VAR_VOID]
     setvjj(r, args[0], "dup")
     return r
+
+# identity
 
 def f_aliasp(*args):
     fargc_must_eq("alias?", args, 2)
@@ -1892,6 +1996,8 @@ def f_equalp(*args):
         return [VAR_BOOL, i == n]
     # note: must now be NONLIST and LIST -- hence not equal
     return r
+
+# support for DICT
 
 # the DICT type supports keys only of the specific types
 # NUM or STRING.  the data structure is distinct from the
@@ -1986,6 +2092,8 @@ def f_dict_if_get(*args):
 def f_dictp(*args):
     return typep(args, "dict?", VAR_DICT)
 
+# REC functionality
+
 class Record:
     def __init__(self, nam, values):
         self.nam = nam
@@ -2015,6 +2123,8 @@ def f_recordp(*args):
     fargt_must_eq(fn, args, 0, VAR_REC)
     fargt_must_eq(fn, args, 1, VAR_NAM)
     return [VAR_BOOL, args[0][1].nam == args[1][1]]
+
+# STRING functions
 
 def f_string_ref(*args):
     fn = "string-ref"
@@ -2116,6 +2226,8 @@ def f_number_z_string(*args):
                     % (fn, args[0][1], radix))
     return [VAR_STRING, format(args[0][1], b)]
 
+# type checks
+
 def typep(args, fn, t):
     fargc_must_eq(fn, args, 1)
     return [VAR_BOOL, t == args[0][0]]
@@ -2167,13 +2279,24 @@ def f_pairp(*args):
         return [VAR_BOOL, args[0][1] is not None]
     return [VAR_BOOL, False]
 
+def f_contpp(*args):
+    fargc_must_eq("cont??", args, 1)
+    return [VAR_BOOL, in_mask(args[0][0], VAR_LIST | VAR_NONLIST)]
+
 def f_voidp(*args):
     fargc_must_eq("void?", args, 1)
     return [VAR_BOOL, args[0][0] == VAR_VOID]
 
+# boolean functions (one, others are macros on cond)
+
 def f_not(*args):
     fargc_must_eq("not", args, 1)
     return [VAR_BOOL, args[0] == [VAR_BOOL, False]]
+
+# display functions (see I/O functions)
+#
+#   for development purposes and as of r7rs, not suggested for
+#   program utilization
 
 def f_display(names):
     def display(*args):
@@ -2186,10 +2309,7 @@ def f_display(names):
         return [VAR_VOID]
     return display
 
-def f_newline(*args):
-    fargc_must_eq("newline", args, 0)
-    sys.stdout.write("\n")
-    return [VAR_VOID]
+# list functions
 
 def f_length(*args):
     fn = "length"
@@ -2290,6 +2410,8 @@ def f_assoc(*args):
             if t(f_car(x)):
                 return x
     return f
+
+# I/O functions
 
 def f_error(names):
     def err(*args):
@@ -2403,8 +2525,8 @@ def f_write_string(*args):
 
 import subprocess
 
-def f_input_from_pipe(*args):
-    fn = "input-from-pipe"
+def f_input_command(*args):
+    fn = "input-command"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -2421,8 +2543,8 @@ def f_input_from_pipe(*args):
     c = u.wait()
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
-def f_output_to_pipe(*args):
-    fn = "output-to-pipe"
+def f_output_command(*args):
+    fn = "output-command"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -2505,6 +2627,8 @@ def f_out_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
+# prng function
+
 from random import Random
 
 def f_prng(*args):
@@ -2523,6 +2647,8 @@ def f_prng(*args):
             a, b = b, args[1][1]
         return [VAR_NUM, prng.randint(a, b)]
     return [VAR_FUN_HOST, r]
+
+# system time functions
 
 from time import time, sleep
 
@@ -2638,6 +2764,8 @@ def xeval(x, env):
     if type(x) != list:
         if x[0] == LEX_LIST:
             r = run_each(x[1], env)
+            if len(r) == 0:
+                return [VAR_CONS, None]
             return [VAR_LIST, r]
         if x[0] == LEX_NONLIST:
             r = run_each(x[1], env)
@@ -2800,6 +2928,7 @@ def init_env(names):
             ("list-ref", f_list_ref),
             ("list-tail", f_list_tail),
             ("list-set!", f_list_setj),
+            ("make-list", f_make_list),
             ("length", f_length),
             ("apply", f_apply),
             ("reverse", f_reverse),
@@ -2822,6 +2951,7 @@ def init_env(names):
             ("null?", f_nullp),
             ("list?", f_listp),
             ("pair?", f_pairp),
+            ("cont??", f_contpp),
             ("void?", f_voidp),
             ("not", f_not),
             ("=", f_eq),
@@ -2829,7 +2959,6 @@ def init_env(names):
             (">", f_gt),
             ("<=", f_lte),
             (">=", f_gte),
-            ("newline", f_newline),
             ("map", f_map),
             ("abs", f_abs),
             ("alist->dict", f_alist_z_dict),
@@ -2861,8 +2990,8 @@ def init_env(names):
             ("read-line", f_read_line),
             ("write-byte", f_write_byte),
             ("write-string", f_write_string),
-            ("input-from-pipe", f_input_from_pipe),
-            ("output-to-pipe", f_output_to_pipe),
+            ("input-command", f_input_command),
+            ("output-command", f_output_command),
             ("out-string", f_out_string),
             ("out-string-get", f_out_string_get),
             ("out-string-get-bytes", f_out_string_get_bytes),
@@ -2873,6 +3002,8 @@ def init_env(names):
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)
+
+    #TODO: variables input-port, output-port, error-port
 
     return env
 
@@ -3144,6 +3275,7 @@ def vrepr(s, names, q=None):
 # feature: last successfully parsed text is saved aside
 # so that difficulty on dropped parenths can be easily
 # reverted when having done a too eager edit.
+# (disable by immediate return in ok-parse-bak)
 
 import os, shutil
 
