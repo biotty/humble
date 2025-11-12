@@ -73,21 +73,15 @@
 
 # Word-in-Progress:  (elaboration)
 
-# "dynload" Load dynamic library that gets to register
-# a list of functions to initial environment.  An example
-# of curses is provided and always loaded when file-run.
-# code-points for extra var-types are checked for
-# collisions, but are blindly set from the library-side;
-# a floating-point extension could thus be created.
-# note that one could arrange the interpreter to plug
-# such extensions in at start instead of dynamically.
-# It would also be valuable to have a means to utilize
-# libraries left unaware and with no need of any compiled
-# wrapper, in order words a facility to arrange for native
-# function calls from within the humble language.  For
-# example by allowing manipulation of a pinned byte-buffer
-# (start-address may be queried) as well as populating
-# registers and thus also the stack for call and return.
+# The c++ implementation will instead of the registering
+# plugins be able to dynload unaware libraries and use
+# a thin libffi wrapper to invoke symbols.  The code that
+# populates the top environment with this facility is
+# itself an (other kind of) extension that is added
+# by the program that runs the interpreter.  This
+# latter resembles the mechanism we have in the python
+# implementation with curses function additions, except
+# the interpreter is not separated out as a library.
 #
 # Excluded:  (non-features)
 #
@@ -270,10 +264,12 @@ nam_error = xn(NAM_ERROR)
 ##
 
 class SchemeSrcError(Exception):
+
     def __init__(self, message):
       super().__init__(message)
 
 class SchemeRunError(Exception):
+
     def __init__(self, message):
       super().__init__(message)
 
@@ -1428,6 +1424,7 @@ def is_cons(y):
     return isinstance(y, Cons)
 
 class Cons:
+
     def __init__(self, a, d):
         self.a = a  # CAR will be a VAR_xyz
         self.d = d  # CDR will be a Cons (not VAR_CONS) or None,
@@ -2006,6 +2003,7 @@ def f_equalp(*args):
 # global-env and the macro-set (for import).
 
 class Dict:
+
     def __init__(self, w):
         self.t = w[0][0][0]
         self.d = dict([(x[1], y) for x, y in w if x[0] == self.t])
@@ -2095,6 +2093,7 @@ def f_dictp(*args):
 # REC functionality
 
 class Record:
+
     def __init__(self, nam, values):
         self.nam = nam
         self.values = values
@@ -2442,6 +2441,7 @@ def read_line_(read_byte):
     return bytes(a).decode("utf-8")
 
 class File:
+
     def __init__(self, f):
         self.f = f
 
@@ -2465,6 +2465,14 @@ class File:
 
     def write_string(self, s):
         self._complete_write(s.encode("utf-8"))
+
+class SystemFile(File):
+
+    def __init__(self, f):
+        super().__init__(f.buffer)
+
+    def __del__(self):
+        pass
 
 def f_input_file(*args):
     fn = "input-file"
@@ -2562,6 +2570,7 @@ def f_output_command(*args):
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
 class InStringFile:
+
     def __init__(self, b):
         self.i = 0
         self.b = b
@@ -2595,6 +2604,7 @@ def f_in_string_bytes(*args):
     return [VAR_PORT, InStringFile(b)]
 
 class OutStringFile:
+
     def __init__(self):
         self.b = []
 
@@ -3003,7 +3013,11 @@ def init_env(names):
             ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)
 
-    #TODO: variables input-port, output-port, error-port
+    for a, b in [
+            ("system-input", sys.stdin),
+            ("system-output", sys.stdout),
+            ("system-error", sys.stderr)]:
+        with_new_name(a, [VAR_PORT, SystemFile(b)], env, names)
 
     return env
 
@@ -3120,30 +3134,6 @@ def init_top(extra_f=()):
 
     filename = None
     return names, env, macros
-
-##
-# extension loader
-##
-
-class Extensions:
-    def __init__(self):
-        self.fns = []
-        self.tps = []
-
-    def check_types(self, tps):
-        for t in tps:
-            if t < VAR_EXTRA_MIN or t > VAR_EXTRA_MAX:
-                broken("%d illegal for extendion type" % (t,))
-            if t in self.tps:
-                broken("%d already used" % (t,))
-            self.tps.append(t)
-
-    def load(self, m):
-        tps, fns = m.load()
-        self.check_types(tps)
-        self.fns.extend(fns)
-
-extensions = Extensions()
 
 ##
 # ui
@@ -3272,6 +3262,84 @@ def vrepr(s, names, q=None):
         return "#~%s" % (var_type_name(s[0]),)
     return "#~ %r" % (s,)
 
+# "nc" extension
+
+VAR_SCR = VAR_EXTRA_MIN + 0
+
+import curses
+
+def ef_nc_initscr(*args):
+    fn = "nc-initscr"
+    tenths = None
+    if len(args) > 0:
+        fargt_must_eq(fn, args, 0, VAR_NUM)
+        tenths = args[0][1]
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.curs_set(0)
+    curses.start_color()
+    if tenths is not None:
+        curses.halfdelay(tenths)
+    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+    curses.init_pair(7, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    return [VAR_SCR, stdscr]
+
+def ef_nc_getmaxyx(*args):
+    fn = "nc-getmaxyx"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_SCR)
+    stdscr = args[0][1]
+    y, x = stdscr.getmaxyx()
+    return [VAR_LIST, [[VAR_NUM, y], [VAR_NUM, x]]]
+
+def ef_nc_addstr(*args):
+    fn = "nc-addstr"
+    fargc_must_ge(fn, args, 4)
+    fargt_must_eq(fn, args, 0, VAR_SCR)
+    fargt_must_eq(fn, args, 1, VAR_NUM)
+    fargt_must_eq(fn, args, 2, VAR_NUM)
+    fargt_must_eq(fn, args, 3, VAR_STRING)
+    if len(args) >= 5:
+        fargt_must_eq(fn, args, 4, VAR_NUM)
+        c = args[4][1]
+    else:
+        c = 7
+    stdscr = args[0][1]
+    y = args[1][1]
+    x = args[2][1]
+    s = args[3][1]
+    stdscr.addstr(y, x, s, curses.color_pair(c))
+    return [VAR_VOID]
+
+def ef_nc_getch(*args):
+    fn = "nc-getch"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_SCR)
+    stdscr = args[0][1]
+    c = stdscr.getch()
+    if c == curses.KEY_RESIZE:
+        ef_nc_endwin()
+        sys.exit(1)
+    return [VAR_NUM, c]
+
+def ef_nc_endwin(*args):
+    fn = "nc-endwin"
+    fargc_must_eq(fn, args, 0)
+    curses.endwin()
+    return [VAR_VOID]
+
+efs_nc = [
+        ("nc-initscr", ef_nc_initscr),
+        ("nc-getmaxyx", ef_nc_getmaxyx),
+        ("nc-addstr", ef_nc_addstr),
+        ("nc-getch", ef_nc_getch),
+        ("nc-endwin", ef_nc_endwin)]
+
 # feature: last successfully parsed text is saved aside
 # so that difficulty on dropped parenths can be easily
 # reverted when having done a too eager edit.
@@ -3294,11 +3362,9 @@ def ok_parse_bak(f, fn):
 if __name__ == "__main__":
     if len(sys.argv) == 2:
 
-        # ncurses
-        import ext_nc
-        extensions.load(ext_nc)
+        efs = efs_nc
 
-        names, env, macros = init_top(extensions.fns)
+        names, env, macros = init_top(efs)
         filename = sys.argv[1]
         with open(filename) as f:
             try:
