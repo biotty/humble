@@ -1,4 +1,3 @@
-;bar
 (export j 'G doo)
 (ref j 123)
 (macro G () 7)

@@ -1,4 +1,4 @@
-#!/usr/bin/env mics.py
+#!/usr/bin/env humble.py
 
 ; humble scheme demonstration, where ncurses functions
 ; (nc-) has been brought in (example of extension

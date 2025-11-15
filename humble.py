@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 #
-# Welcome to "Humble Scheme", copyright Christian Oeien
+# Welcome to "Humble Schemer", copyright Christian Oeien
 #
-# My Scheme is more humble than yours!
+# My scheme is more humble than yours!
+# REM: Dijkstra and "The Humble Programmer"
 #
 # Deviations:  (concept)
 #
@@ -263,12 +264,12 @@ nam_error = xn(NAM_ERROR)
 # diagnostics
 ##
 
-class SchemeSrcError(Exception):
+class SrcError(Exception):
 
     def __init__(self, message):
       super().__init__(message)
 
-class SchemeRunError(Exception):
+class RunError(Exception):
 
     def __init__(self, message):
       super().__init__(message)
@@ -334,7 +335,7 @@ def spaces(s, i, n):
                     x = y
                     i += 1
                 else:
-                    raise SchemeSrcError("#| comment not ended")
+                    raise SrcError("#| comment not ended")
             else:
                 break
         else:
@@ -346,44 +347,48 @@ def tok(s, i):
     i = spaces(s, i, n)
     if i == n:
         return None, i
-    w = i
     if s[i] in (par_beg + par_end):
         return s[i], i + 1
+    w = i
     if s[i] == "#":
         i += 1
         if i == n:
-            raise SchemeSrcError("terminated at #")
+            raise SrcError("terminated at #")
         if s[i] == "\\":
             i += 1
+            if i == n:
+                raise SrcError("terminated at #\\")
+        if s[i].isspace():
+            raise SrcError(s[w : i] + " space")
         if not s[i].isalnum():
             i += 1
-            if i == n:
-                raise SchemeSrcError("terminated at #\\")
         else:
-            while i < n and s[i].isalnum():
+            while True:
                 i += 1
+                if i == n or not s[i].isalnum():
+                    break
         return s[w : i], i
     if s[i] == "\"":
         while i < n:
             i += 1
             if i == n:
-                raise SchemeSrcError("terminated in string")
+                raise SrcError("terminated in string")
             if s[i] == "\"":
                 i += 1
                 return s[w : i], i
             if s[i] == "\\":
                 i += 1
                 if i == n:
-                    raise SchemeSrcError("terminated in string at '\\'")
+                    raise SrcError("terminated in string at '\\'")
     if s[i] == "@":
         i += 1
         if i == n:
-            raise SchemeSrcError("terminated at @")
+            raise SrcError("terminated at @")
         return s[w : i], i
     if s[i] in quotes:
         i += 1
         if i == n:
-            raise SchemeSrcError("terminated at quote")
+            raise SrcError("terminated at quote")
         return s[w : i], i
     while s[i].isalnum() or s[i] in name_cs:
         i += 1
@@ -391,9 +396,10 @@ def tok(s, i):
             break
     if i != w:
         return s[w : i], i
-    raise SchemeSrcError("character '%c' on line %d" %(s[i], linenumber))
+    raise SrcError("character '%c' on line %d" %(s[i], linenumber))
 
 def unescape_string(s):
+    octals = "01234567"
     a = []
     i = 0
     n = len(s)
@@ -402,25 +408,29 @@ def unescape_string(s):
         if c == "\\":
             i += 1
             if i == n:
-                raise SchemeSrcError("string ends at \\ on line %d" % (i, linenumber))
+                raise SrcError("string ends at \\ on line %d" % (i, linenumber))
             c = s[i]
             if c == "t":
                 c = "\t"
-            if c == "n":
+            elif c == "n":
                 c = "\n"
-            if c == "r":
+            elif c == "r":
                 c = "\r"
-            if c == "0":
-                b = 0
+            elif c in octals:
+                b = int(c)
                 while i + 1 != n:
                     c = s[i + 1]
-                    if c not in "01234567":
-                        raise SchemeSrcError(
-                                "bad octal in string[%d] on line %d" % (i, linenumber))
+                    if c not in octals:
+                        break;
+                    i += 1
                     b *= 8
                     b += int(c)
-                    i += 1
+                    if b > 255:
+                        raise SrcError(
+                                "octal overflow on line %d" % (i, linenumber))
                 c = chr(b)
+            else:
+                raise SrcError("string escape '%c' on line %d", c, linenumber)
         a.append(c)
         i += 1
     return "".join(a)
@@ -435,31 +445,36 @@ def intern(name, names):
 
 def lex(s, names):
     n = len(s)
-    i = s.index("\n") if s.startswith("#!") else 0
+    i = 0
+    if s.startswith("#!"):
+        try:
+            i = s.index('\n')
+        except ValueError:
+            raise SrcError("'#!' without end")
     a = []
     while i != n:
         t, i = tok(s, i)
         if not t:
             break
         v = None
-        if t in par_beg:
+        if t[0] in par_beg:
             v = (LEX_BEG, par_beg.index(t))
-        elif t in par_end:
+        elif t[0] in par_end:
             v = (LEX_END, par_end.index(t), linenumber)
-        elif (t[0] in "-+." and len(t) != 1) or t[0].isdigit():
+        elif t[0].isdigit() or (len(t) != 1 and t[0] in "-+."):
             v = (LEX_NUM, int(t, 0))
         elif t[0] == "#":
             if t[1] in "tf":
                 if len(t) == 2 or t[1:] in ("true", "false"):
                     v = (LEX_BOOL, "t" == t[1])
                 else:
-                    raise SchemeSrcError("'%s' at %d" % (linenumber,))
+                    raise SrcError("'%s' at %d" % (linenumber,))
             elif t[1] in "bodx":
                 base = [2, 8, 10, 16]["bodx".index(t[1])]
                 try:
                     v = (LEX_NUM, int(t[2:], base))
                 except ValueError:
-                    raise SchemeSrcError("'%s' at %d" % (linenumber,))
+                    raise SrcError("'%s' at %d" % (linenumber,))
             elif t[1] == "\\":
                 if len(t) == 3:
                     v = (LEX_NUM, ord(t[2]))
@@ -472,11 +487,11 @@ def lex(s, names):
                             v = (LEX_NUM, c)
                             break
                     if v is None:
-                        raise SchemeSrcError("#\ token at line %d" % (linenumber,))
+                        raise SrcError("#\ token at line %d" % (linenumber,))
             elif t == "#void":
                 v = (LEX_VOID,)
             else:
-                raise SchemeSrcError("# token at line %d" % (linenumber,))
+                raise SrcError("# token at line %d" % (linenumber,))
         elif t[0] == "\"":
             v = (LEX_STRING, unescape_string(t[1:-1]))
         elif t.startswith("."):
@@ -524,7 +539,7 @@ def parse_r(z, i, paren_mode, d):
         c = x[0]
         if c == LEX_END:
             if x[1] != paren_mode:
-                raise SchemeSrcError("parens '%s' at line %d does not match '%s'" % (
+                raise SrcError("parens '%s' at line %d does not match '%s'" % (
                     par_beg[paren_mode] if paren_mode >= 0 else '(none)',
                     x[2], par_end[x[1]]))
             return r, i + 1
@@ -552,7 +567,7 @@ def parse_r(z, i, paren_mode, d):
             debug("parse1", r)
             return r, i
     if paren_mode != PARSE_MODE_TOP:
-        raise SchemeSrcError("parens '%s' depth %d not closed" % (
+        raise SrcError("parens '%s' depth %d not closed" % (
             par_beg[paren_mode], d))
     debug("parse", r)
     return r, i
@@ -626,9 +641,9 @@ def parse_i(s, names, macros):
         expand_macros(ast, macros, 0)
     except KeyError as e:
         i = e.args[0]
-        raise SchemeSrcError("%s unbound in macro-expand" % (names[i],))
+        raise SrcError("%s unbound in macro-expand" % (names[i],))
     except IndexError as e:
-        raise SchemeSrcError("form syntax error")
+        raise SrcError("form syntax error")
     debug("tree", ast)
     return ast
 
@@ -647,7 +662,7 @@ def unbound(s, defs, is_block):
             r.update(unbound(x, defs, False))
         elif x[0] == OP_DEFINE:
             if not is_block:
-                raise SchemeSrcError("define in non-block")
+                raise SrcError("define in non-block")
             i = x[1]
             u = unbound([x[2]], defs, False)
             if i in defs:
@@ -734,7 +749,7 @@ def parse(s, names, macros, env_keys):
             a.append(info_unbound(x, names))
         else:
             a.append("(reportedly) %s" % (names[y],))
-    raise SchemeSrcError("unbound,\n" + "\n".join(a))
+    raise SrcError("unbound,\n" + "\n".join(a))
 
 class LocalEnv:
 
@@ -764,14 +779,14 @@ class LocalEnv:
         if dot:
             last = self.n_parms - 1
             if len(args) < last:
-                raise SchemeRunError("fun-dot expected %d args got %d"
+                raise RunError("fun-dot expected %d args got %d"
                         % (self.n_parms, len(args)))
             for i in range(last):
                 env[i] = args[i]
             env[last] = [VAR_LIST, list(args[last:])]
         else:
             if len(args) != self.n_parms:
-                raise SchemeRunError("fun expected %d args got %d"
+                raise RunError("fun expected %d args got %d"
                         % (self.n_parms, len(args)))
             for i, v in enumerate(args):
                 env[i] = v
@@ -824,7 +839,7 @@ def zloc_scopes(t, local_env):
 
 def mchk_or_fail(c, message):
     if not c:
-        raise SchemeSrcError(message)
+        raise SrcError(message)
 
 def margc_must_chk(c, mn, x, z):
     mchk_or_fail(c, "%s requires %d args but got %d"
@@ -889,15 +904,15 @@ def m_lambda(s):
 
 def bnd_unzip(s):
     if type(s) != list:
-        raise SchemeSrcError("bindings not a list")
+        raise SrcError("bindings not a list")
     a = []
     v = []
     for z in s:
         if type(z) != list:
-            raise SchemeSrcError("bind-item not list")
+            raise SrcError("bind-item not list")
         x, y = z
         if x[0] != LEX_NAM:
-            raise SchemeSrcError("bind not to name")
+            raise SrcError("bind not to name")
         a.append(x[1])
         v.append(y)
     return a, v
@@ -1074,7 +1089,7 @@ def from_lex(s):
         return (VAR_VOID,)
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
-        raise SchemeSrcError("from lex %r" % (s,))
+        raise SrcError("from lex %r" % (s,))
     return [s[0] + BIT_VAR, s[1]]
 
 def to_lex(s):
@@ -1089,7 +1104,7 @@ def to_lex(s):
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
             VAR_QUOTE, VAR_UNQUOTE):
-        raise SchemeSrcError("to lex %r" % (s,))
+        raise SrcError("to lex %r" % (s,))
     return (s[0] - BIT_VAR, s[1])
 
 class UserMacro:
@@ -1128,7 +1143,7 @@ def m_macro(macros, names):
     def macro(s):
         margc_must_ge("macro", s, 4)
         if s[1][0] != LEX_NAM:
-            raise SchemeSrcError("non-name macro")
+            raise SrcError("non-name macro")
         n = s[1][1]
         y = s[2]
         if type(y) != list:
@@ -1192,7 +1207,7 @@ def m_if(s):
     if len(s) == 3:
         s.append([(LEX_BOOL, True), (LEX_VOID,)])
     elif len(s) != 4:
-        raise SchemeSrcError("if-expression of length %d"
+        raise SrcError("if-expression of length %d"
                 % (len(s),))
     return [OP_COND, [s[1], s[2]], [(LEX_BOOL, True), s[3]]]
 
@@ -1227,16 +1242,16 @@ def m_unless(s):
 def xcase_test(t, last):
     if type(t) != list:
         if not last:
-            raise SchemeSrcError("non-form case-test not last")
+            raise SrcError("non-form case-test not last")
         if blex(t) != nam_else:
-            raise SchemeSrcError("last case neither form nor else")
+            raise SrcError("last case neither form nor else")
         return (LEX_BOOL, True)
     return m_or([-99, *[[nam_eqvp, v, nam_else] for v in t]])
 
 def xcase_target(t):
     if blex(t[0]) == nam_then:
         if len(t) != 2:
-            raise SchemeSrcError("=> case with %d elements" % (len(t),))
+            raise SrcError("=> case with %d elements" % (len(t),))
         t = [[t[1], nam_else]]
     return (LEX_LIST, t)
 
@@ -1290,10 +1305,10 @@ def m_scope(s):
     # a.k.a "here-import"
     set_up = dict()
     if s[1][0] != OP_EXPORT:
-        raise SchemeSrcError("missing export")
+        raise SrcError("missing export")
     for n in s[1][1:]:
         if n[0] != LEX_NAM:
-            raise SchemeSrcError("export of non-name")
+            raise SrcError("export of non-name")
         y = n[1]
         set_up[y] = y
     return [OP_IMPORT, set_up, *zloc_scopes(s[2:], None)]
@@ -1310,7 +1325,7 @@ def m_import(names, macros):
         try:
             f = open(filename, "r", encoding="utf-8")
         except:
-            raise SchemeSrcError("no such file")
+            raise SrcError("no such file")
         global linenumber
         u_ln = linenumber
         r = parse(f.read(), names, e_macros, i_env.keys())
@@ -1319,11 +1334,11 @@ def m_import(names, macros):
         if len(s) == 3:
             p = s[2]
             if p[0] not in (LEX_NAM, LEX_SYM):
-                raise SchemeSrcError("non-name import-prefix")
+                raise SrcError("non-name import-prefix")
             prefix_s = names[p[1]]
         set_up = dict()
         if r[0][0] != OP_EXPORT:
-            raise SchemeSrcError("missing export")
+            raise SrcError("missing export")
         for n in r[0][1:]:
             x = y = n[1]
             if n[0] == LEX_NAM:
@@ -1334,11 +1349,11 @@ def m_import(names, macros):
                 if prefix_s and p[0] == LEX_SYM:
                     y = intern(prefix_s + names[x], names)
                 if x not in e_macros:
-                    raise SchemeSrcError("no macro %s"
+                    raise SrcError("no macro %s"
                             % (names[x],))
                 macros[y] = e_macros[x]
             else:
-                raise SchemeSrcError("export of non-name")
+                raise SrcError("export of non-name")
         # note: unbound check with i_env not needed, as this will
         #       be done from top-level
         filename = u_fn
@@ -1521,7 +1536,7 @@ def normal_list(a):
     if is_cons(a):
         r = a.to_list_var()
         if r[0] != VAR_LIST:
-            raise SchemeRunError("nonlist for list-use")
+            raise RunError("nonlist for list-use")
         return r[1]
     assert type(a) == list
     return a
@@ -1546,10 +1561,10 @@ def fargt_repr(vt):
 
 def fchk_or_fail(c, message):
     if not c:
-        raise SchemeRunError(message)
+        raise RunError(message)
 
 def fargs_count_fail(fn, k, n):
-    raise SchemeRunError("%s requires %d args but got %d"
+    raise RunError("%s requires %d args but got %d"
             % (fn, n, k))
 
 def fargc_must_eq(fn, args, n):
@@ -1562,13 +1577,13 @@ def fargc_must_ge(fn, args, n):
 
 def fargt_must_eq(fn, args, i, vt):
     if args[i][0] != vt:
-        raise SchemeRunError("%s expected args[%d] %s got %s"
+        raise RunError("%s expected args[%d] %s got %s"
             % (fn, i,
                 fargt_repr(vt), fargt_repr(args[i][0])))
 
 def fargt_must_in(fn, args, i, vts):
     if not in_mask(args[i][0], vts):
-        raise SchemeRunError("%s args[%d] accepts %r got %s"
+        raise RunError("%s args[%d] accepts %r got %s"
                 % (fn, i, "/".join(fargt_repr(vt)
                     for vt in var_members(vts)),
                     fargt_repr(args[i][0])))
@@ -1604,7 +1619,7 @@ def f_car(*args):
         return args[0][1][0]
     assert args[0][0] == VAR_CONS
     if not args[0][1]:
-        raise SchemeRunError("car on null")
+        raise RunError("car on null")
     if not is_cons(args[0][1]):
         broken("cons variable has non-cons")
     return args[0][1].a
@@ -1618,7 +1633,7 @@ def f_list_ref(*args):
     if args[0][0] == VAR_CONS:
         return c_list_ref(args[0][1], args[1][1])
     if not in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
-        raise SchemeRunError("list-ref on %s"
+        raise RunError("list-ref on %s"
                 % (fargt_repr(args[0][0]),))
     return args[0][1][args[1][1]]
 
@@ -1638,7 +1653,7 @@ def f_cdr(*args):
         a = to_cons([t, a])
         args[0][:] = [VAR_CONS, a]
     if a is None:
-        raise SchemeRunError("cdr on null")
+        raise RunError("cdr on null")
     return [VAR_CONS, a.d]
 
 def f_append(*args):
@@ -1893,7 +1908,7 @@ def f_setvj(*args):
     if not ((in_mask(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
         and in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
         or args[0][0] == args[1][0]):
-        raise SchemeRunError("setv! %s with %s"
+        raise RunError("setv! %s with %s"
                 % (var_type_name(args[0][0]),
                     var_type_name(args[1][0])))
     return setvjj(args[0], args[1], fn)
@@ -2024,7 +2039,7 @@ def f_alist_z_dict(*args):
             a = x[1][0]
             b = x[1][1]
         else:
-            raise SchemeRunError("not alist")
+            raise RunError("not alist")
         d.append((a, b))
     if not d:
         return [VAR_DICT, None]
@@ -2045,10 +2060,10 @@ def f_dict_setj(*args):
         args[0][1] = Dict([[args[1], args[2]]])
         return [VAR_VOID]
     if args[0][1].t != args[2][0]:
-        raise SchemeRunError("%s: value type %s not dict type %s"
+        raise RunError("%s: value type %s not dict type %s"
                 % (fn, fargt_repr(args[2][0].t), fargt_repr(args[0][1].t)))
     if args[0][1].t != args[1][0]:
-        raise SchemeRunError("%s: key type %s not dict type %s"
+        raise RunError("%s: key type %s not dict type %s"
                 % (fn, fargt_repr(args[1][0].t), fargt_repr(args[0][1].t)))
     v = args[0][1].d[args[1][1]] = args[2]
     return [VAR_VOID]
@@ -2061,10 +2076,10 @@ def f_dict_get_defaultj(*args):
         args[0][1] = Dict([[args[1], args[2]]])
         return args[2]
     if args[0][1].t != args[2][0]:
-        raise SchemeRunError("%s: default type %s not dict type %s"
+        raise RunError("%s: default type %s not dict type %s"
                 % (fn, fargt_repr(args[2][0].t), fargt_repr(args[0][1].t)))
     if args[0][1].t != args[1][0]:
-        raise SchemeRunError("%s: key type %s not dict type %s"
+        raise RunError("%s: key type %s not dict type %s"
                 % (fn, fargt_repr(args[1][0].t), fargt_repr(args[0][1].t)))
     try:
         v = args[0][1].d[args[1][1]]
@@ -2201,7 +2216,7 @@ def f_string_z_number(*args):
     try:
         return [VAR_NUM, int(args[0][1], radix)]
     except ValueError:
-        raise SchemeRunError("%s %s with radix %d"
+        raise RunError("%s %s with radix %d"
                 % (fn, args[0][1], radix))
 
 def f_number_z_string(*args):
@@ -2221,7 +2236,7 @@ def f_number_z_string(*args):
         elif radix == 16:
             b = "x"
         else:
-            raise SchemeRunError("%s %s with radix %d"
+            raise RunError("%s %s with radix %d"
                     % (fn, args[0][1], radix))
     return [VAR_STRING, format(args[0][1], b)]
 
@@ -2809,7 +2824,7 @@ def xeval(x, env):
         if x[0] == LEX_VOID:
             return [VAR_VOID]
         if x[0] == LEX_DOT:
-            raise SchemeRunError("invalid use of dot")
+            raise RunError("invalid use of dot")
         # in some cases we could have catched at parse time
         # which means it would have been a lex error.
         broken(x)
@@ -2830,7 +2845,7 @@ def xeval(x, env):
             t = run(y[0], env)
             if t[0] != VAR_BOOL or t[1]:
                 return xeval(y[1], env)
-        raise SchemeRunError("all cond #f")
+        raise RunError("all cond #f")
     if x[0] == OP_IMPORT:
         e = Overlay(i_env)
         for z in x[2:]:
@@ -2839,7 +2854,7 @@ def xeval(x, env):
             if b not in e:
                 # note: could instead have been checked on parse
                 #       of the import by performing unbound there
-                raise SchemeRunError("no %s for export" % (names[b],))
+                raise RunError("no %s for export" % (names[b],))
             env[a] = e[b]
         return [VAR_VOID]
     if x[0] == OP_EXPORT:
@@ -2853,7 +2868,7 @@ def xeval(x, env):
 
 def xapply(a):
     if not in_mask(a[0][0], VAR_FUN_OPS | VAR_FUN_HOST):
-        raise SchemeRunError("apply %s"
+        raise RunError("apply %s"
                 % (fargt_repr(a[0][0])))
     if a[0][0] == VAR_FUN_OPS:
         return [VAR_APPLY, a]
@@ -3340,24 +3355,24 @@ efs_nc = [
         ("nc-getch", ef_nc_getch),
         ("nc-endwin", ef_nc_endwin)]
 
-# feature: last successfully parsed text is saved aside
-# so that difficulty on dropped parenths can be easily
-# reverted when having done a too eager edit.
-# (disable by immediate return in ok-parse-bak)
-
-import os, shutil
-
-def ok_parse_bak(f, fn):
-    def get_m(fn):
-        try:
-            return os.stat(fn).st_mtime
-        except FileNotFoundError:
-            return 0
-    txt_m = os.fstat(f.fileno()).st_mtime
-    bak = fn + ".ok"
-    bak_m = get_m(bak)
-    if txt_m > bak_m:
-        shutil.copyfile(fn, bak)
+# feature (unused): last successfully parsed text is saved
+# aside so that difficulty on dropped parenths can be easily
+# reverted when having done a too eager edit.  to be called
+# after each successful parse of a filename; also import.
+#
+# import os, shutil
+#
+# def ok_parse_bak(f, fn):
+#     def get_m(fn):
+#         try:
+#             return os.stat(fn).st_mtime
+#         except FileNotFoundError:
+#             return 0
+#     txt_m = os.fstat(f.fileno()).st_mtime
+#     bak = fn + ".ok"
+#     bak_m = get_m(bak)
+#     if txt_m > bak_m:
+#         shutil.copyfile(fn, bak)
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
@@ -3369,15 +3384,14 @@ if __name__ == "__main__":
         with open(filename) as f:
             try:
                 tree = parse(f.read(), names, macros, env.keys())
-            except SchemeSrcError as e:
+            except SrcError as e:
                 sys.stderr.write("error in file: %s\n" % (filename,))
                 sys.stderr.write(e.args[0] + "\n")
                 sys.exit(1)
             else:
-                ok_parse_bak(f, filename)
                 try:
                     run_top(tree, env, names)
-                except SchemeRunError as e:
+                except RunError as e:
                     sys.stderr.write("runtime error: %s\n" % (e.args[0],))
                     sys.exit(2)
         sys.exit(0)
@@ -3406,7 +3420,7 @@ if __name__ == "__main__":
                     set_verbose(False)
             try:
                 t = parse("".join(buf), names, macros, env.keys())
-            except SchemeSrcError as e:
+            except SrcError as e:
                 if filename:
                     sys.stderr.write("error in file: %s\n"
                             % (filename,))
@@ -3418,7 +3432,7 @@ if __name__ == "__main__":
                         sys.stdout.write("%%%s" % (xrepr(xt, names),))
                 try:
                     run_top(t, env, names)
-                except SchemeRunError as e:
+                except RunError as e:
                     sys.stderr.write("error: " + e.args[0] + "\n")
                 sys.stdout.flush()  # for evt.display
             buf = []

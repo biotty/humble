@@ -12,9 +12,10 @@
 # For import testing, run on import_test/main
 #
 
-from mics import init_top, parse, run_top, set_verbose
+from humble import init_top, parse, run_top, set_verbose
 
 import sys
+
 def test(s):
     sys.stdout.write("test\n")
     names, env, macros = init_top()
@@ -23,7 +24,7 @@ def test(s):
     run_top(tree, env, names)
     sys.stdout.write("*\n")
 
-# for debug:
+# uncomment: for debug
 # set_verbose(True)
 
 test("")

@@ -1,6 +1,5 @@
-;foo
 (export i j 'mm 'G)
-(import "import_test/bar")
+(import "import_test/bar.hum")
 (ref i 1)
 (G)
 (macro mm () 123)
