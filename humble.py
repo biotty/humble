@@ -353,11 +353,11 @@ def tok(s, i):
     if s[i] == "#":
         i += 1
         if i == n:
-            raise SrcError("terminated at #")
+            raise SrcError("stop at #")
         if s[i] == "\\":
             i += 1
             if i == n:
-                raise SrcError("terminated at #\\")
+                raise SrcError("stop at #\\")
         if s[i].isspace():
             raise SrcError(s[w : i] + " space")
         if not s[i].isalnum():
@@ -372,23 +372,23 @@ def tok(s, i):
         while i < n:
             i += 1
             if i == n:
-                raise SrcError("terminated in string")
+                raise SrcError("stop in string")
             if s[i] == "\"":
                 i += 1
                 return s[w : i], i
             if s[i] == "\\":
                 i += 1
                 if i == n:
-                    raise SrcError("terminated in string at '\\'")
+                    raise SrcError("stop in string at '\\'")
     if s[i] == "@":
         i += 1
         if i == n:
-            raise SrcError("terminated at @")
+            raise SrcError("stop at @")
         return s[w : i], i
     if s[i] in quotes:
         i += 1
         if i == n:
-            raise SrcError("terminated at quote")
+            raise SrcError("stop at quote")
         return s[w : i], i
     while s[i].isalnum() or s[i] in name_cs:
         i += 1
@@ -461,20 +461,20 @@ def lex(s, names):
             v = (LEX_BEG, par_beg.index(t))
         elif t[0] in par_end:
             v = (LEX_END, par_end.index(t), linenumber)
-        elif t[0].isdigit() or (len(t) != 1 and t[0] in "-+."):
+        elif t[0].isdigit() or (len(t) != 1 and t[0] in "-+"):
             v = (LEX_NUM, int(t, 0))
         elif t[0] == "#":
             if t[1] in "tf":
                 if len(t) == 2 or t[1:] in ("true", "false"):
                     v = (LEX_BOOL, "t" == t[1])
                 else:
-                    raise SrcError("'%s' at %d" % (linenumber,))
+                    raise SrcError("# f or t")
             elif t[1] in "bodx":
                 base = [2, 8, 10, 16]["bodx".index(t[1])]
                 try:
                     v = (LEX_NUM, int(t[2:], base))
                 except ValueError:
-                    raise SrcError("'%s' at %d" % (linenumber,))
+                    raise SrcError("# numeric")
             elif t[1] == "\\":
                 if len(t) == 3:
                     v = (LEX_NUM, ord(t[2]))

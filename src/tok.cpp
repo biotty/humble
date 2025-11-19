@@ -6,18 +6,59 @@
 #include <algorithm>
 #include <charconv>
 
+//#define DEBUG
+
+#ifdef DEBUG
+#include <iostream>
+#include <array>
+#endif
+
 using namespace std;
 
 namespace humble {
 
+#ifdef DEBUG
+
+ostream & operator<<(ostream & os, LexBeg & e) { return os << e.par; }
+ostream & operator<<(ostream & os, LexEnd & e) { return os << e.par; }
+ostream & operator<<(ostream & os, LexNum & e) { return os << e.i; }
+ostream & operator<<(ostream & os, LexBool & e) { return os << boolalpha << e.b; }
+ostream & operator<<(ostream & os, LexVoid & e) { return os; }
+ostream & operator<<(ostream & os, LexString & e) { return os << e.s; }
+ostream & operator<<(ostream & os, LexDot & e) { return os; }
+ostream & operator<<(ostream & os, LexSplice & e) { return os; }
+ostream & operator<<(ostream & os, LexQt & e) { return os; }
+ostream & operator<<(ostream & os, LexQqt & e) { return os; }
+ostream & operator<<(ostream & os, LexUnq & e) { return os; }
+ostream & operator<<(ostream & os, LexName & e) { return os << e.h; }
+ostream & operator<<(ostream & os, Lex & lex)
+{
+    array<string, 12> tn = {
+        "Beg", "End", "Num", "Bool", "Void", "String",
+        "Dot", "Splice", "Qt", "Qqt", "Unq", "Name" };
+    os << "Lex" << tn.at(lex.index()) << "{";
+    visit([&os](auto arg) { os << arg; }, lex);
+    return os << "}";
+}
+
+template <typename T>
+ostream & operator<<(ostream & os, vector<T> & v)
+{
+    if (v.empty()) return os;
+    os << "[" << v.front();
+    for (auto it = v.begin() + 1; it != v.end(); ++it) {
+        os << ", " << *it;
+    }
+    return os << "]";
+}
+
+#endif
+
 string filename;
 int linenumber;
 
-const char * par_beg_end =
-    "([{"
-    ")]}";
-const char * quotes =
-    "'`,";
+const char * par_beg_end = "([{" ")]}";
+const char * quotes = "'`,";
 const char * name_cs = "!$%&*+-./:<=>?@^_~";
 
 size_t spaces(const char * s, size_t n)
@@ -71,9 +112,9 @@ pair<string_view, size_t> tok(std::string_view s)
     }
     const auto n = s.size();
     if (s[i] == '#') {
-        if (++i == n) throw SrcError("terminated at #");
+        if (++i == n) throw SrcError("stop at #");
         if (s[i] == '\\' and ++i == n)
-            throw SrcError("terminated at #\\");
+            throw SrcError("stop at #\\");
         if (isspace(s[i])) throw SrcError("# space");
         if (isalnum(s[i])) while (++i != n and isalnum(s[i]));
         else i += 1;
@@ -81,32 +122,30 @@ pair<string_view, size_t> tok(std::string_view s)
     }
     if (s[i] == '"') {
         while (i < n) {
-            if (++i == n) throw SrcError("terminated in string");
+            if (++i == n) throw SrcError("stop in string");
             if (s[i] == '"') {
                 ++i;
                 return r();
             }
             if (s[i] == '\\') {
-                if (++i == n) throw SrcError("terminated in string at '\\'");
+                if (++i == n) throw SrcError("stop in string at '\\'");
             }
         }
     }
     if (s[i] == '@') {
-        if (++i == n) throw SrcError("terminated at @");
+        if (++i == n) throw SrcError("stop at @");
         return r();
     }
     if (strchr(quotes, s[i])) {
-        if (++i == n) throw SrcError("terminated at quote");
+        if (++i == n) throw SrcError("stop at quote");
         return r();
     }
     while (isalnum(s[i]) or strchr(name_cs, s[i])) {
         if (++i == n) break;
     }
     if (i) return r();
-    static char m[16];
-    snprintf(m, sizeof m, "character %d", s[i]);
-    // improve: verbatim complete utf8 entity if available
-    // (maybe one byte) -- or otherwise first byte numeric
+    static char m[16];  // improve: echo when printable
+    snprintf(m, sizeof m, "character %d", s[i]);  // to-do:  utf8
     throw SrcError(m);
 }
 
@@ -167,7 +206,7 @@ vector<Lex> lex(const string & s, Names & names)
     }
     vector<Lex> r;
     while (i != n) {
-        auto [t, k] = tok(string_view(s).substr(i));
+        const auto [t, k] = tok(string_view(s).substr(i));
         if (t.empty()) break;
         i += k;
         Lex v;
@@ -175,58 +214,73 @@ vector<Lex> lex(const string & s, Names & names)
             auto par = static_cast<int>(p - par_beg_end);
             if (par < 3) v = LexBeg{par};
             else v = LexEnd{par - 3, linenumber};
-        } else if (isdigit(t[0]) or (t.size() != 1 and strchr("-+.", t[0]))) {
+        } else if (isdigit(t[0]) or (t.size() != 1
+                    and (t[0] == '-' or t[0] == '+'))) {
             long long i;
-            from_chars(t.data(), t.data() + t.size(), i);
+            if (from_chars(t.data(), t.data() + t.size(), i).ec != errc{})
+                throw SrcError("number");
             v = LexNum{i};
-        }/*
-        elif t[0] == "#":
-            if t[1] in "tf":
-                if len(t) == 2 or t[1:] in ("true", "false"):
-                    v = (LEX_BOOL, "t" == t[1])
-                else:
-                    raise SrcError("'%s' at %d" % (linenumber,))
-            elif t[1] in "bodx":
-                base = [2, 8, 10, 16]["bodx".index(t[1])]
-                try:
-                    v = (LEX_NUM, int(t[2:], base))
-                except ValueError:
-                    raise SrcError("'%s' at %d" % (linenumber,))
-            elif t[1] == "\\":
-                if len(t) == 3:
-                    v = (LEX_NUM, ord(t[2]))
-                else:
-                    v = None
-                    for m, c in [("alarm", 7), ("backspace", 8), ("tab", 9),
-                            ("newline", 10), ("return", 13), ("escape", 27),
-                            ("space", 32), ("delete", 127)]:
-                        if t[2:] == m:
-                            v = (LEX_NUM, c)
-                            break
-                    if v is None:
-                        raise SrcError("#\ token at line %d" % (linenumber,))
-            elif t == "#void":
-                v = (LEX_VOID,)
-            else:
-                raise SrcError("# token at line %d" % (linenumber,))
-        elif t[0] == "\"":
-            v = (LEX_STRING, unescape_string(t[1:-1]))
-        elif t.startswith("."):
-            assert len(t) == 1
-            v = (LEX_DOT,)
-        elif t.startswith("@"):
-            assert len(t) == 1
-            v = (LEX_SPL,)
-        elif t[0] in quotes:
-            assert len(t) == 1
-            v = (quotes.index(t[0]) + LEX_QT,)
-        else:
-            h = intern(t, names)
-            v = (LEX_NAM, h, linenumber)
-        */
+        } else if (t[0] == '#') {
+            if (t == "#t" or t == "#f" or t == "#true" or t == "#false") {
+                v = LexBool{t[1] == 't'};
+            } else if (strchr("bodx", t[1])) {
+                int base;
+                switch (t[1]) {
+                    case 'b': base = 2; break;
+                    case 'o': base = 8; break;
+                    case 'd': base = 10; break;
+                    case 'x': base = 16; break;
+                    default: abort();
+                }
+                long long i;
+                if (from_chars(t.data() + 2,
+                            t.data() + t.size(), i, base).ec != errc{})
+                    throw SrcError("# numeric");
+                v = LexNum{i};
+            } else if (t[1] == '\\') {
+                if (t.size() == 3) {
+                    v = LexNum{t[2]}; // to-do: parse one unicode entity
+                } else {
+                    int i;
+                    auto s = t.substr(2);
+                    if (s == "alarm") i = 7;
+                    else if (s == "backspace") i = 8;
+                    else if (s == "tab") i = 9;
+                    else if (s == "newline") i = 10;
+                    else if (s == "return") i = 13;
+                    else if (s == "escape") i = 27;
+                    else if (s == "space") i = 32;
+                    else if (s == "delete") i = 127;
+                    else throw SrcError("#\\");
+                    v = LexNum{i};
+                }
+            } else if (t == "#void") {
+                v = LexVoid{};
+            } else throw SrcError("# token");
+        } else if (t[0] == '"') {
+            v = LexString{ unescape_string(t.substr(1, t.size() - 1)) };
+        } else if (t[0] == '.') {
+            if (t.size() != 1) throw SrcError("token starts in '.'");
+            v = LexDot{};
+        } else if (t[0] == '@') {
+            if (t.size() != 1) throw SrcError("token starts in '@'");
+            v = LexSplice{};
+        } else if (t[0] == quotes[0]) {
+            v = LexQt{};
+        } else if (t[0] == quotes[1]) {
+            v = LexQqt{};
+        } else if (t[0] == quotes[2]) {
+            v = LexUnq{};
+        } else {
+            unsigned h = intern(t, names);
+            v = LexName{h, linenumber};
+        }
         r.push_back(v);
     }
-    //debug("lex", a)
+
+#ifdef DEBUG
+        cout << "lex: " << r << "\n";
+#endif
     return r;
 }
 

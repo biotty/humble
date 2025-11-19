@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(humble CXX)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 enable_testing()
 add_compile_options(-ggdb)
 find_package(GTest REQUIRED)

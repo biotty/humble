@@ -194,8 +194,69 @@ TEST(lex, num)
 {
     Names m;
 
-    vector<Lex> v = lex("31", m);
-    ASSERT_EQ(1, v.size());
-    ASSERT_EQ(31, get<LexNum>(v[0]).i);
+    vector<Lex> v = lex("110 #b110 #o110 #d110 #x110", m);
+    ASSERT_EQ(5, v.size());
+    EXPECT_EQ(110, get<LexNum>(v[0]).i);
+    EXPECT_EQ(6, get<LexNum>(v[1]).i);
+    EXPECT_EQ(72, get<LexNum>(v[2]).i);
+    EXPECT_EQ(110, get<LexNum>(v[3]).i);
+    EXPECT_EQ(272, get<LexNum>(v[4]).i);
+}
+
+TEST(lex, boolean)
+{
+    Names m;
+
+    vector<Lex> v = lex("#f #t #false #true", m);
+    ASSERT_EQ(4, v.size());
+    ASSERT_EQ(false, get<LexBool>(v[0]).b);
+    ASSERT_EQ(true, get<LexBool>(v[1]).b);
+    ASSERT_EQ(false, get<LexBool>(v[2]).b);
+    ASSERT_EQ(true, get<LexBool>(v[3]).b);
+}
+
+TEST(lex, chr)
+{
+    Names m;
+
+    vector<Lex> v = lex("#\\a #\\alarm", m);
+    ASSERT_EQ(2, v.size());
+    ASSERT_EQ(97, get<LexNum>(v[0]).i);
+    ASSERT_EQ(7, get<LexNum>(v[1]).i);
+}
+
+TEST(lex, str_adjacent)
+{
+    Names m;
+
+    vector<Lex> v = lex("\"\"\"\"", m);
+    ASSERT_EQ(2, v.size());
+    ASSERT_EQ("", get<LexString>(v[0]).s);
+    ASSERT_EQ("", get<LexString>(v[1]).s);
+}
+
+TEST(lex, dot_quotes_void)
+{
+    Names m;
+
+    vector<Lex> v = lex(".'`,#void", m);
+    ASSERT_EQ(5, v.size());
+    ASSERT_EQ(6, v[0].index());
+    ASSERT_EQ(8, v[1].index());
+    ASSERT_EQ(9, v[2].index());
+    ASSERT_EQ(10, v[3].index());
+    ASSERT_EQ(4, v[4].index());
+}
+
+TEST(lex, names)
+{
+    Names m;
+
+    vector<Lex> v = lex("a b.b c@ !$%&*+-./:<=>?@^_~", m);
+    ASSERT_EQ(4, v.size());
+    ASSERT_EQ(0, get<LexName>(v[0]).h);
+    ASSERT_EQ(1, get<LexName>(v[1]).h);
+    ASSERT_EQ(2, get<LexName>(v[2]).h);
+    ASSERT_EQ(3, get<LexName>(v[3]).h);
 }
 

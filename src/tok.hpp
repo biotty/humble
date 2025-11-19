@@ -19,15 +19,22 @@ using Names = std::vector<std::string>;
 
 size_t intern(std::string_view name, Names & names);
 
-struct LexBeg{ int par; };
-struct LexEnd{ int par; int line; };
-struct LexNum{ long long i; };
+struct LexBeg { int par; };
+struct LexEnd { int par; int line; };
+struct LexNum { long long i; };
+struct LexBool { bool b; };
+struct LexVoid { };
+struct LexString { std::string s; };
+struct LexDot { };
+struct LexSplice { };
+struct LexQt { };
+struct LexQqt { };
+struct LexUnq { };
+struct LexName { unsigned h; int line; };
 
 using Lex = std::variant<
-    LexBeg,
-    LexEnd,
-    LexNum
-        >;
+    LexBeg, LexEnd, LexNum, LexBool, LexVoid, LexString,
+    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexName>;
 
 std::vector<Lex> lex(const std::string & s, Names & names);
 
