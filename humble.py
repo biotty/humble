@@ -8,36 +8,36 @@
 # Deviations:  (concept)
 #
 # The environment cannot be mutated from an inner scope,
-# as (set!) does (we don't have it).  Only (re-)defining
-# a name alters the environment, which can only be
-# done at its own lexical scope.  Instead of such env mutation
-# we permit mutation of variables themselves, with (setv!).
-# Names are detached from the variables they refer to so that
+# as (set!) does (I don't have it).  Only (re-)defining
+# a name alters the environment, which can only be done
+# at its own lexical scope.  Instead of such env mutation
+# I permit mutation of variables themselves, with (setv!).
+# Names are detached from the variables they refer to so
 # the variables here resemble (assignable) value entities.
 # Variable names in the program works as in usual scheme.
 # The environment does not contain variable entries directly
-# but references to them.  The variables themselves may be
-# shared with a list or with another environment:
+# directly but references to them.  The variables themselves
+# may be shared with a list or with another environment:
 # Parameter variables to a procedure are not copied,
-# but taken "by reference".  We have (alias? a b) to report
+# but taken "by reference".  I have (alias? a b) to report
 # whether a and b refers to the same variable.
 #
 # To facilitate value-semantics clone (such as use of
-# a names number) and prevent "a reference mess" we provide (dup)
-# and (local), and have renamed (define) to (ref) as a reminder.
-# Surprises with references obviously only occur due to mutation.
-# Given this layout of names and variables, we allow mutation
-# of the variables themselves (like the concept of "lvalues" in C)
-# and we drop the mutation of set! that replaces on the location
-# of a name (list-set! is not dropped).
-# The rationale is that scheme already operates with such mutation,
+# a names number) and prevent "a reference mess" I provide
+# (dup) and (local), and have renamed (define) to (ref) as a
+# reminder.  Surprises with references obviously only occur
+# due to mutation.  Given this layout of names and variables,
+# I allow mutation of the variables themselves as "lvalues"
+# and I drop the mutation of set! that replaces on the
+# location of a name (list-set! is not dropped).  The
+# rationale is that scheme already operates has such mutation,
 # when you hold cons-cells or lambda-captures.
 # There is both simplification and practical benefit in
 # generalizing mutation to "values" but eliminating remote
 # mutation on the environments, as done by set! --
-# Instead we have the general setv! that instead operates on what
-# the name refers to.  A local name can only be re-defined
-# in the very same scope -- as opposed to traditional scheme.
+# Instead I have the general setv! that operates on what a
+# name refers to.  A local name can only be re-defined in
+# the very same scope -- as opposed to traditional scheme.
 #
 # Features:  (language)
 #
@@ -59,7 +59,7 @@
 # * Record type -- not provided for user -- but;
 #     def-record-type.  case-lambda.  cadar combos.
 # * A nonlist function (like list).
-# * ,@ propperly separated as two valid operators.
+# * ,@ propperly separated as two independent operators.
 # * Functions and special forms as specified in r7rs
 #     but limited for math and a very basic IO:
 #     input/output-file, r/w-byte, read-line, write-string
@@ -72,7 +72,7 @@
 # * #void -- unit type i-e is returned on r7rs "unspec"
 # * (error) function that reports given value and exits.
 
-# Word-in-Progress:  (elaboration)
+# Work-in-Progress:  (elaboration)
 
 # The c++ implementation will instead of the registering
 # plugins be able to dynload unaware libraries and use
@@ -80,7 +80,7 @@
 # populates the top environment with this facility is
 # itself an (other kind of) extension that is added
 # by the program that runs the interpreter.  This
-# latter resembles the mechanism we have in the python
+# latter resembles the mechanism I have in the python
 # implementation with curses function additions, except
 # the interpreter is not separated out as a library.
 #
@@ -88,7 +88,8 @@
 #
 # * Multi-value, eval, call/cc, dyn-param, except, force-delay
 # * str->sym (because parse-time intern of all names)
-# * Implicit quoting in case (we evaluate the <datum>s)
+# * Implicit quoting in case (I evaluate (in short circuiting
+#   fashion) the <datum>s)
 # * Other commenting than ; and #| .. |#
 # * Label-syntax for data-loops, or output-representation
 # * Float, exact, complex, char (but only integral numbers)
@@ -137,12 +138,19 @@
 # String-comparison and whether a string may be populated
 # with non utf8 are implementation-defined.  It is possible
 # to allow feeding bytes onto an out-string and operate on
-# the result -- not in the python impl. which use unicode.
-# A raw strings impl. allowing non utf8 strings, may
-# provide string-bytes-ref and string-bytes-length similar
-# to string-ref and string-length, but for raw byte access.
-# however, string->list shall operate with utf8 and fail
-# otherwise.
+# the result -- not in the python impl. which internally
+# uses semantic strings (not raw bytes).  A raw string
+# implementation allowing non utf8 strings, may permit say
+# a program processing EBCDIC from files or stdin and
+# keeping buffers from this in string variables.  Such an
+# impl. may provide string-bytes-ref and string-bytes-length
+# similar to string-ref and string-length, but for raw byte
+# access.  However, language-defined functions such as
+# string->list shall operate with utf8 and fail otherwise.
+#
+# Non-ascii symbols in names need not be permitted.  But
+# utf8 shall be supported for a char-literal or as part of
+# a string literal.
 #
 
 ##
@@ -837,7 +845,7 @@ def zloc_scopes(t, local_env):
             x[1:] = zloc_scopes(x[1:], local_env)
         elif x[0] in (OP_EXPORT, OP_IMPORT):
             # an import has already parsed (zloc performed),
-            # and we therefore in m_scope also zloc.
+            # and I therefore in m_scope also zloc.
             pass
         else:
             broken("unknown form")
@@ -1249,21 +1257,21 @@ def m_unless(s):
     return [OP_COND, [s[1], (LEX_VOID,)],
             [(LEX_BOOL, True), m_begin([-99, *s[2:]])]]
 
-def xcase_test(t, last):
+def xcase_test(t):
     if type(t) != list:
-        if not last:
-            raise SrcError("non-form case-test not last")
         if blex(t) != nam_else:
-            raise SrcError("last case neither form nor else")
+            raise SrcError("case neither form nor else")
         return (LEX_BOOL, True)
     return m_or([-99, *[[nam_eqvp, v, nam_else] for v in t]])
 
 def xcase_target(t):
-    if blex(t[0]) == nam_then:
-        if len(t) != 2:
-            raise SrcError("=> case with %d elements" % (len(t),))
-        t = [[t[1], nam_else]]
-    return (LEX_LIST, t)
+    if blex(t[0]) != nam_then:
+        if len(t) != 1:
+            raise SrcError("length %d case target" % (len(t),))
+        return t[0]
+    if len(t) != 2:
+        raise SrcError("length %d case => target" % (len(t),))
+    return [t[1], nam_else]
 
 def xcase(s):
     if blex(s[-1][0]) != nam_else:
@@ -1277,15 +1285,15 @@ def xcase(s):
     # alt: instead have [nam_else, (LEX_VOID,)] above.
     m = len(s) - 1
     return m_or([-99, *[
-        m_and([-99, xcase_test(ce[0], i == m),
+        m_and([-99, xcase_test(ce[0]),
             xcase_target(ce[1:])
             if blex(ce[0]) != nam_else or blex(ce[1]) == nam_then
-            else (LEX_LIST, [m_begin([-99, *ce[1:]])])])
+            else m_begin([-99, *ce[1:]])])
         for i, ce in enumerate(s)]])
 
 def m_case(s):
-    return [nam_car, m_letx([-99, [[nam_else, s[1]]],
-        xcase(s[2:])])]
+    # note: abuse of "else" as switch variable name
+    return m_letx([-99, [[nam_else, s[1]]], xcase(s[2:])])
 
 # naming - modules
 
@@ -1435,8 +1443,8 @@ def m_import(names, macros):
 # copy memory to a significant degree anyway.
 #
 # VAR_NUM is trivial.  However, semantics may be surprising
-# as we expect any numerical expression to yield creation of
-# a new instanceof:  evaluating a single number will not.
+# as one would expect any numerical expression to yield
+# creation of a new instance:  a single number will *not*.
 #
 # VAR_VOID is used for "unspecified value" as in r7rs.
 # object identity under alias? is not well defined,
@@ -2398,7 +2406,7 @@ def f_member(*args):
             return f
         if t(args[1][1][0]):
             # note: in this case list need not be converted to cons
-            #       -- we merely get another ref to this list as-is
+            #       -- yield another ref to this list as-is
             return args[1]
     r = f_cdr(args[1])[1]
     while r:
@@ -2835,7 +2843,7 @@ def xeval(x, env):
             return [VAR_VOID]
         if x[0] == LEX_DOT:
             raise RunError("invalid use of dot")
-        # in some cases we could have catched at parse time
+        # in some cases I could have catched at parse time
         # which means it would have been a lex error.
         broken(x)
     if type(x) != list:
@@ -3176,7 +3184,7 @@ def xrepr(s, names):
         if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             return "#<lambda #>"
             # omitted: content of lambda, as names only contains
-            # the local env (as invoked from vrepr), and we would
+            # the local env (as invoked from vrepr), and I would
             # need the complete interned names lookup to recurse
         if s[0] == OP_COND:
             return "#<cond%s #>" % (
