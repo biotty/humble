@@ -1,15 +1,13 @@
+#ifndef HUMBLE_API
+#define HUMBLE_API
 #include <string>
-#include <exception>
+#include <stdexcept>
 
 namespace humble {
 
-class Error : std::exception {
-    std::string msg;
-public:
-    Error(std::string m) : msg(m) {};
-    const char * what() const noexcept override {
-        return msg.c_str();
-    }
+struct Error : std::runtime_error
+{
+    using std::runtime_error::runtime_error;
 };
 
 struct CoreError : Error {
@@ -25,4 +23,4 @@ struct RunError : Error {
 };
 
 } // ns
-
+#endif

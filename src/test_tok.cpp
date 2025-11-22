@@ -225,6 +225,17 @@ TEST(lex, chr)
     ASSERT_EQ(7, get<LexNum>(v[1]).i);
 }
 
+TEST(lex, chr_nonascii)
+{
+    Names m;
+
+    vector<Lex> v = lex("#\\À #\\€ #\\𝅘𝅥𝅮", m);
+    ASSERT_EQ(3, v.size());
+    ASSERT_EQ(192, get<LexNum>(v[0]).i);
+    ASSERT_EQ(8364, get<LexNum>(v[1]).i);
+    ASSERT_EQ(119136, get<LexNum>(v[2]).i);
+}
+
 TEST(lex, str_adjacent)
 {
     Names m;
@@ -233,6 +244,15 @@ TEST(lex, str_adjacent)
     ASSERT_EQ(2, v.size());
     ASSERT_EQ("", get<LexString>(v[0]).s);
     ASSERT_EQ("", get<LexString>(v[1]).s);
+}
+
+TEST(lex, str_nonascii)
+{
+    Names m;
+
+    vector<Lex> v = lex("\"À\"", m);
+    ASSERT_EQ(1, v.size());
+    ASSERT_EQ("À", get<LexString>(v[0]).s);
 }
 
 TEST(lex, dot_quotes_void)
@@ -258,5 +278,13 @@ TEST(lex, names)
     ASSERT_EQ(1, get<LexName>(v[1]).h);
     ASSERT_EQ(2, get<LexName>(v[2]).h);
     ASSERT_EQ(3, get<LexName>(v[3]).h);
+}
+
+TEST(lex, name_nonascii)
+{
+    Names m;
+
+    ASSERT_THROW(lex("Àa", m), SrcError);
+    ASSERT_THROW(lex("'Àa", m), SrcError);
 }
 

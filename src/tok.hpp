@@ -1,3 +1,5 @@
+#ifndef HUMBLE_TOK
+#define HUMBLE_TOK
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,4 +41,4 @@ using Lex = std::variant<
 std::vector<Lex> lex(const std::string & s, Names & names);
 
 } // ns
-
+#endif

@@ -1,5 +1,6 @@
 #include "tok.hpp"
 #include "api.hpp"
+#include "utf.hpp"
 #include <cctype>
 #include <cstring>
 #include <vector>
@@ -117,7 +118,10 @@ pair<string_view, size_t> tok(std::string_view s)
             throw SrcError("stop at #\\");
         if (isspace(s[i])) throw SrcError("# space");
         if (isalnum(s[i])) while (++i != n and isalnum(s[i]));
-        else i += 1;
+        else {
+            auto w = utf_ref(s.substr(i), 0);
+            i += w.u.size();
+        };
         return r();
     }
     if (s[i] == '"') {
@@ -144,9 +148,8 @@ pair<string_view, size_t> tok(std::string_view s)
         if (++i == n) break;
     }
     if (i) return r();
-    static char m[16];  // improve: echo when printable
-    snprintf(m, sizeof m, "character %d", s[i]);  // to-do:  utf8
-    throw SrcError(m);
+    auto g = utf_ref(s.substr(i), 0);
+    throw SrcError("glyph '" + string(g.u) + "'");
 }
 
 string unescape_string(string_view s)
@@ -180,8 +183,8 @@ string unescape_string(string_view s)
                 default:
                           throw SrcError("invalid string escape");
             }
-        r.push_back(c);
         }
+        r.push_back(c);
     }
     return { r.begin(), r.end() };
 }
@@ -238,8 +241,9 @@ vector<Lex> lex(const string & s, Names & names)
                     throw SrcError("# numeric");
                 v = LexNum{i};
             } else if (t[1] == '\\') {
-                if (t.size() == 3) {
-                    v = LexNum{t[2]}; // to-do: parse one unicode entity
+                auto w = utf_ref(t, 2);
+                if (t.size() == 2 + w.u.size()) {
+                    v = LexNum{utf_value(w)};
                 } else {
                     int i;
                     auto s = t.substr(2);
@@ -258,7 +262,7 @@ vector<Lex> lex(const string & s, Names & names)
                 v = LexVoid{};
             } else throw SrcError("# token");
         } else if (t[0] == '"') {
-            v = LexString{ unescape_string(t.substr(1, t.size() - 1)) };
+            v = LexString{ unescape_string(t.substr(1, t.size() - 2)) };
         } else if (t[0] == '.') {
             if (t.size() != 1) throw SrcError("token starts in '.'");
             v = LexDot{};

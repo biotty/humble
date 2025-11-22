@@ -134,6 +134,16 @@
 # is undefined.  This is more of a known bug that is outside
 # area of interest.  The observed behavior is undo of quote.
 #
+# String-comparison and whether a string may be populated
+# with non utf8 are implementation-defined.  It is possible
+# to allow feeding bytes onto an out-string and operate on
+# the result -- not in the python impl. which use unicode.
+# A raw strings impl. allowing non utf8 strings, may
+# provide string-bytes-ref and string-bytes-length similar
+# to string-ref and string-length, but for raw byte access.
+# however, string->list shall operate with utf8 and fail
+# otherwise.
+#
 
 ##
 # code-points
@@ -2704,7 +2714,7 @@ def f_pause(*args):
     return [VAR_VOID]
 
 ##
-# the core
+# the eval loop
 ##
 
 def is_last(w, block):
