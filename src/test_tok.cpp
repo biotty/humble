@@ -1,4 +1,5 @@
 #include "api.hpp"
+#include "detail.hpp"
 #include "tok.hpp"
 #include "gtest/gtest.h"
 
@@ -190,6 +191,18 @@ TEST(lex, par)
     ASSERT_EQ(2, get<LexBeg>(v[2]).par);
 }
 
+TEST(lex, par_line)
+{
+    Names m;
+    linenumber = 0;
+
+    vector<Lex> v = lex(")\n]\n\n}", m);
+    ASSERT_EQ(3, v.size());
+    ASSERT_EQ(0, get<LexEnd>(v[0]).line);
+    ASSERT_EQ(1, get<LexEnd>(v[1]).line);
+    ASSERT_EQ(3, get<LexEnd>(v[2]).line);
+}
+
 TEST(lex, num)
 {
     Names m;
@@ -261,23 +274,30 @@ TEST(lex, dot_quotes_void)
 
     vector<Lex> v = lex(".'`,#void", m);
     ASSERT_EQ(5, v.size());
-    ASSERT_EQ(6, v[0].index());
-    ASSERT_EQ(8, v[1].index());
-    ASSERT_EQ(9, v[2].index());
-    ASSERT_EQ(10, v[3].index());
-    ASSERT_EQ(4, v[4].index());
+    ASSERT_TRUE(std::holds_alternative<LexDot>(v[0]));
+    ASSERT_TRUE(std::holds_alternative<LexQt>(v[1]));
+    ASSERT_TRUE(std::holds_alternative<LexQqt>(v[2]));
+    ASSERT_TRUE(std::holds_alternative<LexUnq>(v[3]));
+    ASSERT_TRUE(std::holds_alternative<LexVoid>(v[4]));
 }
 
 TEST(lex, names)
 {
     Names m;
+    linenumber = 0;
 
-    vector<Lex> v = lex("a b.b c@ !$%&*+-./:<=>?@^_~", m);
+    vector<Lex> v = lex("a b.b\nc@\n"
+            "\n!$%&*+-./:<=>?@^_~", m);
     ASSERT_EQ(4, v.size());
     ASSERT_EQ(0, get<LexName>(v[0]).h);
     ASSERT_EQ(1, get<LexName>(v[1]).h);
     ASSERT_EQ(2, get<LexName>(v[2]).h);
     ASSERT_EQ(3, get<LexName>(v[3]).h);
+
+    ASSERT_EQ(0, get<LexName>(v[0]).line);
+    ASSERT_EQ(0, get<LexName>(v[1]).line);
+    ASSERT_EQ(1, get<LexName>(v[2]).line);
+    ASSERT_EQ(3, get<LexName>(v[3]).line);
 }
 
 TEST(lex, name_nonascii)

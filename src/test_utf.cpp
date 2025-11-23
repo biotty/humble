@@ -60,24 +60,24 @@ TEST(ref, mb4)
 
 TEST(value, ascii)
 {
-    glyph s{ "a" };
+    Glyph s{ "a" };
     ASSERT_EQ(97, utf_value(s));
 }
 
 TEST(value, mb2)
 {
-    glyph s{ "À" };
+    Glyph s{ "À" };
     ASSERT_EQ(192, utf_value(s));
 }
 
 TEST(value, mb3)
 {
-    glyph s{ "€" };
+    Glyph s{ "€" };
     ASSERT_EQ(8364, utf_value(s));
 }
 
 TEST(value, mb4)
 {
-    glyph s{ "𝅘𝅥𝅮" };
+    Glyph s{ "𝅘𝅥𝅮" };
     ASSERT_EQ(119136, utf_value(s));
 }

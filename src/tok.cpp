@@ -1,5 +1,6 @@
 #include "tok.hpp"
 #include "api.hpp"
+#include "detail.hpp"
 #include "utf.hpp"
 #include <cctype>
 #include <cstring>
@@ -7,60 +8,20 @@
 #include <algorithm>
 #include <charconv>
 
-//#define DEBUG
-
 #ifdef DEBUG
-#include <iostream>
-#include <array>
+#include "debug.hpp"
 #endif
 
 using namespace std;
 
 namespace humble {
 
-#ifdef DEBUG
-
-ostream & operator<<(ostream & os, LexBeg & e) { return os << e.par; }
-ostream & operator<<(ostream & os, LexEnd & e) { return os << e.par; }
-ostream & operator<<(ostream & os, LexNum & e) { return os << e.i; }
-ostream & operator<<(ostream & os, LexBool & e) { return os << boolalpha << e.b; }
-ostream & operator<<(ostream & os, LexVoid & e) { return os; }
-ostream & operator<<(ostream & os, LexString & e) { return os << e.s; }
-ostream & operator<<(ostream & os, LexDot & e) { return os; }
-ostream & operator<<(ostream & os, LexSplice & e) { return os; }
-ostream & operator<<(ostream & os, LexQt & e) { return os; }
-ostream & operator<<(ostream & os, LexQqt & e) { return os; }
-ostream & operator<<(ostream & os, LexUnq & e) { return os; }
-ostream & operator<<(ostream & os, LexName & e) { return os << e.h; }
-ostream & operator<<(ostream & os, Lex & lex)
-{
-    array<string, 12> tn = {
-        "Beg", "End", "Num", "Bool", "Void", "String",
-        "Dot", "Splice", "Qt", "Qqt", "Unq", "Name" };
-    os << "Lex" << tn.at(lex.index()) << "{";
-    visit([&os](auto arg) { os << arg; }, lex);
-    return os << "}";
-}
-
-template <typename T>
-ostream & operator<<(ostream & os, vector<T> & v)
-{
-    if (v.empty()) return os;
-    os << "[" << v.front();
-    for (auto it = v.begin() + 1; it != v.end(); ++it) {
-        os << ", " << *it;
-    }
-    return os << "]";
-}
-
-#endif
-
 string filename;
 int linenumber;
 
-const char * par_beg_end = "([{" ")]}";
-const char * quotes = "'`,";
-const char * name_cs = "!$%&*+-./:<=>?@^_~";
+static const char * quotes = "'`,";
+static const char * par_beg_end = PAR_BEG PAR_END;
+static const char * name_cs = "!$%&*+-./:<=>?@^_~";
 
 size_t spaces(const char * s, size_t n)
 {
@@ -199,6 +160,9 @@ size_t intern(std::string_view name, Names & names)
     return r;
 }
 
+// Function scans to produce tokens such as numeric
+// literals, strings and names.  The names are
+// "interned", meaning each given an identifier.
 vector<Lex> lex(const string & s, Names & names)
 {
     const auto n = s.size();

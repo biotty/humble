@@ -1,18 +1,24 @@
 #include "utf.hpp"
 #include "api.hpp"
 
+#ifdef DEBUG
+#include "debug.hpp"
+#endif
+
 using namespace std;
 
 namespace {
 
-humble::glyph utf_head(std::string_view s)
+using namespace humble;
+
+Glyph utf_head(std::string_view s)
 {
     unsigned u = static_cast<unsigned char>(s[0]);
     if (u < 0b10000000) {
         return { s.substr(0, 1) };
     }
     if (u < 0b11000000) {
-        throw humble::SrcError("midst utf8");
+        throw SrcError("midst utf8");
     }
     if (u < 0b11100000) {
         return { s.substr(0, 2) };
@@ -23,14 +29,14 @@ humble::glyph utf_head(std::string_view s)
     if (u < 0b11111000) {
         return { s.substr(0, 4) };
     }
-    throw humble::SrcError("invalid utf8");
+    throw SrcError("invalid utf8");
 }
 
 } // ans
 
 namespace humble {
 
-long long utf_value(glyph s)
+long long utf_value(Glyph s)
 {
     auto n = s.u.size();
     auto p = reinterpret_cast<const unsigned char *>(s.u.data());
@@ -50,13 +56,18 @@ long long utf_value(glyph s)
     throw CoreError("not utf8");
 }
 
-glyph utf_ref(std::string_view s, size_t i)
+Glyph utf_ref(std::string_view s, size_t i)
 {
+    Glyph t;
     for (;; --i) {
-        auto t = utf_head(s);
+        t = utf_head(s);
         if (i) s = s.substr(t.u.size());
-        else return t;
+        else break;
     }
+#ifdef DEBUG
+    cout << "utf: " << t << "\n";
+#endif
+    return t;
 }
 
 } // ns

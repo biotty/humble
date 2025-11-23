@@ -8,9 +8,6 @@
 
 namespace humble {
 
-extern std::string filename;
-extern int linenumber;
-
 size_t spaces(const char * s, size_t n);
 
 std::pair<std::string_view, size_t> tok(std::string_view s);
@@ -28,15 +25,19 @@ struct LexBool { bool b; };
 struct LexVoid { };
 struct LexString { std::string s; };
 struct LexDot { };
-struct LexSplice { };
 struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
 struct LexName { unsigned h; int line; };
 
+struct LexSplice;
+struct LexForm;
 using Lex = std::variant<
     LexBeg, LexEnd, LexNum, LexBool, LexVoid, LexString,
-    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexName>;
+    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexName,
+    LexForm>;
+struct LexSplice { std::vector<Lex> v; };
+struct LexForm { std::vector<Lex> v;  };
 
 std::vector<Lex> lex(const std::string & s, Names & names);
 

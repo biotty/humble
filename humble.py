@@ -192,6 +192,7 @@ LEX_SPLICE     = 27
 # no EOF 30
 # LEX_OP 31 not in py, instead OP_x directly
 # no EXTRA MIN..MAX
+NO_MASK        = 0b1111111
 # no CONS        (1 << 7)
 LEX_LIST       = (1 << 8)
 LEX_NONLIST    = (1 << 9)
@@ -532,19 +533,10 @@ def lex(s, names):
 # parser
 ##
 
-def in_mask(k, a):
-    return bool(k & a & ~BIT_VAR)
-
-def var_members(a):
-    r = []
-    i = 1
-    a &= ~BIT_VAR
-    while a:
-        if (a & i) != 0:
-            r.append(i | BIT_VAR)
-            a &= ~i
-        i <<= 1
-    return r
+def lex_in(k, a):
+    assert (k & BIT_VAR) == 0
+    assert (a & NO_MASK) == 0
+    return bool(k & a)
 
 PARSE_MODE_TOP = -2  # inside no form paren
 PARSE_MODE_ONE = -1  # yield single element
@@ -558,8 +550,8 @@ def parse_r(z, i, paren_mode, d):
         if c == LEX_END:
             if x[1] != paren_mode:
                 raise SrcError("parens '%s' at line %d does not match '%s'" % (
-                    par_beg[paren_mode] if paren_mode >= 0 else '(none)',
-                    x[2], par_end[x[1]]))
+                    par_end[x[1]],
+                    x[2], par_beg[paren_mode] if paren_mode >= 0 else '(none)'))
             return r, i + 1
         elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
@@ -654,7 +646,7 @@ def parse_i(s, names, macros):
     z = lex(s, names)
     ast, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
     if i != len(z):
-        broken("no exception but not fully consumed; unexpected")
+        broken("not fully consumed; unexpected")
     try:
         expand_macros(ast, macros, 0)
     except KeyError as e:
@@ -672,7 +664,7 @@ def unbound(s, defs, is_block):
         if type(x) != list:
             if x[0] == LEX_NAM and x[1] not in defs:
                 r.add(x[1])
-            if in_mask(x[0], LEX_LIST | LEX_NONLIST):
+            if lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r.update(unbound(x[1], defs, False))
             if x[0] == LEX_SPLICE:
                 r.update(unbound([x[1]], defs, False))
@@ -713,7 +705,7 @@ def find_unbound(s, y):
             if x[0] == LEX_NAM and x[1] == y:
                 return x
             r = None
-            if in_mask(x[0], LEX_LIST | LEX_NONLIST):
+            if lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r = find_unbound(x[1], y)
             elif x[0] == LEX_SPLICE:
                 r = find_unbound([x[1]], y)
@@ -821,7 +813,7 @@ def zloc_scopes(t, local_env):
             if x[0] == LEX_NAM:
                 if local_env:
                     t[i] = (x[0], local_env.rewrite_name(x[1]))
-            elif in_mask(x[0], LEX_LIST | LEX_NONLIST):
+            elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 t[i] = (x[0], zloc_scopes(x[1], local_env))
             elif x[0] == LEX_SPLICE:
                 t[i] = (x[0], zloc_scopes([x[1]], local_env)[0])
@@ -1046,7 +1038,7 @@ def quote(v, quasi):
         if is_dotform(v):
             w = [quote(x, quasi) for x in without_dot(v)]
             if type(w[-1]) == tuple \
-                    and in_mask(w[-1][0], LEX_LIST | LEX_NONLIST):
+                    and lex_in(w[-1][0], LEX_LIST | LEX_NONLIST):
                 z = w.pop()
                 w.extend(z[1])
                 return (z[0], w)
@@ -1561,6 +1553,22 @@ def normal_list(a):
 
 # arg checks
 
+def var_in(k, a):
+    assert (k & BIT_VAR) != 0
+    assert (a & NO_MASK) == 0
+    return bool(k & a & ~BIT_VAR)
+
+def var_members(a):
+    r = []
+    i = 1
+    a &= ~BIT_VAR
+    while a:
+        if (a & i) != 0:
+            r.append(i | BIT_VAR)
+            a &= ~i
+        i <<= 1
+    return r
+
 def var_type_name(vt):
     if vt >= VAR_EXTRA_MIN and vt <= VAR_EXTRA_MAX:
         return "extra-%x" % (~BIT_VAR & vt,)
@@ -1600,7 +1608,7 @@ def fargt_must_eq(fn, args, i, vt):
                 fargt_repr(vt), fargt_repr(args[i][0])))
 
 def fargt_must_in(fn, args, i, vts):
-    if not in_mask(args[i][0], vts):
+    if not var_in(args[i][0], vts):
         raise RunError("%s args[%d] accepts %r got %s"
                 % (fn, i, "/".join(fargt_repr(vt)
                     for vt in var_members(vts)),
@@ -1623,7 +1631,7 @@ def f_list_copy(*args):
 
 def f_cons(*args):
     fargc_must_eq("cons", args, 2)
-    if in_mask(args[1][0], VAR_CONS | VAR_LIST | VAR_NONLIST):
+    if var_in(args[1][0], VAR_CONS | VAR_LIST | VAR_NONLIST):
         c = to_cons(args[1])
         args[1][:] = [VAR_CONS, c]
         return [VAR_CONS, Cons(args[0], c)]
@@ -1633,7 +1641,7 @@ def f_car(*args):
     fn = "car"
     fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
-    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
+    if var_in(args[0][0], VAR_LIST | VAR_NONLIST):
         return args[0][1][0]
     assert args[0][0] == VAR_CONS
     if not args[0][1]:
@@ -1650,7 +1658,7 @@ def f_list_ref(*args):
     fargt_must_eq("list-ref", args, 1, VAR_NUM)
     if args[0][0] == VAR_CONS:
         return c_list_ref(args[0][1], args[1][1])
-    if not in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
+    if not var_in(args[0][0], VAR_LIST | VAR_NONLIST):
         raise RunError("list-ref on %s"
                 % (fargt_repr(args[0][0]),))
     return args[0][1][args[1][1]]
@@ -1662,7 +1670,7 @@ def f_cdr(*args):
     t = args[0][0]
     a = args[0][1]
     if t != VAR_CONS:
-        assert in_mask(t, VAR_LIST | VAR_NONLIST)
+        assert var_in(t, VAR_LIST | VAR_NONLIST)
         if t == VAR_NONLIST:
             if len(a) <= 1:
                 broken("short nonlist")
@@ -1681,7 +1689,7 @@ def f_append(*args):
         return args[0]
     i_last = len(args) - 1
     last = args[i_last]
-    if in_mask(last[0], VAR_LIST | VAR_NONLIST):
+    if var_in(last[0], VAR_LIST | VAR_NONLIST):
         last[1] = to_cons(last)
         last[0] = VAR_CONS
     r = p = to_cons_copy(args[0])
@@ -1717,7 +1725,7 @@ def f_set_cdrj(*args):
     fn = "set-cdr!"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
-    if in_mask(args[1][0], VAR_LIST | VAR_NONLIST):
+    if var_in(args[1][0], VAR_LIST | VAR_NONLIST):
         args[1][1] = to_cons(args[1])
         args[1][0] = VAR_CONS
     if args[1][0] == VAR_CONS:
@@ -1727,7 +1735,7 @@ def f_set_cdrj(*args):
     if args[0][0] == VAR_CONS:
         args[0][1].d = d
         return [VAR_VOID]
-    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
+    if var_in(args[0][0], VAR_LIST | VAR_NONLIST):
         a = args[0][1][0]
     else:
         a = args[0]
@@ -1913,7 +1921,7 @@ def setvjj(a, b, fn):
     if id(a) == id(b):
         debug("%s self-ref %s" % (fn, fargt_repr(a[0])))
     else:
-        if in_mask(b[0], VAR_LIST | VAR_NONLIST):
+        if var_in(b[0], VAR_LIST | VAR_NONLIST):
             k = to_cons(b)
             b[:] = [VAR_CONS, k]
         a.clear()
@@ -1923,8 +1931,8 @@ def setvjj(a, b, fn):
 def f_setvj(*args):
     fn = "setv!"
     fargc_must_eq(fn, args, 2)
-    if not ((in_mask(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
-        and in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
+    if not ((var_in(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
+        and var_in(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
         or args[0][0] == args[1][0]):
         raise RunError("setv! %s with %s"
                 % (var_type_name(args[0][0]),
@@ -1960,10 +1968,10 @@ def f_eqp(*args):
     fargc_must_eq("eq?", args, 2)
     if args[0][0] != args[1][0]:
         return [VAR_BOOL, False]
-    if in_mask(args[0][0], VAR_LIST | VAR_NONLIST):
+    if var_in(args[0][0], VAR_LIST | VAR_NONLIST):
         return [VAR_BOOL, (len(args[0][1]) == 0 and len(args[1][1]) == 0)
                 or (id(args[0][1]) == id(args[1][1]))]
-    if (in_mask(args[0][0], VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)
+    if (var_in(args[0][0], VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)
             or args[0][0] == VAR_DICT):
         return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
     return [VAR_BOOL, args[0][1] == args[1][1]]
@@ -1972,8 +1980,8 @@ def f_equalp(*args):
     fargc_must_eq("equal?", args, 2)
     # note: DICT do not undergo value-comparison --
     #       it shall differ with itself under equal
-    if (not in_mask(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
-            or not in_mask(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS)):
+    if (not var_in(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
+            or not var_in(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS)):
         return f_eqp(*args)
     r = [VAR_BOOL, False]
     if ((args[0][0] == VAR_LIST and args[1][0] == VAR_LIST)
@@ -2053,7 +2061,7 @@ def f_alist_z_dict(*args):
         if x[0] == VAR_CONS:
             a = x[1].a
             b = x[1].d
-        elif in_mask(x[0], VAR_NONLIST | VAR_LIST):
+        elif var_in(x[0], VAR_NONLIST | VAR_LIST):
             a = x[1][0]
             b = x[1][1]
         else:
@@ -2272,7 +2280,7 @@ def f_numberp(*args):
 
 def f_procedurep(*args):
     fn = "procedure?"
-    return [VAR_BOOL, in_mask(args[0][0],
+    return [VAR_BOOL, var_in(args[0][0],
         VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)]
 
 def f_symbolp(*args):
@@ -2313,7 +2321,7 @@ def f_pairp(*args):
 
 def f_contpp(*args):
     fargc_must_eq("cont??", args, 1)
-    return [VAR_BOOL, in_mask(args[0][0], VAR_LIST | VAR_NONLIST)]
+    return [VAR_BOOL, var_in(args[0][0], VAR_LIST | VAR_NONLIST)]
 
 def f_voidp(*args):
     fargc_must_eq("void?", args, 1)
@@ -2383,7 +2391,7 @@ def f_map(*args):
     return [VAR_LIST, r]
 
 def search_pred(a):
-    if in_mask(a[0], VAR_FUN_OPS | VAR_FUN_HOST):
+    if var_in(a[0], VAR_FUN_OPS | VAR_FUN_HOST):
         p = lambda x: fun_call([a, x])
     else:
         p = lambda x: f_equalp(a, x)
@@ -2885,7 +2893,7 @@ def xeval(x, env):
     broken("unknown form")
 
 def xapply(a):
-    if not in_mask(a[0][0], VAR_FUN_OPS | VAR_FUN_HOST):
+    if not var_in(a[0][0], VAR_FUN_OPS | VAR_FUN_HOST):
         raise RunError("apply %s"
                 % (fargt_repr(a[0][0])))
     if a[0][0] == VAR_FUN_OPS:
@@ -3201,7 +3209,7 @@ def xrepr(s, names):
             return "#<seq%s #>" % (
                     "".join(" " + xrepr(x, names) for x in s[1:]))
         broken("unhandled %r" % (s,))
-    if in_mask(s[0], LEX_LIST | LEX_NONLIST):
+    if lex_in(s[0], LEX_LIST | LEX_NONLIST):
         w  = [xrepr(x, names) for x in s[1]]
         if s[0] == LEX_NONLIST:
             w.insert(-1, ".")
@@ -3231,7 +3239,7 @@ def xrepr(s, names):
     return "#< %r #>" % (s,)
 
 def vrepr(s, names, q=None):
-    if in_mask(s[0], VAR_LIST | VAR_NONLIST):
+    if var_in(s[0], VAR_LIST | VAR_NONLIST):
         w  = [vrepr(x, names, q) for x in s[1]]
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
@@ -3257,7 +3265,7 @@ def vrepr(s, names, q=None):
         return "#{ " + " ".join(
                 ["(%s . %s)" % (vrepr(x, names, q), vrepr(y, names, q))
                     for x, y in s[1].ditems()]) + " }"
-    if in_mask(s[0], VAR_FUN_OPS | VAR_FUN_HOST):
+    if var_in(s[0], VAR_FUN_OPS | VAR_FUN_HOST):
         if s[0] == VAR_FUN_HOST:
             return "#~builtin"
         if not verbose:
