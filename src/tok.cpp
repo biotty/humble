@@ -136,7 +136,7 @@ string unescape_string(string_view s)
                                   b *= 8;
                                   b += c - '0';
                                   if (b > 255)
-                                      throw SrcError("bad octal in string");
+                                      throw SrcError("octal overflow");
                               }
                               c = b;
                           }

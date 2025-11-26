@@ -41,7 +41,7 @@ TEST(parse_i, beg_end_unmatch)
 TEST(parse_i, quote)
 {
     Names m = { "a", "b", "c", "d" };
-    auto w = parse_i("'d", m);
+    auto w = parse_i("'d \"\\7777777\"", m);
     ASSERT_EQ(1, w.v.size());
     auto f = get<LexForm>(w.v[0]);
     ASSERT_EQ(2, f.v.size());

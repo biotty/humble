@@ -17,7 +17,7 @@ using namespace humble;
 enum {
     PARSE_MODE_TOP = -2,  // inside no form paren
     PARSE_MODE_ONE = -1,  // yield single element
-};  // otherwise offset in "([{" -- 0, 1 or 2
+};  // otherwise 0, 1 or 2 -- offset in "([{"
 
 // Function recurses on parens in flat list of tokens,
 // to produce forms of the names and literals.  Quotes
@@ -91,7 +91,16 @@ namespace humble {
 
 LexForm parse_i(const std::string & s, Names & names)
 {
-    auto z = lex(s, names);
+    vector<Lex> z;
+    linenumber = 1;
+    try {
+        z = lex(s, names);
+    } catch (const SrcError & e) {
+        if (filename.empty()) throw;
+        ostringstream oss;
+        oss << "line " << linenumber << ": " << e.what();
+        throw SrcError(oss.str());
+    }
     auto [w, i] = parse_r(z, 0, PARSE_MODE_TOP, 0);
     if (i != z.size()) {
         throw CoreError("not fully consumed; unexpected");

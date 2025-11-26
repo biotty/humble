@@ -91,14 +91,17 @@
 # * Implicit quoting in case (I evaluate (in short circuiting
 #   fashion) the <datum>s)
 # * Other commenting than ; and #| .. |#
-# * Label-syntax for data-loops, or output-representation
+# * Label-syntax.  So a list with a loop cannot be expressed.
+#   (display) of data with loops will not work.
 # * Float, exact, complex, char (but only integral numbers)
-# * No |n a m e s| and no fold-case mode
+# * No |n a m e s| and no fold-case mode.  Recommended restriction
+#   to ascii names.  But utf8 accepted in char- or string-literal.
+#   Names cannot start in a '.' or a '@' but may contain them.
 # * FS/System ops, as there is i.e input-command
 # * define-syntax; instead powerful "unhygienic" lisp macro
 # * set! -- setv!(!) operates on the variable, not an env location.
 # * Char, but number parsed for #\ and with utf-8 support.
-# * only octal escape for bytes in string, but unicode assumed.
+# * Only octal escape for bytes in string.
 #
 # Note:  (beware)
 #
@@ -147,10 +150,6 @@
 # similar to string-ref and string-length, but for raw byte
 # access.  However, language-defined functions such as
 # string->list shall operate with utf8 and fail otherwise.
-#
-# Non-ascii symbols in names need not be permitted.  But
-# utf8 shall be supported for a char-literal or as part of
-# a string literal.
 #
 
 ##
@@ -415,7 +414,7 @@ def tok(s, i):
             break
     if i != w:
         return s[w : i], i
-    raise SrcError("character '%c' on line %d" %(s[i], linenumber))
+    raise SrcError("character '%c'" %(s[i],))
 
 def unescape_string(s):
     octals = "01234567"
@@ -427,7 +426,7 @@ def unescape_string(s):
         if c == "\\":
             i += 1
             if i == n:
-                raise SrcError("string ends at \\ on line %d" % (i, linenumber))
+                broken("string ends at \\")
             c = s[i]
             if c == "t":
                 c = "\t"
@@ -445,11 +444,10 @@ def unescape_string(s):
                     b *= 8
                     b += int(c)
                     if b > 255:
-                        raise SrcError(
-                                "octal overflow on line %d" % (i, linenumber))
+                        raise SrcError("octal overflow")
                 c = chr(b)
             else:
-                raise SrcError("string escape '%c' on line %d", c, linenumber)
+                raise SrcError("string escape '%c'" % (c,))
         a.append(c)
         i += 1
     return "".join(a)
@@ -506,11 +504,11 @@ def lex(s, names):
                             v = (LEX_NUM, c)
                             break
                     if v is None:
-                        raise SrcError("#\ token at line %d" % (linenumber,))
+                        raise SrcError("#\ token")
             elif t == "#void":
                 v = (LEX_VOID,)
             else:
-                raise SrcError("# token at line %d" % (linenumber,))
+                raise SrcError("# token")
         elif t[0] == "\"":
             v = (LEX_STRING, unescape_string(t[1:-1]))
         elif t.startswith("."):
@@ -643,7 +641,12 @@ def expand_macros(t, macros, qq):
     return t
 
 def parse_i(s, names, macros):
-    z = lex(s, names)
+    try:
+        z = lex(s, names)
+    except SrcError as e:
+        if not filename:
+            raise e;
+        raise SrcError("line %d: " % (linenumber,) + e.args[0])
     ast, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
     if i != len(z):
         broken("not fully consumed; unexpected")
