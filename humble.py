@@ -461,12 +461,30 @@ def unescape_string(s):
         i += 1
     return "".join(a)
 
-def intern(name, names):
-    try:
-        return names.index(name)
-    except:
-        i = len(names)
-        names.append(name)
+class Names:
+
+    def __init__(self, *a):
+        self.v = []
+        self.m = {}
+        for i, name in a:
+            j = self._add(name)
+            assert i == j
+
+    def __len__(self):
+        return len(self.v)
+
+    def __getitem__(self, i):
+        return self.v[i]
+
+    def intern(self, name):
+        if name in self.m:
+            return self.m[name]
+        return self._add(name)
+
+    def _add(self, name):
+        i = len(self.v)
+        self.v.append(name)
+        self.m[name] = i
         return i
 
 def lex(s, names):
@@ -530,7 +548,7 @@ def lex(s, names):
             assert len(t) == 1
             v = (quotes.index(t[0]) + LEX_QT,)
         else:
-            h = intern(t, names)
+            h = names.intern(t)
             v = (LEX_NAM, h, linenumber)
         a.append(v)
     debug("lex", a)
@@ -776,7 +794,13 @@ class LocalEnv:
                 self.names[self.n_parms:])
 
     def rewrite_name(self, n):
-        return intern(n, self.names)
+        try:
+            return self.names.index(n)
+        except ValueError:
+            pass
+        i = len(self.names)
+        self.names.append(n)
+        return i
 
     def rewrite_names(self, c):
         assert type(c) == list
@@ -1173,7 +1197,8 @@ def m_macro(macros, names):
 def m_gensym(names):
     def gensym(s):
         i = len(names)
-        names.append("&%d" % (i,))
+        j = names.intern("&%d" % (i,))
+        assert j == i
         return (LEX_SYM, i)
     return gensym
 
@@ -1350,11 +1375,11 @@ def m_import(names, macros):
             x = y = n[1]
             if n[0] == LEX_NAM:
                 if prefix_s:
-                    y = intern(prefix_s + names[x], names)
+                    y = names.intern(prefix_s + names[x])
                 set_up[y] = x
             elif n[0] == LEX_SYM:
                 if prefix_s and p[0] == LEX_SYM:
-                    y = intern(prefix_s + names[x], names)
+                    y = names.intern(prefix_s + names[x])
                 if x not in e_macros:
                     raise SrcError("no macro %s"
                             % (names[x],))
@@ -2922,9 +2947,8 @@ def run(x, env):
 
 def with_new_name(name, f, d, names):
     i = len(names)
-    if name in names:
+    if i != names.intern(name):
         broken("not new")
-    names.append(name)
     d[i] = f
 
 def init_macros(env, names):
@@ -3150,23 +3174,21 @@ def inc_macros(names, env, macros):
 
 def init_top(extra_f=()):
     global filename
-    N = 15
-    names = [None] * N
-    names[NAM_THEN] = "=>"
-    names[NAM_ELSE] = "else"
-    names[NAM_QUOTE] = "quote"
-    names[NAM_QUASIQUOTE] = "quasiquote"
-    names[NAM_UNQUOTE] = "unquote"
-    names[NAM_MACRO] = "macro"
-    names[NAM_CAR] = "car"
-    names[NAM_EQVP] = "eqv?"
-    names[NAM_LIST] = "list"
-    names[NAM_NONLIST] = "nonlist"
-    names[NAM_SETVJJ] = "setv!!"
-    names[NAM_DUP] = "dup"
-    names[NAM_ERROR] = "error"
-    names[NAM_SPLICE] = "splice"
-    assert N == len(names)
+    names = Names(
+            (NAM_THEN, "=>"),
+            (NAM_ELSE, "else"),
+            (NAM_QUOTE, "quote"),
+            (NAM_QUASIQUOTE, "quasiquote"),
+            (NAM_UNQUOTE, "unquote"),
+            (NAM_MACRO, "macro"),
+            (NAM_CAR, "car"),
+            (NAM_EQVP, "eqv?"),
+            (NAM_LIST, "list"),
+            (NAM_NONLIST, "nonlist"),
+            (NAM_SETVJJ, "setv!!"),
+            (NAM_DUP, "dup"),
+            (NAM_ERROR, "error"),
+            (NAM_SPLICE, "splice"))
     env = init_env(names)
     for a, b in extra_f:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)

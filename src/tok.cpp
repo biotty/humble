@@ -4,6 +4,7 @@
 #include "utf.hpp"
 #include <cctype>
 #include <cstring>
+#include <climits>
 #include <vector>
 #include <algorithm>
 #include <charconv>
@@ -150,14 +151,32 @@ string unescape_string(string_view s)
     return { r.begin(), r.end() };
 }
 
-size_t intern(std::string_view name, Names & names)
+Names::Names() {}
+
+Names::Names(std::initializer_list<std::string> w)
 {
-    auto t = find(names.begin(), names.end(), name);
-    if (t != names.end())
-        return (distance(names.begin(), t));
-    auto r = names.size();
-    names.emplace_back(name);
+    for (auto s : w) intern(s);
+}
+
+size_t Names::size() { return v.size(); }
+
+int Names::add(std::string_view name, size_t h)
+{
+    auto i = v.size();
+    if (i == INT_MAX) throw SrcError("names overflow");
+    int r = i;
+    v.emplace_back(name);
+    m.insert({h, r});
     return r;
+}
+
+int Names::intern(std::string_view name)
+{
+    auto h = hasher(name);
+    for (auto [b, e] = m.equal_range(h); b != e; ++b) {
+        if (v[b->second] == name) return b->second;
+    }
+    return add(name, h);
 }
 
 // Function scans to produce tokens such as numeric
@@ -240,8 +259,7 @@ vector<Lex> lex(const string & s, Names & names)
         } else if (t[0] == quotes[2]) {
             v = LexUnq{};
         } else {
-            unsigned h = intern(t, names);
-            v = LexName{h, linenumber};
+            v = LexName{names.intern(t), linenumber};
         }
         r.push_back(v);
     }

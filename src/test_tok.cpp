@@ -160,14 +160,14 @@ TEST(unescape_string, octal)
 TEST(intern, nonexist)
 {
     Names m = { "foo" };
-    ASSERT_EQ(1, intern("bar", m));
+    ASSERT_EQ(1, m.intern("bar"));
     ASSERT_EQ(2, m.size());
 }
 
 TEST(intern, exist)
 {
-    Names m = { "foo", "bar", "duh" };
-    ASSERT_EQ(1, intern("bar", m));
+    Names m = { "foo", "bar", "wiz" };
+    ASSERT_EQ(1, m.intern("bar"));
     ASSERT_EQ(3, m.size());
 }
 
