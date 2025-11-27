@@ -418,8 +418,8 @@ test(""" [ ref y 1 ]
 (chk #f (cont?? (echo '())))
 (chk #f (cont?? (list @(list))))
 (chk #f (cont?? '()))
-(chk #f (cont?? '(@(list))))  ; weird behavior: quoted splice
-(chk '(3) '(@(list (+ 1 2))));  ; same: quote ignored
-(chk '(3) '(@(list (cond (#t 3)))));  ; same: ignored quote
+(chk #t (cont?? '(@(list))))  ; quoted splice
+(chk (list 3) (list @(list (+ 1 2))));
+(chk 3 @(list (+ 1 2)));
 """)
 

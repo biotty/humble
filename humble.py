@@ -151,6 +151,11 @@
 # access.  However, language-defined functions such as
 # string->list shall operate with utf8 and fail otherwise.
 #
+# Comparison of bare splices (non-flattened) is undefined,
+# and better left as eq? as this is not the intended use of
+# splice, '@'.  Splice is for (list @(list)) yield (list)
+# Also, getting at a bare splice requires macro usage.
+#
 
 ##
 # code-points
@@ -179,17 +184,16 @@ LEX_NUM        = 17
 LEX_BOOL       = 18
 LEX_STRING     = 19
 LEX_NAM        = 20
-# no DICT 21
-# no REC 22
+# no DICT        21
+# no REC         22
 LEX_QUOTE      = 23
 LEX_QUASIQUOTE = 24
 LEX_UNQUOTE    = 25
-# UNQUOTE_SPLICE no-need, as distinct
-LEX_SPLICE     = 27
-# no APPLY 28
-# no PORT 29
-# no EOF 30
-# LEX_OP 31 not in py, instead OP_x directly
+# no SPLICE      26
+# no APPLY       27
+# no PORT        28
+# no EOF         29
+# LEX_OP not in py; instead OP_x directly
 # no EXTRA MIN..MAX
 NO_MASK        = 0b1111111
 # no CONS        (1 << 7)
@@ -209,7 +213,7 @@ BIT_VAR        = (1 << 14)
 # conversion (i-e macro args and return)
 
 # offsets with LEX_
-# no SYM 15
+# no SYM         15
 VAR_VOID       = 16 + BIT_VAR
 VAR_NUM        = 17 + BIT_VAR
 VAR_BOOL       = 18 + BIT_VAR
@@ -218,14 +222,13 @@ VAR_NAM        = 20 + BIT_VAR
 VAR_DICT       = 21 + BIT_VAR
 VAR_REC        = 22 + BIT_VAR
 VAR_QUOTE      = 23 + BIT_VAR
-# no QUASIQUOTE 24
+# no QUASIQUOTE  24
 VAR_UNQUOTE    = 25 + BIT_VAR
-# no UNQUOTE_SPLICE 26
-VAR_SPLICE     = 27 + BIT_VAR
-VAR_APPLY      = 28 + BIT_VAR
-VAR_PORT       = 29 + BIT_VAR
-VAR_EOF        = 30 + BIT_VAR
-# no OP
+VAR_SPLICE     = 26 + BIT_VAR
+VAR_APPLY      = 27 + BIT_VAR
+VAR_PORT       = 28 + BIT_VAR
+VAR_EOF        = 29 + BIT_VAR
+# no OP in py
 VAR_EXTRA_MIN  = 32 + BIT_VAR
 VAR_EXTRA_MAX  = 127 + BIT_VAR
 VAR_CONS       = (1 << 7) + BIT_VAR
@@ -260,6 +263,7 @@ NAM_NONLIST    = 9   #| into data-variable representation.
 NAM_SETVJJ     = 10  #| letrec, letrecx
 NAM_DUP        = 11  #| def
 NAM_ERROR      = 12  #| default else in case
+NAM_SPLICE     = 13  #| @ expansion
 
 def xn(n):
     return (LEX_NAM, n)
@@ -277,6 +281,7 @@ nam_nonlist = xn(NAM_NONLIST)
 nam_setvjj = xn(NAM_SETVJJ)
 nam_dup = xn(NAM_DUP)
 nam_error = xn(NAM_ERROR)
+nam_splice = xn(NAM_SPLICE)
 
 ##
 # diagnostics
@@ -564,7 +569,7 @@ def parse_r(z, i, paren_mode, d):
             elif c == LEX_UNQ:
                 x = [nam_unquote, *x]
             elif c == LEX_SPL:
-                x = (LEX_SPLICE, *x)
+                x = [nam_splice, *x]
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
@@ -595,12 +600,7 @@ def with_dot(x):
     return x[:-1] + [(LEX_DOT, None), x[-1]]
 
 def expand_macros(t, macros, qq):
-    if type(t) != list:
-        if t[0] == LEX_SPLICE:
-            t = (LEX_SPLICE, expand_macros(t[1], macros, qq))
-            debug("expand splice", t)
-        return t
-    if len(t) == 0:
+    if type(t) != list or len(t) == 0:
         return t
     is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
     is_user = is_macro and isinstance(macros[t[0][1]], UserMacro)
@@ -669,8 +669,6 @@ def unbound(s, defs, is_block):
                 r.add(x[1])
             if lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r.update(unbound(x[1], defs, False))
-            if x[0] == LEX_SPLICE:
-                r.update(unbound([x[1]], defs, False))
         elif type(x[0]) != int:
             r.update(unbound(x, defs, False))
         elif x[0] == OP_DEFINE:
@@ -705,15 +703,13 @@ def unbound(s, defs, is_block):
 def find_unbound(s, y):
     for x in s:
         if type(x) != list:
-            if x[0] == LEX_NAM and x[1] == y:
-                return x
-            r = None
-            if lex_in(x[0], LEX_LIST | LEX_NONLIST):
+            if x[0] == LEX_NAM:
+                if x[1] == y:
+                    return x
+            elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r = find_unbound(x[1], y)
-            elif x[0] == LEX_SPLICE:
-                r = find_unbound([x[1]], y)
-            if r:
-                return r
+                if r:
+                    return r
         elif type(x[0]) != int:
             r = find_unbound(x, y)
             if r:
@@ -818,8 +814,6 @@ def zloc_scopes(t, local_env):
                     t[i] = (x[0], local_env.rewrite_name(x[1]))
             elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 t[i] = (x[0], zloc_scopes(x[1], local_env))
-            elif x[0] == LEX_SPLICE:
-                t[i] = (x[0], zloc_scopes([x[1]], local_env)[0])
         elif type(x[0]) != int:
             t[i] = zloc_scopes(x, local_env)
         elif x[0] == OP_DEFINE:
@@ -1096,8 +1090,6 @@ def from_lex(s):
         return from_lex([nam_nonlist, *s[1]])
     if s[0] == LEX_SYM:
         return from_lex([nam_quote, (LEX_NAM, s[1])])
-    if s[0] == LEX_SPLICE:
-        return [VAR_SPLICE, from_lex(s[1])]
     if s[0] == LEX_VOID:
         return (VAR_VOID,)
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
@@ -1111,8 +1103,6 @@ def to_lex(s):
     if s[0] in (VAR_LIST, VAR_NONLIST):
         r = [to_lex(x) for x in s[1]]
         return with_dot(r) if s[0] == VAR_NONLIST else r
-    if s[0] == VAR_SPLICE:
-        return (LEX_SPLICE, to_lex(s[1]))
     if s[0] == VAR_VOID:
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
@@ -1799,6 +1789,12 @@ def f_take(*args):
     if args[1][0] == VAR_LIST:
         return [VAR_LIST, args[1][1][:n]]
     return args[1][1].xcopy(n)
+
+def f_splice(*args):
+    fn = "splice"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
+    return [VAR_SPLICE, normal_list(args[0][1])]
 
 # functions on NUM
 
@@ -2831,9 +2827,6 @@ def xeval(x, env):
                 c.d = r[-1][1]
                 return [VAR_CONS, c]
             return [VAR_NONLIST, r]
-        if x[0] == LEX_SPLICE:
-            r = run(x[1], env)
-            return [VAR_SPLICE, normal_list(r[1])]
         if x[0] == LEX_NAM:
             return env[x[1]]
         if x[0] == LEX_NUM:
@@ -2964,6 +2957,7 @@ def init_env(names):
     env[NAM_SETVJJ] = [VAR_FUN_HOST, f_setvjj]
     env[NAM_DUP] = [VAR_FUN_HOST, f_dup]
     env[NAM_ERROR] = [VAR_FUN_HOST, f_error(names)]
+    env[NAM_SPLICE] = [VAR_FUN_HOST, f_splice]
     with_new_name("display", [VAR_FUN_HOST, f_display(names)], env, names)
     with_new_name("symbol->string", [VAR_FUN_HOST, f_symbol_z_string(names)],
             env, names)
@@ -3145,7 +3139,7 @@ def inc_macros(names, env, macros):
 
 def init_top(extra_f=()):
     global filename
-    N = 14
+    N = 15
     names = [None] * N
     names[NAM_THEN] = "=>"
     names[NAM_ELSE] = "else"
@@ -3160,6 +3154,7 @@ def init_top(extra_f=()):
     names[NAM_SETVJJ] = "setv!!"
     names[NAM_DUP] = "dup"
     names[NAM_ERROR] = "error"
+    names[NAM_SPLICE] = "splice"
     assert N == len(names)
     env = init_env(names)
     for a, b in extra_f:
@@ -3217,8 +3212,6 @@ def xrepr(s, names):
         if s[0] == LEX_NONLIST:
             w.insert(-1, ".")
         return "$(%s)" % " ".join(w)
-    if s[0] == LEX_SPLICE:
-        return "#<splice %s #>" % (xrepr(s[1], names),)
     if s[0] == LEX_SYM:
         return "'#|%d|#" % (s[1],)
     if s[0] == LEX_NAM:
