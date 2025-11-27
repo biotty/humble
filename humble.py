@@ -156,6 +156,10 @@
 # splice, '@'.  Splice is for (list @(list)) yield (list)
 # Also, getting at a bare splice requires macro usage.
 #
+# It is recommended that (take) yields a cons chain iff
+# the argument list has a cons chain representation.
+# (take) is not applicable on non-list.
+#
 
 ##
 # code-points
@@ -1443,24 +1447,49 @@ def is_cons(y):
 
 class Cons:
 
+    # note: non-recursive iteration
+    # improvement: opt.loop detect by mark of cons,
+    #              w (i-e incr.gen) unique mark per loop-run
+
+    class Iter:
+
+        def __init__(self, c):
+            self.c = c
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            c = self.c
+            if c is None:
+                raise StopIteration
+            if not is_cons(c):
+                broken("NONLIST")
+            self.c = c.d
+            return c.a
+
     def __init__(self, a, d):
         self.a = a  # CAR will be a VAR_xyz
         self.d = d  # CDR will be a Cons (not VAR_CONS) or None,
         #             or in case of a non-list will be a VAR_xyz
 
-    # note: non-recursive impls
-
     def xcopy(self, n):
-        r = c = Cons(self.a, self.d)
-        while c.d is not None:
-            assert is_cons(c.d)
-            c.d = Cons(c.d.a, c.d.d)
+        """zero n means all"""
+        r = c = Cons(self.a, None)
+        for a in Cons.Iter(self.d):
+            c.d = Cons(a, None)
             c = c.d
             n -= 1
             if n == 0:
                 break
         else:
             Cons.last_cons = c
+        return r
+
+    def length(self):
+        r = 1
+        for a in Cons.Iter(self.d):
+            r += 1
         return r
 
     def to_list_var(self):
@@ -1475,15 +1504,6 @@ class Cons:
             r.append(c.a)
             c = c.d
         return [t, r]
-
-    def length(self):
-        r = 1
-        c = self
-        while c.d is not None:
-            assert is_cons(c.d)
-            r += 1
-            c = c.d
-        return r
 
     @staticmethod
     def from_list(x):
@@ -1517,22 +1537,6 @@ def to_cons_copy(a):
         return a[1].xcopy(0)
     return to_cons(a)
 
-def ConsOrListIter(c):
-    if type(c) == list:
-        return iter(c)
-    class ConsIter:
-        def __init__(self, c):
-            self.c = c
-        def __iter__(self):
-            return self
-        def __next__(self):
-            c = self.c
-            if c is None:
-                raise StopIteration
-            self.c = c.d
-            return c.a
-    return ConsIter(c)
-
 def normal_list(a):
     if a is None:
         return []
@@ -1543,6 +1547,11 @@ def normal_list(a):
         return r[1]
     assert type(a) == list
     return a
+
+def ConsOrListIter(c):
+    if type(c) == list:
+        return iter(c)
+    return Cons.Iter(c)
 
 # arg checks
 
@@ -1788,6 +1797,8 @@ def f_take(*args):
     n = args[0][1]
     if args[1][0] == VAR_LIST:
         return [VAR_LIST, args[1][1][:n]]
+    if n == 0 or args[1][1] is None:
+        return [VAR_CONS, None]
     return args[1][1].xcopy(n)
 
 def f_splice(*args):
