@@ -89,7 +89,7 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
 
 namespace humble {
 
-LexForm parse_i(const std::string & s, Names & names)
+LexForm parse(const std::string & s, Names & names)
 {
     vector<Lex> z;
     linenumber = 1;

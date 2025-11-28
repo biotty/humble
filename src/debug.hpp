@@ -16,4 +16,5 @@ ostream & operator<<(ostream & os, Lex & x);
 ostream & operator<<(ostream & os, vector<Lex> & v);
 
 } // ns
+
 #endif

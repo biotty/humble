@@ -622,6 +622,9 @@ def with_dot(x):
     return x[:-1] + [(LEX_DOT, None), x[-1]]
 
 def expand_macros(t, macros, qq):
+    # note: I could let a Macro class hierarchy take care of
+    # cases for user and quote recursion control so that
+    # conditions are not stated here. That is a choice.
     if type(t) != list or len(t) == 0:
         return t
     is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
@@ -638,7 +641,7 @@ def expand_macros(t, macros, qq):
             if qq == 0:
                 current = True
     if is_user:
-        # a user-macro must observe input prior to language-macros
+        # A user-macro must observe input prior to language-macros
         # expansion, which is instead performed below, as their
         # output is not interpreter-ready as for language-macros.
         # however, the quotation macros are processed on the args
@@ -647,7 +650,7 @@ def expand_macros(t, macros, qq):
                 NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
                 NAM_UNQUOTE: macros[NAM_UNQUOTE] }
     elif is_quote:
-        # normal quote arguments must not know of macros except
+        # Normal quote arguments must not know of macros except
         # for quasi-quotation processing.
         args_exp = { NAM_QUASIQUOTE: macros[NAM_QUASIQUOTE],
                 NAM_UNQUOTE: macros[NAM_UNQUOTE] }
@@ -662,7 +665,7 @@ def expand_macros(t, macros, qq):
     debug("expand", t)
     return t
 
-def parse_i(s, names, macros):
+def parse(s, names, macros):
     try:
         z = lex(s, names)
     except SrcError as e:
@@ -683,6 +686,11 @@ def parse_i(s, names, macros):
     return ast
 
 def unbound(s, defs, is_block):
+    # Capture of free names are done in macros themselves such as
+    # let and lambda, by invoking this function.  Note that the
+    # capture sets, pluss arguments, that form a local scope is then
+    # "zloc" compressed, and name-ops rewritten in subject AST, so
+    # that name lookups are done on a minimal "activation" array.
     r = set()
     from_branches = set()
     for x in s:
@@ -765,10 +773,11 @@ def info_unbound(x, names):
     a.append("%s" % (names[x[1]],))
     return "".join(a)
 
-def parse(s, names, macros, env_keys):
+def compx(s, names, macros, env_keys):
+    # "compile" or "compl" would give clashes
     global linenumber
     linenumber = 1
-    t = parse_i(s, names, macros)
+    t = parse(s, names, macros)
     u = unbound(t, set(env_keys), True)
     if not u:
         zloc_scopes(t, None)
@@ -1360,7 +1369,7 @@ def m_import(names, macros):
             raise SrcError("no such file")
         global linenumber
         u_ln = linenumber
-        r = parse(f.read(), names, e_macros, i_env.keys())
+        r = compx(f.read(), names, e_macros, i_env.keys())
         f.close()
         prefix_s = None
         if len(s) == 3:
@@ -3108,7 +3117,7 @@ def inc_functions(names, env, macros):
         a.append("(ref (c%s%sr x) (c%sr (c%sr x)))" % (2 * w))
     for w in itertools.product( * ["ad"] * 3):
         a.append("(ref (c%s%s%sr x) (c%sr (c%sr (c%sr x))))" % (2 * w))
-    t = parse("\n".join(a), names, macros, env.keys())
+    t = compx("\n".join(a), names, macros, env.keys())
     run_top(t, env, names)
 
 def inc_macros(names, env, macros):
@@ -3169,7 +3178,7 @@ def inc_macros(names, env, macros):
 (macro local args
   (cons 'seq (map (lambda (n) `(def ,n ,n)) args)))
 """
-    t = parse(s, names, macros, env.keys())
+    t = compx(s, names, macros, env.keys())
     run_top(t, env, names)
 
 def init_top(extra_f=()):
@@ -3438,7 +3447,7 @@ if __name__ == "__main__":
         filename = sys.argv[1]
         with open(filename) as f:
             try:
-                tree = parse(f.read(), names, macros, env.keys())
+                tree = compx(f.read(), names, macros, env.keys())
             except SrcError as e:
                 sys.stderr.write("error in file: %s\n" % (filename,))
                 sys.stderr.write(e.args[0] + "\n")
@@ -3474,7 +3483,7 @@ if __name__ == "__main__":
                 else:
                     set_verbose(False)
             try:
-                t = parse("".join(buf), names, macros, env.keys())
+                t = compx("".join(buf), names, macros, env.keys())
             except SrcError as e:
                 if filename:
                     sys.stderr.write("error in file: %s\n"

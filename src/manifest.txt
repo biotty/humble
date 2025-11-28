@@ -1,23 +1,30 @@
-api.hpp
-utf.hpp
+api.hpp // for users of this library
+debug.hpp // controls for development
+debug.cpp
+detail.hpp // internal across library
+utf.hpp // utf-8 string operations
 utf.cpp
-tok.hpp
+tok.hpp // the scanner and tokenizer
 tok.cpp
-parse.hpp
+parse.hpp // parser, quote/macro, compx
 parse.cpp
-macros.hpp
+macros.hpp // macro builtin and 'macro'
 macros.cpp
-var.hpp
+var.hpp // runtime objects
 var.cpp
-functions.hpp
+functions.hpp // builtin functions
 functions.cpp
-eval.hpp
+eval.hpp // the runtime core
 eval.cpp
-ui.cpp
+ext.hpp // means to extend runtime fun/var
+ext.cpp
 
-test_utf.cpp
+ui.cpp // user command interface
+
+test_utf.cpp // unit-tests
 test_tok.cpp
 test_parse.cpp
 test_var.cpp
 test_eval.cpp
+test_ext.cpp
 

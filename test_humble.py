@@ -12,7 +12,7 @@
 # For import testing, run on import_test/main
 #
 
-from humble import init_top, parse, run_top, set_verbose
+from humble import init_top, compx, run_top, set_verbose
 
 import sys
 
@@ -20,7 +20,7 @@ def test(s):
     sys.stdout.write("test\n")
     names, env, macros = init_top()
     filename = "test-snip"
-    tree = parse(s, names, macros, env.keys())
+    tree = compx(s, names, macros, env.keys())
     run_top(tree, env, names)
     sys.stdout.write("*\n")
 

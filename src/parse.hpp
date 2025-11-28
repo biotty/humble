@@ -5,7 +5,8 @@
 
 namespace humble {
 
-LexForm parse_i(const std::string & s, Names & m);
+LexForm parse(const std::string & s, Names & m);
 
 } // ns
+
 #endif

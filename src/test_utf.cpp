@@ -81,3 +81,4 @@ TEST(value, mb4)
     Glyph s{ "𝅘𝅥𝅮" };
     ASSERT_EQ(119136, utf_value(s));
 }
+

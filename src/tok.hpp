@@ -39,13 +39,13 @@ struct LexDot { };
 struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
-struct LexName { int h; int line; };
+struct LexNam { int h; int line; };
 
 struct LexSplice;
 struct LexForm;
 using Lex = std::variant<
     LexBeg, LexEnd, LexNum, LexBool, LexVoid, LexString,
-    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexName,
+    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexNam,
     LexForm>;
 struct LexSplice { std::vector<Lex> v; };
 struct LexForm { std::vector<Lex> v;  };
@@ -53,4 +53,5 @@ struct LexForm { std::vector<Lex> v;  };
 std::vector<Lex> lex(const std::string & s, Names & names);
 
 } // ns
+
 #endif

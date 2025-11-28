@@ -289,15 +289,15 @@ TEST(lex, names)
     vector<Lex> v = lex("a b.b\nc@\n"
             "\n!$%&*+-./:<=>?@^_~", m);
     ASSERT_EQ(4, v.size());
-    ASSERT_EQ(0, get<LexName>(v[0]).h);
-    ASSERT_EQ(1, get<LexName>(v[1]).h);
-    ASSERT_EQ(2, get<LexName>(v[2]).h);
-    ASSERT_EQ(3, get<LexName>(v[3]).h);
+    ASSERT_EQ(0, get<LexNam>(v[0]).h);
+    ASSERT_EQ(1, get<LexNam>(v[1]).h);
+    ASSERT_EQ(2, get<LexNam>(v[2]).h);
+    ASSERT_EQ(3, get<LexNam>(v[3]).h);
 
-    ASSERT_EQ(0, get<LexName>(v[0]).line);
-    ASSERT_EQ(0, get<LexName>(v[1]).line);
-    ASSERT_EQ(1, get<LexName>(v[2]).line);
-    ASSERT_EQ(3, get<LexName>(v[3]).line);
+    ASSERT_EQ(0, get<LexNam>(v[0]).line);
+    ASSERT_EQ(0, get<LexNam>(v[1]).line);
+    ASSERT_EQ(1, get<LexNam>(v[2]).line);
+    ASSERT_EQ(3, get<LexNam>(v[3]).line);
 }
 
 TEST(lex, name_nonascii)

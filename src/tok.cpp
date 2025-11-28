@@ -259,7 +259,7 @@ vector<Lex> lex(const string & s, Names & names)
         } else if (t[0] == quotes[2]) {
             v = LexUnq{};
         } else {
-            v = LexName{names.intern(t), linenumber};
+            v = LexNam{names.intern(t), linenumber};
         }
         r.push_back(v);
     }
