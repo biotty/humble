@@ -8,6 +8,8 @@ tok.hpp // the scanner and tokenizer
 tok.cpp
 parse.hpp // parser, quote/macro, compx
 parse.cpp
+compx.hpp // binding and zloc
+compx.cpp
 macros.hpp // macro builtin and 'macro'
 macros.cpp
 var.hpp // runtime objects
@@ -25,6 +27,7 @@ test_utf.cpp // unit-tests
 test_tok.cpp
 test_parse.cpp
 test_var.cpp
-test_eval.cpp
 test_ext.cpp
+
+test.hum // self-test
 

@@ -42,6 +42,7 @@ inline auto nam_setvjj = LexNam{ NAM_SETVJJ, 0 };
 inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };
+
 } // ns
 
 #endif

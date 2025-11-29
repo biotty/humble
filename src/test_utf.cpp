@@ -5,7 +5,7 @@
 using namespace humble;
 using namespace std;
 
-TEST(ref, ascii)
+TEST(nth, ascii)
 {
     string s = "a";
     ASSERT_EQ(s, utf_ref(s, 0).u);
@@ -14,7 +14,7 @@ TEST(ref, ascii)
     ASSERT_EQ(s, utf_ref(t, 1).u);
 }
 
-TEST(ref, mb2)
+TEST(nth, mb2)
 {
     char a[] = { 99, (char)0b11000011, (char)0b10000000, 99 };
     string s{ a + 1, a + 3 };
@@ -28,7 +28,7 @@ TEST(ref, mb2)
     ASSERT_EQ("c", utf_ref(w, 2).u);
 }
 
-TEST(ref, mb3)
+TEST(nth, mb3)
 {
     char a[] = { 99, (char)0b11100010, (char)0b10000010,
         (char)0b10101100, 99 };
@@ -43,7 +43,7 @@ TEST(ref, mb3)
     ASSERT_EQ("c", utf_ref(w, 2).u);
 }
 
-TEST(ref, mb4)
+TEST(nth, mb4)
 {
     char a[] = { 99, (char)0b11110000, (char)0b10011101,
         (char)0b10000101, (char)0b10100000, 99 };
@@ -58,25 +58,25 @@ TEST(ref, mb4)
     ASSERT_EQ("c", utf_ref(w, 2).u);
 }
 
-TEST(value, ascii)
+TEST(dec, ascii)
 {
     Glyph s{ "a" };
     ASSERT_EQ(97, utf_value(s));
 }
 
-TEST(value, mb2)
+TEST(dec, mb2)
 {
     Glyph s{ "À" };
     ASSERT_EQ(192, utf_value(s));
 }
 
-TEST(value, mb3)
+TEST(dec, mb3)
 {
     Glyph s{ "€" };
     ASSERT_EQ(8364, utf_value(s));
 }
 
-TEST(value, mb4)
+TEST(dec, mb4)
 {
     Glyph s{ "𝅘𝅥𝅮" };
     ASSERT_EQ(119136, utf_value(s));

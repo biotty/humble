@@ -627,11 +627,11 @@ def expand_macros(t, macros, qq):
     # conditions are not stated here. That is a choice.
     if type(t) != list or len(t) == 0:
         return t
+    is_user = is_quote = current = False
     is_macro = t[0][0] == LEX_NAM and t[0][1] in macros
-    is_user = is_macro and isinstance(macros[t[0][1]], UserMacro)
-    current = is_macro and qq == 0
-    is_quote = False
     if is_macro:
+        is_user = isinstance(macros[t[0][1]], UserMacro)
+        current = qq == 0
         if t[0][1] == NAM_QUOTE:
             is_quote = True
         elif t[0][1] == NAM_QUASIQUOTE:
@@ -660,7 +660,7 @@ def expand_macros(t, macros, qq):
         t[i] = expand_macros(t[i], args_exp, qq)
     if current:
         t = macros[t[0][1]](t)
-        if is_user and type(t) == list:
+        if is_user:
             t = expand_macros(t, macros, qq)
     debug("expand", t)
     return t
@@ -1084,6 +1084,7 @@ def quote(v, quasi):
         return (LEX_QUOTE + int(quasi), v)
     if quasi:
         if v[0] == LEX_UNQ:
+            broken("scanner-token")
             return (LEX_NAM, v[1])
         if v[0] == LEX_UNQUOTE:
             return v[1]
@@ -1106,7 +1107,9 @@ def m_unquote(s):
             return v[1]
         if v[0] == LEX_NONLIST:
             return with_dot(v[1])
-        if v[0] in (LEX_UNQ, LEX_NAM, LEX_UNQUOTE):
+        if v[0] == LEX_UNQ:
+            broken("scan token")
+        if v[0] in (LEX_NAM, LEX_UNQUOTE):
             return (LEX_UNQUOTE, v)
         if v[0] == LEX_SYM:
             return (LEX_NAM, v[1])

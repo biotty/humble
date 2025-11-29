@@ -40,15 +40,26 @@ struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
 struct LexNam { int h; int line; };
+struct LexSym { int h; };
 
 struct LexSplice;
 struct LexForm;
+struct LexList;
+struct LexNonlist;
+struct LexQuote;
+struct LexQuasiquote;
+struct LexUnquote;
 using Lex = std::variant<
     LexBeg, LexEnd, LexNum, LexBool, LexVoid, LexString,
-    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexNam,
-    LexForm>;
+    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexNam, LexSym,
+    LexForm, LexList, LexNonlist, LexQuote, LexQuasiquote, LexUnquote>;
 struct LexSplice { std::vector<Lex> v; };
-struct LexForm { std::vector<Lex> v;  };
+struct LexForm { std::vector<Lex> v; };
+struct LexList { std::vector<Lex> v; };
+struct LexNonlist { std::vector<Lex> v; };
+struct LexQuote { std::vector<Lex> y; };
+struct LexQuasiquote { std::vector<Lex> y; };
+struct LexUnquote { std::vector<Lex> y; };
 
 std::vector<Lex> lex(const std::string & s, Names & names);
 
