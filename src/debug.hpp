@@ -11,9 +11,9 @@ namespace humble {
 
 using namespace std;
 
-ostream & operator<<(ostream & os, Glyph & g);
-ostream & operator<<(ostream & os, Lex & x);
-ostream & operator<<(ostream & os, vector<Lex> & v);
+ostream & operator<<(ostream & os, const Glyph & g);
+ostream & operator<<(ostream & os, const Lex & x);
+ostream & operator<<(ostream & os, const vector<Lex> & v);
 
 } // ns
 

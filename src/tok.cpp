@@ -179,6 +179,11 @@ int Names::intern(std::string_view name)
     return add(name, h);
 }
 
+std::string Names::get(int h)
+{
+    return v.at(h);
+}
+
 // Function scans to produce tokens such as numeric
 // literals, strings and names.  The names are
 // "interned", meaning each given an identifier.

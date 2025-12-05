@@ -64,7 +64,7 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
             r.push_back(LexSplice{{parse1()}});
         } else {
             i += 1;
-            r.push_back(move(x));
+            r.push_back(x);
         }
         if (paren_mode == PARSE_MODE_ONE) {
 #ifdef DEBUG
@@ -237,9 +237,9 @@ Lex join_nonlist(LexForm & w)
     auto z = get<T>(w.v.back());
     w.v.pop_back();
     for (Lex & x : z.v) {
-        w.v.push_back(x);
+        w.v.push_back(move(x));
     }
-    z.v = w.v;
+    z.v = move(w.v);
     return z;
 }
 
@@ -304,16 +304,16 @@ Lex Unquote::operator()(LexForm & t)
     QtArgCheck("unquote", t);
     auto & w = t.v[1];
     if (holds_alternative<LexForm>(w))
-        return LexUnquote{{w}};
+        return LexUnquote{{move(w)}};
     if (holds_alternative<LexList>(w))
-        return LexForm{get<LexList>(w).v};
+        return LexForm{move(get<LexList>(w).v)};
     if (holds_alternative<LexNonlist>(w))
-        return with_dot(LexForm{get<LexNonlist>(w).v});
+        return with_dot(LexForm{move(get<LexNonlist>(w).v)});
     if (holds_alternative<LexNam>(w) || holds_alternative<LexUnquote>(w))
-        return LexUnquote{{w}};
+        return LexUnquote{{move(w)}};
     if (holds_alternative<LexSym>(w))
         return LexNam{get<LexSym>(w).h, 0};
-    return w;
+    return move(w);
 }
 
 } // ns

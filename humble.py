@@ -243,14 +243,14 @@ VAR_FUN_HOST   = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
-# OP_DFLT "form" 1 left as bare list for apply-semantics
-OP_DEFINE      = 2
-OP_COND        = 3
-OP_SEQ         = 4
-OP_IMPORT      = 6
-OP_EXPORT      = 7
-OP_LAMBDA      = 8
-OP_LAMBDA_DOT  = 9
+# OP_DFLT "form" 0 left as bare list for apply-semantics
+OP_DEFINE      = 1
+OP_COND        = 2
+OP_SEQ         = 3
+OP_IMPORT      = 4
+OP_EXPORT      = 5
+OP_LAMBDA      = 6
+OP_LAMBDA_DOT  = 7
 
 # known names
 
@@ -622,7 +622,7 @@ def with_dot(x):
     return x[:-1] + [(LEX_DOT, None), x[-1]]
 
 def expand_macros(t, macros, qq):
-    # note: I could let a Macro class hierarchy take care of
+    # Note:  I could let a Macro class hierarchy take care of
     # cases for user and quote recursion control so that
     # conditions are not stated here. That is a choice.
     if type(t) != list or len(t) == 0:
@@ -685,15 +685,13 @@ def parse(s, names, macros):
     debug("tree", ast)
     return ast
 
-def unbound(s, defs, is_block):
+def unbound(t, defs, is_block):
     # Capture of free names are done in macros themselves such as
     # let and lambda, by invoking this function.  Note that the
-    # capture sets, pluss arguments, that form a local scope is then
-    # "zloc" compressed, and name-ops rewritten in subject AST, so
-    # that name lookups are done on a minimal "activation" array.
+    # identifiers has not yet been "zloc" processed.
     r = set()
     from_branches = set()
-    for x in s:
+    for x in t:
         if type(x) != list:
             if x[0] == LEX_NAM and x[1] not in defs:
                 r.add(x[1])
@@ -714,15 +712,14 @@ def unbound(s, defs, is_block):
             from_branches.update(x[2])
         elif x[0] == OP_COND:
             r.update(unbound(x[1:], defs, False))
+        elif x[0] == OP_SEQ:
+            for y in x[1:]:
+                r.update(unbound([y], defs, True))
         elif x[0] == OP_IMPORT:
             defs.update(x[1])
             # note: no recurse, as checked when generating it
         elif x[0] == OP_EXPORT:
             pass
-            # note: ignored here -- import handled above
-        elif x[0] == OP_SEQ:
-            for y in x[1:]:
-                r.update(unbound([y], defs, True))
         else:
             broken("unknown form")
 
@@ -730,8 +727,8 @@ def unbound(s, defs, is_block):
     r.update(from_branches)
     return r
 
-def find_unbound(s, y):
-    for x in s:
+def find_unbound(t, y):
+    for x in t:
         if type(x) != list:
             if x[0] == LEX_NAM:
                 if x[1] == y:
@@ -751,23 +748,19 @@ def find_unbound(s, y):
         elif x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             if y in x[2]:
                 return find_unbound(x[3:], y)
-        elif x[0] == OP_COND:
+        elif x[0] in (OP_COND, OP_SEQ):
             r = find_unbound(x[1:], y)
             if r:
                 return r
         elif x[0] in (OP_IMPORT, OP_EXPORT):
             pass
-        elif x[0] == OP_SEQ:
-            r = find_unbound(x[1:], y)
-            if r:
-                return r
         else:
             broken("unknown form")
 
 def info_unbound(x, names):
     a = []
     if x[0] != LEX_NAM:
-        a.append("(non-name)")
+        broken("(non-name)")
     elif len(x) == 3:
         a.append("line %d: " % (x[2]))
     a.append("%s" % (names[x[1]],))
@@ -791,7 +784,7 @@ def compx(s, names, macros, env_keys):
             a.append("(reportedly) %s" % (names[y],))
     raise SrcError("unbound,\n" + "\n".join(a))
 
-class LocalEnv:
+class LexEnv:
 
     def __init__(self, parms, capture):
         self.n_parms = len(parms)
@@ -838,11 +831,10 @@ class LocalEnv:
                 env[i] = v
         return env
 
-# meaning of "zloc" is: relocate the
-# identifiers in a lexical scope (lambda)
-# to use monotonically increasing indexes
-# as keys.  the code is rewritten to fit
-# the created LocalEnv
+# Function does "zip-locate" (compact) the identifiers in a lexical
+# scope (lambda) to use monotonically increasing indexes as keys.
+# The name identifiers in code are rewritten for their scopes
+# LexEnv that in this manner handles just those names.
 def zloc_scopes(t, local_env):
     for i, x in enumerate(t):
         if type(x) != list:
@@ -859,15 +851,13 @@ def zloc_scopes(t, local_env):
             x[2:] = zloc_scopes([x[2]], local_env)
         elif x[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             c = sorted(x[2])
-            fun_env = LocalEnv(x[1], c)
+            fun_env = LexEnv(x[1], c)
             x[3:] = zloc_scopes(x[3:], fun_env)
             x[1] = fun_env
             if local_env:
                 c = local_env.rewrite_names(c)
             x[2] = c
-        elif x[0] == OP_COND:
-            x[1:] = zloc_scopes(x[1:], local_env)
-        elif x[0] == OP_SEQ:
+        elif x[0] in (OP_COND, OP_SEQ):
             x[1:] = zloc_scopes(x[1:], local_env)
         elif x[0] in (OP_EXPORT, OP_IMPORT):
             # an import has already parsed (zloc performed),
@@ -2898,12 +2888,13 @@ def xeval(x, env):
         # in some cases I could have catched at parse time
         # which means it would have been a lex error.
         broken(x)
-    if type(x) != list:
-        broken("form is non-form")
     if len(x) == 0:
         broken("empty form")
-    if type(x[0]) != int:
-        return xapply(run_each(x, env))
+    if type(x[0]) == int:
+        return xeval_op(x, env)
+    return xapply(run_each(x, env))
+
+def xeval_op(x, env):
     if x[0] == OP_DEFINE:
         v = run(x[2], env)
         env[x[1]] = v
@@ -3234,7 +3225,7 @@ def xrepr(s, names):
                     names[s[1]], xrepr(s[2], names))
         if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             return "#<lambda #>"
-            # omitted: content of lambda, as names only contains
+            # Omitted:  Content of lambda, as names only contains
             # the local env (as invoked from vrepr), and I would
             # need the complete interned names lookup to recurse
         if s[0] == OP_COND:
