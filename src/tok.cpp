@@ -132,7 +132,7 @@ string unescape_string(string_view s)
                               short b = s[i] - '0';
                               while (++i != n) {
                                   c = s[i];
-                                  if (not strchr("01234567", c))
+                                  if (c < '0' or '7' < c)
                                       break;
                                   b *= 8;
                                   b += c - '0';

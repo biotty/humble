@@ -65,9 +65,9 @@ struct LexQuasiquote;
 struct LexUnquote;
 using LexArgs = std::vector<int>;  // for fun parms and (sorted) capture
 using Lex = std::variant<
-    LexBeg, LexEnd, LexNum, LexBool, LexVoid, LexString,
-    LexDot, LexSplice, LexQt, LexQqt, LexUnq, LexNam, LexSym,
-    LexForm, LexList, LexNonlist, LexQuote, LexQuasiquote, LexUnquote,
+    LexBeg, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSplice,
+    LexVoid, LexBool, LexSym, LexNam, LexNum, LexString,
+    LexList, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote,
     LexArgs, LexEnv *, LexOp, LexImport>;
 struct LexSplice { std::vector<Lex> v; };
 struct LexForm { std::vector<Lex> v; };

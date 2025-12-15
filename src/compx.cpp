@@ -4,9 +4,8 @@
 #include "api.hpp"
 #include <sstream>
 
-using namespace std;
-
 using namespace humble;
+using namespace std;
 
 namespace {
 
@@ -238,21 +237,22 @@ int LexEnv::rewrite_name(int n)
 
 FunEnv LexEnv::activation(FunEnv & captured, bool dot, FunEnv & args)
 {
-    FunEnv env(names.size(), nullptr);
-    copy(captured.begin(), captured.end(), env.begin() + n_parms);
+    FunEnv env(names.size());
+    auto & c = captured.v;
+    auto & a = args.v;
+    copy(c.begin(), c.end(), env.v.begin() + n_parms);
     if (dot) {
         size_t last = n_parms - 1;
-        if (args.size() < last)
+        if (a.size() < last)
             throw RunError("fun-dot expected more args");
-        copy(args.begin(), args.begin() + last,
-                env.begin());
-        env[last] = make_shared<Var>(VarList{});
-        copy(args.begin() + last, args.end(),
-                back_inserter(get<VarList>(*env[last]).v));
+        copy(a.begin(), a.begin() + last, env.v.begin());
+        env.set(last, make_shared<Var>(VarList{}));
+        copy(a.begin() + last, a.end(),
+                back_inserter(get<VarList>(*env.get(last)).v));
     } else {
-        if (args.size() != n_parms)
+        if (a.size() != n_parms)
             throw RunError("fun bad arg count");
-        copy(args.begin(), args.end(), env.begin());
+        copy(a.begin(), a.end(), env.v.begin());
     }
     return env;
 }

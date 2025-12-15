@@ -2770,10 +2770,10 @@ def f_pause(*args):
 # the eval loop
 ##
 
-def is_last(w, block):
-    return id(w) == id(block[-1])
-
 class FunOps:
+
+    def is_last_(w, block):
+        return id(w) == id(block[-1])
 
     def __init__(self, dot, captured, le, block):
         self.dot = dot
@@ -2797,7 +2797,7 @@ class FunOps:
                     f = a[0]
                     assert f[0] == VAR_FUN_OPS
                     args = a[1:]
-                    if not is_last(w, block):
+                    if not FunOps.is_last_(w, block):
                         debug("rec-apply", a)
                         v = f[1].tco(args)
                     else:

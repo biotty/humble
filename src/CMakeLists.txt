@@ -9,7 +9,14 @@ add_compile_options(-fsanitize=address)
 
 find_package(GTest REQUIRED)
 
-add_library(humble compx.cpp parse.cpp tok.cpp utf.cpp debug.cpp)
+add_library(humble
+    xeval.cpp
+    vars.cpp
+    compx.cpp
+    parse.cpp
+    tok.cpp
+    utf.cpp
+    debug.cpp)
 
 add_executable(test_utf test_utf.cpp)
 target_link_libraries(test_utf GTest::GTest GTest::Main humble -lasan)
@@ -26,3 +33,12 @@ add_test(parse test_parse)
 add_executable(test_compx test_compx.cpp)
 target_link_libraries(test_compx GTest::GTest GTest::Main humble -lasan)
 add_test(compx test_compx)
+
+add_executable(test_vars test_vars.cpp)
+target_link_libraries(test_vars GTest::GTest GTest::Main humble -lasan)
+add_test(vars test_vars)
+
+add_executable(test_xeval test_xeval.cpp)
+target_link_libraries(test_xeval GTest::GTest GTest::Main humble -lasan)
+add_test(xeval test_xeval)
+
