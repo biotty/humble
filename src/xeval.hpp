@@ -6,7 +6,7 @@
 
 namespace humble {
 
-EnvEntry xeval(Lex & x, Env & env);
+EnvEntry run(Lex & x, Env & env);
 
 } // ns
 

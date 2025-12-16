@@ -2875,12 +2875,10 @@ def xeval(x, env):
             return [VAR_STRING, x[1]]
         if x[0] == LEX_SYM:
             return [VAR_NAM, x[1]]
-        if x[0] == LEX_QUOTE:
-            return [VAR_QUOTE, x[1]]
+        if x[0] in (LEX_QUOTE, LEX_QUASIQUOTE):
+            broken("eval quote")
         if x[0] == LEX_UNQUOTE:
             return [VAR_UNQUOTE, x[1]]
-        if x[0] == LEX_QUASIQUOTE:
-            return [VAR_QUOTE, x[1]]
         if x[0] == LEX_VOID:
             return [VAR_VOID]
         if x[0] == LEX_DOT:

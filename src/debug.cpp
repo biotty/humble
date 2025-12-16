@@ -3,11 +3,10 @@
 
 #include "compx.hpp"
 
+using namespace humble;
 using namespace std;
 
 namespace {
-
-using namespace humble;
 
 void out(ostream & os, const LexBeg & x) { os << x.par; }
 void out(ostream & os, const LexEnd & x) { os << x.par; }
@@ -45,10 +44,10 @@ ostream & operator<<(ostream & os, const Glyph & g)
 ostream & operator<<(ostream & os, const Lex & x)
 {
     array<string, 23> tn = {
-        "Beg", "End", "Num", "Bool", "Void", "String",
-        "Dot", "Splice", "Qt", "Qqt", "Unq", "Nam", "Sym",
-        "Form", "List", "Nonlist", "Quote", "Quasiquote", "Unquote",
-        "Args", "Env", "Op", "Import" };
+    "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Splice",
+    "Void", "Sym", "Num", "Bool", "Nam", "String",
+    "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
+    "Args", "Env*", "Op", "Import" };
     os << "Lex" << tn.at(x.index()) << "{";
     visit([&os](auto arg) { out(os, arg); }, x);
     return os << "}";

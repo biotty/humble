@@ -12,20 +12,28 @@ namespace humble {
 
 struct VarVoid { };
 struct VarNum { long long i; };
+struct VarBool { bool b; };
+struct VarNam { int h; };
 struct VarString { std::string s; };
 // idea: have BigStr similar to LIST/CONS that
 // keeps string with a shared_ptr to avoid copy.
 // it will be slightly less efficient to access, but
 // will be fast under setv! or better, have a shared_str
 // -- remember we do no operation that mutate strings.
+
+struct LexUnquote;
+struct VarUnquote{ LexUnquote * u; };
 struct VarList;
 struct VarNonlist;
+struct VarSplice;
 
-using Var = std::variant<VarVoid, VarNum, VarString, VarList, VarNonlist>;
+using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString,
+      VarList, VarNonlist, VarSplice, VarUnquote>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };
 struct VarNonlist { std::vector<EnvEntry> v; };
+struct VarSplice { std::vector<EnvEntry> v; };
 
 struct Env {
     virtual EnvEntry get(int i) = 0;

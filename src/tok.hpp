@@ -33,16 +33,17 @@ public:
 
 struct LexBeg { int par; };
 struct LexEnd { int par; int line; };
-struct LexNum { long long i; };
-struct LexBool { bool b; };
-struct LexVoid { };
-struct LexString { std::string s; };
 struct LexDot { };
 struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
-struct LexNam { int h; int line; };
+
+struct LexVoid { };
+struct LexNum { long long i; };
+struct LexBool { bool b; };
 struct LexSym { int h; };
+struct LexNam { int h; int line; };
+struct LexString { std::string s; };
 struct LexOp { int code; };
 enum {
     OP_DEFINE = 1,
@@ -66,7 +67,7 @@ struct LexUnquote;
 using LexArgs = std::vector<int>;  // for fun parms and (sorted) capture
 using Lex = std::variant<
     LexBeg, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSplice,
-    LexVoid, LexBool, LexSym, LexNam, LexNum, LexString,
+    LexVoid, LexSym, LexNum, LexBool, LexNam, LexString,
     LexList, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote,
     LexArgs, LexEnv *, LexOp, LexImport>;
 struct LexSplice { std::vector<Lex> v; };
