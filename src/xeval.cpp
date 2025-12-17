@@ -1,10 +1,61 @@
 #include "xeval.hpp"
 #include "debug.hpp"
 #include "api.hpp"
+#include <span>
 
 using namespace std;
 
 namespace humble {
+
+struct FunOps {
+    FunOps(bool dot, vector<EnvEntry> captured,
+            LexEnv * local_env, span<Lex> block)
+    {
+        (void)dot;
+        (void)captured;
+        (void)local_env;
+        (void)block;
+        // REM: have as data members
+    }
+    EnvEntry tco(std::span<EnvEntry> args)
+    {
+        (void)args;
+        // REM: iteration subst using pointers
+        return make_shared<Var>(VarVoid{});
+    }
+};
+
+EnvEntry fun_call(vector<EnvEntry> v)
+{
+#ifdef DEBUG
+    cout << "fun-call\n";
+#endif
+    auto args = span<EnvEntry>{v.begin() + 1, v.end()};
+    auto z = v.at(0);
+    if (holds_alternative<VarFunHost>(*z)) {
+#ifdef DEBUG
+        cout << "native-fun\n";
+#endif
+        auto a = get<VarFunHost>(*z).p(args);
+        if (not holds_alternative<VarApply>(*a))
+            return a;
+        auto & b = get<VarApply>(*a).v;
+        args = span<EnvEntry>(b.begin() + 1, b.end());
+        z = b.at(0);
+    }
+    return get<VarFunOps>(*z).f->tco(args);
+}
+
+VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
+{
+    auto local_env = get<LexEnv *>(x[0]);
+    vector<EnvEntry> captured;
+    for (auto k : get<LexArgs>(x[1]))
+        captured.push_back(up.get(k));
+    auto fun_block = span<Lex>{x.begin() + 2, x.end()};
+    bool dot = (op_code == OP_LAMBDA_DOT);
+    return { make_shared<FunOps>(dot, captured, local_env, fun_block) };
+}
 
 vector<EnvEntry> run_each(vector<Lex> v, Env & env)
 {
@@ -23,9 +74,11 @@ vector<EnvEntry> run_each(vector<Lex> v, Env & env)
 
 EnvEntry xapply(vector<EnvEntry> v)
 {
-    (void)v;
-    // TODO: invoke fun on args
-    return make_shared<Var>(VarVoid{});
+    if (holds_alternative<VarFunOps>(*v.at(0)))
+        return make_shared<Var>(VarApply{v});
+    if (holds_alternative<VarFunHost>(*v.at(0)))
+        return get<VarFunHost>(*v.at(0)).p({v.begin() + 1, v.end()});
+    throw RunError("apply non-fun");
 }
 
 EnvEntry xeval_op(LexForm & f, Env & env);
@@ -52,34 +105,25 @@ EnvEntry xeval(Lex & x, Env & env)
                 // TODO: if last is VarCons, thus merge
                 return make_shared<Var>(VarNonlist{move(v)});
             }
-            if constexpr (is_same_v<T, LexNam>) {
+            if constexpr (is_same_v<T, LexNam>)
                 return env.get(z.h);
-            }
-            if constexpr (is_same_v<T, LexNum>) {
+            if constexpr (is_same_v<T, LexNum>)
                 return make_shared<Var>(VarNum{z.i});
-            }
-            if constexpr (is_same_v<T, LexBool>) {
+            if constexpr (is_same_v<T, LexBool>)
                 return make_shared<Var>(VarBool{z.b});
-            }
-            if constexpr (is_same_v<T, LexString>) {
+            if constexpr (is_same_v<T, LexString>)
                 return make_shared<Var>(VarString{z.s});
-            }
-            if constexpr (is_same_v<T, LexSym>) {
+            if constexpr (is_same_v<T, LexSym>)
                 return make_shared<Var>(VarNam{z.h});
-            }
-            if constexpr (is_same_v<T, LexVoid>) {
+            if constexpr (is_same_v<T, LexVoid>)
                 return make_shared<Var>(VarVoid{});
-            }
-            if constexpr (is_same_v<T, LexUnquote>) {
+            if constexpr (is_same_v<T, LexUnquote>)
                 return make_shared<Var>(VarUnquote{&z});
-            }
             if constexpr (is_same_v<T, LexQuote>
-                    or is_same_v<T, LexQuasiquote>) {
+                    or is_same_v<T, LexQuasiquote>)
                 CoreError("eval quote");
-            }
-            if constexpr (is_same_v<T, LexDot>) {
+            if constexpr (is_same_v<T, LexDot>)
                 RunError("eval dot");
-            }
             if constexpr (is_same_v<T, LexForm>) {
                 if (z.v.empty()) throw CoreError("empty form");
                 if (not holds_alternative<LexOp>(z.v[0]))
@@ -92,16 +136,54 @@ EnvEntry xeval(Lex & x, Env & env)
 
 EnvEntry xeval_op(LexForm & f, Env & env)
 {
-    (void)f;
-    (void)env;
-    // TODO: perform op given args
+    auto & op = get<LexOp>(f.v.at(0));
+    if (op.code == OP_DEFINE) {
+        env.set(get<LexNam>(f.v.at(1)).h,
+                run(f.v.at(2), env));
+    } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
+        return make_shared<Var>(make_fun(env,
+                    {f.v.begin() + 1, f.v.end()}, op.code));
+    } else if (op.code == OP_COND) {
+        for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi) {
+            auto y = get<LexForm>(*yi);
+            auto t = run(y.v.at(0), env);
+            if (not holds_alternative<VarBool>(*t) or get<VarBool>(*t).b)
+                return xeval(y.v.at(1), env);
+        }
+        throw RunError("all cond #f");
+    } else if (op.code == OP_IMPORT) {
+        OverlayEnv e{GlobalEnv::instance()};
+        for (auto zi = f.v.begin() + 2; zi != f.v.end(); ++zi)
+            run(*zi, e);
+        auto & m = get<LexImport>(f.v.at(1));
+        for (size_t i = 0; i != m.a.size(); ++i) {
+            auto p = e.get(m.b.at(i));
+            if (not p) throw RunError("no such name for export");
+            env.set(m.a.at(i), p);
+        }
+    } else if (op.code == OP_EXPORT) {
+        // idea: feature when invoking from command line
+    } else if (op.code == OP_SEQ) {
+        EnvEntry r;
+        for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi)
+            r = run(*yi, env);
+        return r;
+    } else {
+        throw CoreError("unknown op");
+    }
     return make_shared<Var>(VarVoid{});
 }
 
 EnvEntry run(Lex & x, Env & env)
 {
-    return xeval(x, env);
-    // TODO: if VarApply then tco
+    auto y = xeval(x, env);
+    if (holds_alternative<VarApply>(*y)) {
+        auto & a = get<VarApply>(*y).v;
+        auto args = span<EnvEntry>(a.begin() + 1, a.end());
+        auto z = a.at(0);
+        y = get<VarFunOps>(*z).f->tco(args);
+    }
+    return y;
 }
 
 } // ns

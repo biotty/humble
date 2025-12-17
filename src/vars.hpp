@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <initializer_list>
+#include <span>
 
 namespace humble {
 
@@ -26,14 +27,22 @@ struct VarUnquote{ LexUnquote * u; };
 struct VarList;
 struct VarNonlist;
 struct VarSplice;
+struct FunOps;
+struct VarFunOps { std::shared_ptr<FunOps> f; };
+struct VarFunHost;
+struct VarApply;
 
 using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString,
-      VarList, VarNonlist, VarSplice, VarUnquote>;
+      VarList, VarNonlist, VarSplice, VarUnquote,
+      VarFunOps, VarFunHost, VarApply>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };
 struct VarNonlist { std::vector<EnvEntry> v; };
 struct VarSplice { std::vector<EnvEntry> v; };
+typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
+struct VarFunHost { FunHost p; };
+struct VarApply { std::vector<EnvEntry> v; };
 
 struct Env {
     virtual EnvEntry get(int i) = 0;
