@@ -42,7 +42,7 @@ struct VarNonlist { std::vector<EnvEntry> v; };
 struct VarSplice { std::vector<EnvEntry> v; };
 typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
 struct VarFunHost { FunHost p; };
-struct VarApply { std::vector<EnvEntry> v; };
+struct VarApply { std::vector<EnvEntry> v/*TODO: rename v to a*/; };
 
 struct Env {
     virtual EnvEntry get(int i) = 0;
@@ -76,12 +76,12 @@ private:
 struct LexEnv;
 
 struct FunEnv : Env {
+    explicit FunEnv(size_t n);
     explicit FunEnv(std::initializer_list<EnvEntry> v);
     EnvEntry get(int i) override;
     void set(int i, EnvEntry e) override;
     friend LexEnv;
 private:
-    explicit FunEnv(size_t n);
     std::vector<EnvEntry> v;
 };
 

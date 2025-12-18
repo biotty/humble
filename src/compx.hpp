@@ -19,7 +19,7 @@ public:
     std::vector<int> capture() const;
     std::vector<int> rewrite_names(const std::vector<int> & c);
     int rewrite_name(int n);
-    FunEnv activation(FunEnv & captured, bool dot, FunEnv & args);
+    FunEnv activation(FunEnv & captured, bool dot, std::span<EnvEntry> args);
 };
 
 std::set<int> unbound(std::span<Lex> t, std::set<int> & defs, bool is_block);

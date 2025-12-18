@@ -1,4 +1,7 @@
 #include "xeval.hpp"
+#include "compx.hpp"
+#include "debug.hpp"
+#include "api.hpp"
 #include "gtest/gtest.h"
 
 using namespace humble;
@@ -23,5 +26,42 @@ TEST_F(EnvTest, xeval_splice)
     auto r = run(x, env);
     auto & v = get<VarList>(*r).v;
     ASSERT_EQ(true, get<VarBool>(*v.at(0)).b);
+}
+
+EnvEntry echo1(std::span<EnvEntry> a)
+{
+    if (a.empty()) throw RunError("echo1");
+    return a[0];
+}
+
+TEST_F(EnvTest, xeval_fun_host)
+{
+    env.set(2, make_shared<Var>(VarFunHost{echo1}));
+    Lex x = LexForm{{LexNam{2, 0}, LexNum{9}}};
+    auto r = run(x, env);
+    ASSERT_EQ(9, get<VarNum>(*r).i);
+}
+
+TEST_F(EnvTest, xeval_fun_ops)
+{
+    LexEnv le({}, {});
+    Lex x = LexForm{{LexForm{{LexOp{OP_LAMBDA},
+        &le, LexArgs{}, LexNum{9}}}}};
+    // cout << &get<LexForm>(get<LexForm>(x).v.at(0)).v.at(3) << " test\n";
+    // cout << get<LexNum>(get<LexForm>(get<LexForm>(x).v.at(0)).v.at(3)).i << " test\n";
+    auto r = run(x, env);
+    ASSERT_EQ(9, get<VarNum>(*r).i);
+}
+
+TEST_F(EnvTest, xeval_tco)
+{
+    LexEnv le({}, {});
+    Lex x = LexForm{{LexForm{{LexOp{OP_LAMBDA},
+        &le, LexArgs{},
+        LexForm{{LexForm{{LexOp{OP_LAMBDA},
+            &le, LexArgs{}, LexNum{9}}}}}
+    }}}};
+    auto r = run(x, env);
+    ASSERT_EQ(9, get<VarNum>(*r).i);
 }
 

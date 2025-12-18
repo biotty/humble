@@ -9,6 +9,7 @@
 #include <utility>
 #include <variant>
 #include <map>
+// #include <iostream>
 
 namespace humble {
 
@@ -39,7 +40,12 @@ struct LexQqt { };
 struct LexUnq { };
 
 struct LexVoid { };
-struct LexNum { long long i; };
+struct LexNum { long long i;
+    // LexNum() : i{} {};
+    // LexNum(long long i) : i(i) { std::cout << "INIT\n"; };
+    // LexNum(const LexNum&rhs) { i=rhs.i; std::cout << "COPY\n"; }
+    // LexNum&operator=(const LexNum&rhs) { i=rhs.i; std::cout << "ASSIGN\n"; return *this; }
+};
 struct LexBool { bool b; };
 struct LexSym { int h; };
 struct LexNam { int h; int line; };

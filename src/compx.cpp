@@ -235,24 +235,23 @@ int LexEnv::rewrite_name(int n)
     return i;
 }
 
-FunEnv LexEnv::activation(FunEnv & captured, bool dot, FunEnv & args)
+FunEnv LexEnv::activation(FunEnv & captured, bool dot, span<EnvEntry> args)
 {
     FunEnv env(names.size());
     auto & c = captured.v;
-    auto & a = args.v;
     copy(c.begin(), c.end(), env.v.begin() + n_parms);
     if (dot) {
         size_t last = n_parms - 1;
-        if (a.size() < last)
+        if (args.size() < last)
             throw RunError("fun-dot expected more args");
-        copy(a.begin(), a.begin() + last, env.v.begin());
+        copy(args.begin(), args.begin() + last, env.v.begin());
         env.set(last, make_shared<Var>(VarList{}));
-        copy(a.begin() + last, a.end(),
+        copy(args.begin() + last, args.end(),
                 back_inserter(get<VarList>(*env.get(last)).v));
     } else {
-        if (a.size() != n_parms)
+        if (args.size() != n_parms)
             throw RunError("fun bad arg count");
-        copy(a.begin(), a.end(), env.v.begin());
+        copy(args.begin(), args.end(), env.v.begin());
     }
     return env;
 }

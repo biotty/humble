@@ -2786,6 +2786,7 @@ class FunOps:
 
     def tco(self, args):
         dot, captured, le, block = self.guts()
+        v = None
         done = False
         while not done:
             env = le.activation(captured, dot, args)
@@ -2935,12 +2936,11 @@ def xapply(a):
 
 def run(x, env):
     y = xeval(x, env)
-    if y[0] == VAR_APPLY:
-        a = y[1]
-        f = a[0]
-        assert f[0] == VAR_FUN_OPS
-        y = f[1].tco(a[1:])
-    return y
+    if y[0] != VAR_APPLY:
+        return y
+    a = y[1]
+    f = a[0]
+    return f[1].tco(a[1:])
 
 ##
 # init

@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 3.14)
 project(humble CXX)
 set(CMAKE_CXX_STANDARD 23)
 enable_testing()
-add_compile_options(-Wall -Wextra -Werror)
-#add_compile_options(-DDEBUG)
+add_compile_options(-Wall -Wextra -Werror)  # -Wshadow
+add_compile_options(-DDEBUG)
 add_compile_options(-ggdb)
-add_compile_options(-fsanitize=address)
+#add_compile_options(-fsanitize=address)
+#set(LIBS -lasan)
+#alt: valgrind
 
 find_package(GTest REQUIRED)
 
@@ -19,26 +21,26 @@ add_library(humble
     debug.cpp)
 
 add_executable(test_utf test_utf.cpp)
-target_link_libraries(test_utf GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_utf GTest::GTest GTest::Main humble ${LIBS})
 add_test(utf test_utf)
 
 add_executable(test_tok test_tok.cpp)
-target_link_libraries(test_tok GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_tok GTest::GTest GTest::Main humble ${LIBS})
 add_test(tok test_tok)
 
 add_executable(test_parse test_parse.cpp)
-target_link_libraries(test_parse GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_parse GTest::GTest GTest::Main humble ${LIBS})
 add_test(parse test_parse)
 
 add_executable(test_compx test_compx.cpp)
-target_link_libraries(test_compx GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_compx GTest::GTest GTest::Main humble ${LIBS})
 add_test(compx test_compx)
 
 add_executable(test_vars test_vars.cpp)
-target_link_libraries(test_vars GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_vars GTest::GTest GTest::Main humble ${LIBS})
 add_test(vars test_vars)
 
 add_executable(test_xeval test_xeval.cpp)
-target_link_libraries(test_xeval GTest::GTest GTest::Main humble -lasan)
+target_link_libraries(test_xeval GTest::GTest GTest::Main humble ${LIBS})
 add_test(xeval test_xeval)
 

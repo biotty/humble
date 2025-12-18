@@ -1,5 +1,6 @@
 #include "xeval.hpp"
 #include "debug.hpp"
+#include "compx.hpp"
 #include "api.hpp"
 #include <span>
 
@@ -7,21 +8,66 @@ using namespace std;
 
 namespace humble {
 
+EnvEntry xeval(Lex & x, Env & env);
+
 struct FunOps {
-    FunOps(bool dot, vector<EnvEntry> captured,
-            LexEnv * local_env, span<Lex> block)
+    FunOps(bool dot, FunEnv captured, LexEnv * local_env, span<Lex> block)
+        : dot_(dot)
+        , captured_(move(captured))
+        , local_env_(local_env)
+        , block_(block)
+    { }
+
+    EnvEntry tco(span<EnvEntry> args)
     {
-        (void)dot;
-        (void)captured;
-        (void)local_env;
-        (void)block;
-        // REM: have as data members
+        // cout << "tco\n";
+        bool * p_dot{};
+        FunEnv * p_captured{};
+        LexEnv * p_le{};
+        span<Lex> * p_block{};
+        guts(p_dot, p_captured, p_le, p_block);
+        EnvEntry v;
+        // ^ alt: = make_shared<Var>(VarVoid{}); to avoid nullptr
+        bool done = false;
+        while (not done) {
+            auto env = p_le->activation(*p_captured, *p_dot, args);
+            done = true;
+            for (auto & w : *p_block) {
+                v = xeval(w, env);
+                if (holds_alternative<VarApply>(*v)) {
+                    auto & a = get<VarApply>(*v).v;
+                    args = span<EnvEntry>{a.begin() + 1, a.end()};
+                    auto & z = get<VarFunOps>(*a.at(0));
+                    if (&w != &(*p_block).back()) {
+#ifdef DEBUG
+                        cout << "rec-apply\n";
+#endif
+                        v = z.f->tco(args);
+                    } else {
+#ifdef DEBUG
+                        cout << "iter-apply\n";
+#endif
+                        z.f->guts(p_dot, p_captured, p_le, p_block);
+                        done = false;
+                    }
+                }
+            }
+        }
+        return v;
     }
-    EnvEntry tco(std::span<EnvEntry> args)
+private:
+    bool dot_;
+    FunEnv captured_;
+    LexEnv * local_env_;
+    span<Lex> block_;
+
+    void guts(bool *& p_dot, FunEnv *& p_captured,
+            LexEnv *& p_le, span<Lex> *& p_block)
     {
-        (void)args;
-        // REM: iteration subst using pointers
-        return make_shared<Var>(VarVoid{});
+        p_dot = &dot_;
+        p_captured = &captured_;
+        p_le = local_env_;
+        p_block = &block_;
     }
 };
 
@@ -48,16 +94,23 @@ EnvEntry fun_call(vector<EnvEntry> v)
 
 VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
 {
+    // cout << get<LexNum>(x[2]).i << " make_fun x\n";
+    // cout << &get<LexNum>(x[2]) << " make_fun x\n";
     auto local_env = get<LexEnv *>(x[0]);
-    vector<EnvEntry> captured;
+    auto & a = get<LexArgs>(x[1]);
+    FunEnv captured{a.size()};
+    size_t i = 0;
     for (auto k : get<LexArgs>(x[1]))
-        captured.push_back(up.get(k));
+        captured.set(i++, up.get(k));
     auto fun_block = span<Lex>{x.begin() + 2, x.end()};
     bool dot = (op_code == OP_LAMBDA_DOT);
+    // cout << get<LexNum>(fun_block.front()).i << " make_fun in block\n";
+    // cout << &fun_block.front() << " make_fun block\n";
+    // cout << fun_block.size() << " make_fun block size\n";
     return { make_shared<FunOps>(dot, captured, local_env, fun_block) };
 }
 
-vector<EnvEntry> run_each(vector<Lex> v, Env & env)
+vector<EnvEntry> run_each(span<Lex> v, Env & env)
 {
     vector<EnvEntry> r;
     for (auto & x : v) {
@@ -125,6 +178,7 @@ EnvEntry xeval(Lex & x, Env & env)
             if constexpr (is_same_v<T, LexDot>)
                 RunError("eval dot");
             if constexpr (is_same_v<T, LexForm>) {
+                // cout << &z.v.back() << " xeval form back\n";
                 if (z.v.empty()) throw CoreError("empty form");
                 if (not holds_alternative<LexOp>(z.v[0]))
                     return xapply(run_each(z.v, env));
@@ -141,6 +195,8 @@ EnvEntry xeval_op(LexForm & f, Env & env)
         env.set(get<LexNam>(f.v.at(1)).h,
                 run(f.v.at(2), env));
     } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
+        // cout << get<LexNum>(f.v.back()).i << " xeval_op\n";
+        // cout << &f.v.back() << " xeval_op\n";
         return make_shared<Var>(make_fun(env,
                     {f.v.begin() + 1, f.v.end()}, op.code));
     } else if (op.code == OP_COND) {
@@ -177,13 +233,11 @@ EnvEntry xeval_op(LexForm & f, Env & env)
 EnvEntry run(Lex & x, Env & env)
 {
     auto y = xeval(x, env);
-    if (holds_alternative<VarApply>(*y)) {
-        auto & a = get<VarApply>(*y).v;
-        auto args = span<EnvEntry>(a.begin() + 1, a.end());
-        auto z = a.at(0);
-        y = get<VarFunOps>(*z).f->tco(args);
-    }
-    return y;
+    if (not holds_alternative<VarApply>(*y))
+        return y;
+    auto & a = get<VarApply>(*y).v;
+    auto args = span<EnvEntry>(a.begin() + 1, a.end());
+    return get<VarFunOps>(*a.at(0)).f->tco(args);
 }
 
 } // ns

@@ -47,9 +47,9 @@ ostream & operator<<(ostream & os, const Lex & x)
     "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Splice",
     "Void", "Sym", "Num", "Bool", "Nam", "String",
     "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
-    "Args", "Env*", "Op", "Import" };
+    "Args", "Env~", "Op", "Import" };
     os << "Lex" << tn.at(x.index()) << "{";
-    visit([&os](auto arg) { out(os, arg); }, x);
+    visit([&os](auto && arg) { out(os, arg); }, x);
     return os << "}";
 }
 
