@@ -1510,7 +1510,7 @@ class Cons:
             if n == 0:
                 break
         else:
-            Cons.last_cons = c
+            Cons.last = c
         return r
 
     def length(self):
@@ -1537,7 +1537,7 @@ class Cons:
         if len(x) == 0:
             return None
         r = Cons(x[-1], None)
-        Cons.last_cons = r
+        Cons.last = r
         for e in reversed(x[:-1]):
             r = Cons(e, r)
         return r
@@ -1545,7 +1545,7 @@ class Cons:
     @staticmethod
     def from_nonlist(x):
         assert len(x) >= 2
-        Cons.last_cons = None
+        Cons.last = None
         r = x[-1]
         for e in reversed(x[:-1]):
             r = Cons(e, r)
@@ -1649,7 +1649,8 @@ def f_list(*args):
     return [VAR_LIST, list(args)]
 
 def f_nonlist(*args):
-    # note: not cat'ing as quote does on (nested) dots
+    # note: not cat'ing as done on (nested) dots
+    # in xeval -- i-e (0 . (1 2)) ==> (0 1 2)
     return [VAR_NONLIST, list(args)]
 
 def f_list_copy(*args):
@@ -1727,7 +1728,7 @@ def f_append(*args):
         if i == 0:
             continue
         if p is not None:
-            q = Cons.last_cons
+            q = Cons.last
         if i == i_last:
             if last[0] == VAR_CONS:
                 p = last[1]
@@ -2859,11 +2860,10 @@ def xeval(x, env):
         if x[0] == LEX_NONLIST:
             r = run_each(x[1], env)
             if r[-1][0] == VAR_LIST:
-                a = r[-1][1]
-                return [VAR_LIST, r[:-1] + a]
+                return [VAR_LIST, r[:-1] + r[-1][1]]
             if r[-1][0] == VAR_CONS:
                 c = Cons.from_list(r[:-1])
-                c.d = r[-1][1]
+                Cons.last.d = r[-1][1]
                 return [VAR_CONS, c]
             return [VAR_NONLIST, r]
         if x[0] == LEX_NAM:

@@ -1,6 +1,7 @@
 #include "xeval.hpp"
 #include "debug.hpp"
 #include "compx.hpp"
+#include "cons.hpp"
 #include "api.hpp"
 #include <span>
 
@@ -11,65 +12,45 @@ namespace humble {
 EnvEntry xeval(Lex & x, Env & env);
 
 struct FunOps {
-    FunOps(bool dot, FunEnv captured, LexEnv * local_env, span<Lex> block)
-        : dot_(dot)
-        , captured_(move(captured))
-        , local_env_(local_env)
-        , block_(block)
-    { }
+    FunEnv captured;
+    LexEnv * local_env;
+    bool dot;
+    span<Lex> block;
+};
 
-    EnvEntry tco(span<EnvEntry> args)
-    {
-        // cout << "tco\n";
-        bool * p_dot{};
-        FunEnv * p_captured{};
-        LexEnv * p_le{};
-        span<Lex> * p_block{};
-        guts(p_dot, p_captured, p_le, p_block);
-        EnvEntry v;
-        // ^ alt: = make_shared<Var>(VarVoid{}); to avoid nullptr
-        bool done = false;
-        while (not done) {
-            auto env = p_le->activation(*p_captured, *p_dot, args);
-            done = true;
-            for (auto & w : *p_block) {
-                v = xeval(w, env);
-                if (holds_alternative<VarApply>(*v)) {
-                    auto & a = get<VarApply>(*v).v;
-                    args = span<EnvEntry>{a.begin() + 1, a.end()};
-                    auto & z = get<VarFunOps>(*a.at(0));
-                    if (&w != &(*p_block).back()) {
+EnvEntry tco(FunOps * f, span<EnvEntry> args)
+{
+    // cout << "tco\n";
+    EnvEntry v;
+    // ^ alt: = make_shared<Var>(VarVoid{}); to avoid nullptr
+    bool done = false;
+    while (not done) {
+        auto env = f->local_env
+            ->activation(f->captured, f->dot, args);
+        done = true;
+        for (auto & w : f->block) {
+            v = xeval(w, env);
+            if (holds_alternative<VarApply>(*v)) {
+                auto & a = get<VarApply>(*v).a;
+                args = span<EnvEntry>{a.begin() + 1, a.end()};
+                auto & z = get<VarFunOps>(*a.at(0));
+                if (&w != &f->block.back()) {
 #ifdef DEBUG
-                        cout << "rec-apply\n";
+                    cout << "rec-apply\n";
 #endif
-                        v = z.f->tco(args);
-                    } else {
+                    v = tco(&*z.f, args);
+                } else {
 #ifdef DEBUG
-                        cout << "iter-apply\n";
+                    cout << "iter-apply\n";
 #endif
-                        z.f->guts(p_dot, p_captured, p_le, p_block);
-                        done = false;
-                    }
+                    f = &*z.f;
+                    done = false;
                 }
             }
         }
-        return v;
     }
-private:
-    bool dot_;
-    FunEnv captured_;
-    LexEnv * local_env_;
-    span<Lex> block_;
-
-    void guts(bool *& p_dot, FunEnv *& p_captured,
-            LexEnv *& p_le, span<Lex> *& p_block)
-    {
-        p_dot = &dot_;
-        p_captured = &captured_;
-        p_le = local_env_;
-        p_block = &block_;
-    }
-};
+    return v;
+}
 
 EnvEntry fun_call(vector<EnvEntry> v)
 {
@@ -82,14 +63,14 @@ EnvEntry fun_call(vector<EnvEntry> v)
 #ifdef DEBUG
         cout << "native-fun\n";
 #endif
-        auto a = get<VarFunHost>(*z).p(args);
-        if (not holds_alternative<VarApply>(*a))
-            return a;
-        auto & b = get<VarApply>(*a).v;
+        auto q = get<VarFunHost>(*z).p(args);
+        if (not holds_alternative<VarApply>(*q))
+            return q;
+        auto & b = get<VarApply>(*q).a;
         args = span<EnvEntry>(b.begin() + 1, b.end());
         z = b.at(0);
     }
-    return get<VarFunOps>(*z).f->tco(args);
+    return tco(&*get<VarFunOps>(*z).f, args);
 }
 
 VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
@@ -107,7 +88,7 @@ VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
     // cout << get<LexNum>(fun_block.front()).i << " make_fun in block\n";
     // cout << &fun_block.front() << " make_fun block\n";
     // cout << fun_block.size() << " make_fun block size\n";
-    return { make_shared<FunOps>(dot, captured, local_env, fun_block) };
+    return { make_shared<FunOps>(captured, local_env, dot, fun_block) };
 }
 
 vector<EnvEntry> run_each(span<Lex> v, Env & env)
@@ -145,17 +126,25 @@ EnvEntry xeval(Lex & x, Env & env)
             using T = decay_t<decltype(z)>;
             if constexpr (is_same_v<T, LexList>) {
                 auto v = run_each(z.v, env);
-                // TODO: if zero size, VarCons
+                if (v.empty())
+                    return make_shared<Var>(VarCons{});
                 return make_shared<Var>(VarList{move(v)});
             }
             if constexpr (is_same_v<T, LexNonlist>) {
                 auto v = run_each(z.v, env);
+                if (v.empty()) throw CoreError("empty nonlist");
                 if (holds_alternative<VarList>(*v.back())) {
                     auto w = move(get<VarList>(*v.back()));
                     v.pop_back();
                     move(w.v.begin(), w.v.end(), back_inserter(v));
+                    return make_shared<Var>(VarList{move(v)});
                 }
-                // TODO: if last is VarCons, thus merge
+                if (holds_alternative<VarCons>(*v.back())) {
+                    auto c = make_shared<Var>(Cons::from_list(
+                                {v.begin(), v.begin() + v.size() - 1}));
+                    Cons::last->d = v.back();
+                    return c;
+                }
                 return make_shared<Var>(VarNonlist{move(v)});
             }
             if constexpr (is_same_v<T, LexNam>)
@@ -235,9 +224,9 @@ EnvEntry run(Lex & x, Env & env)
     auto y = xeval(x, env);
     if (not holds_alternative<VarApply>(*y))
         return y;
-    auto & a = get<VarApply>(*y).v;
+    auto & a = get<VarApply>(*y).a;
     auto args = span<EnvEntry>(a.begin() + 1, a.end());
-    return get<VarFunOps>(*a.at(0)).f->tco(args);
+    return tco(&*get<VarFunOps>(*a.at(0)).f, args);
 }
 
 } // ns

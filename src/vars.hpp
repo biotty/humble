@@ -31,10 +31,12 @@ struct FunOps;
 struct VarFunOps { std::shared_ptr<FunOps> f; };
 struct VarFunHost;
 struct VarApply;
+struct Cons;
+struct VarCons { std::shared_ptr<Cons> c; };
 
 using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString,
       VarList, VarNonlist, VarSplice, VarUnquote,
-      VarFunOps, VarFunHost, VarApply>;
+      VarFunOps, VarFunHost, VarApply, VarCons>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };
@@ -42,7 +44,7 @@ struct VarNonlist { std::vector<EnvEntry> v; };
 struct VarSplice { std::vector<EnvEntry> v; };
 typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
 struct VarFunHost { FunHost p; };
-struct VarApply { std::vector<EnvEntry> v/*TODO: rename v to a*/; };
+struct VarApply { std::vector<EnvEntry> a; };
 
 struct Env {
     virtual EnvEntry get(int i) = 0;

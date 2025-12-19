@@ -1,7 +1,7 @@
 #include "debug.hpp"
-#include <array>
 
 #include "compx.hpp"
+#include <array>
 
 using namespace humble;
 using namespace std;

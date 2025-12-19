@@ -1,5 +1,6 @@
 #include "xeval.hpp"
 #include "compx.hpp"
+#include "cons.hpp"
 #include "debug.hpp"
 #include "api.hpp"
 #include "gtest/gtest.h"
@@ -63,5 +64,31 @@ TEST_F(EnvTest, xeval_tco)
     }}}};
     auto r = run(x, env);
     ASSERT_EQ(9, get<VarNum>(*r).i);
+}
+
+TEST_F(EnvTest, xeval_nonlist_cat)
+{
+    Lex x = LexNonlist{{LexNum{0},
+        LexList{{LexNum{1}, LexNum{2}}}
+    }};
+    auto r = run(x, env);
+    ASSERT_EQ(3, get<VarList>(*r).v.size());
+}
+
+EnvEntry cons1(std::span<EnvEntry> a)
+{
+    if (a.size() != 1) throw RunError("cons1");
+    return make_shared<Var>(VarCons{
+            make_shared<Cons>(a[0], ConsPtr{})});
+}
+
+TEST_F(EnvTest, xeval_cons_cat)
+{
+    env.set(2, make_shared<Var>(VarFunHost{cons1}));
+    Lex x = LexNonlist{{LexNum{0},
+        LexForm{{LexNam{2, 0}, LexNum{1}}}
+    }};
+    auto r = run(x, env);
+    ASSERT_TRUE(holds_alternative<VarCons>(*r));
 }
 
