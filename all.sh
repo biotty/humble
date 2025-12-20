@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 
 ./humble.py import_test/main.hum > out.import_test.txt
 ./humble.py io_test.hum > out.io_test.txt

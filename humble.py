@@ -531,7 +531,7 @@ def lex(s, names):
                             v = (LEX_NUM, c)
                             break
                     if v is None:
-                        raise SrcError("#\ token")
+                        raise SrcError("#\\ token")
             elif t == "#void":
                 v = (LEX_VOID,)
             else:
@@ -1988,7 +1988,7 @@ def f_dup(*args):
         warning("dup of void")
         return args[0]
     rc = sys.getrefcount(args[0])
-    if rc < 4:
+    if rc < 3:
         broken("assumption of refs to an arg")
     if rc == 4:
         return args[0]

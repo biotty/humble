@@ -20,7 +20,7 @@ Here is how I have this development set up.
 
 ## Get c++ environment and cmake
 ```
-apt install build-essential cmake libgtest-dev
+sudo apt install build-essential cmake libgtest-dev
 ( cd /usr/src/googletest
   ; sudo cmake .
   ; sudo cmake --build . --target install
