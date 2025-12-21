@@ -186,7 +186,7 @@ LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_key
         if (holds_alternative<LexVoid>(x)) {
             a << "(reportedly) " << names.get(y);
         } else {
-            a << info_unbound(x, names);
+            a << info_unbound(x, names) << "\n";
         }
     }
     throw SrcError("unbound,\n" + a.str());

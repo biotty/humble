@@ -8,24 +8,35 @@ tok.hpp // the scanner and tokenizer
 tok.cpp
 parse.hpp // parser, quote/macro-expand
 parse.cpp
+    macros.hpp // the macros (and 'macro')
+    macros.cpp
 compx.hpp // binding and zloc
 compx.cpp
-macros.hpp // the macros (and 'macro')
-macros.cpp
 vars.hpp // runtime objects
 vars.cpp
-functions.hpp // builtin functions
-functions.cpp
+cons.hpp // cons type
+cons.cpp
 xeval.hpp // the runtime engine
 xeval.cpp
-
-ui.cpp // user command interface
+    port.hpp // io types
+    port.cpp
+    dict.hpp // dict type
+    dict.cpp
+    record.hpp // record (backend-)type
+    record.cpp
+    functions.hpp // builtin functions
+    functions.cpp
 
 test_utf.cpp // unit-tests
 test_tok.cpp
 test_parse.cpp
-test_compx.cpp
 test_vars.cpp
+test_compx.cpp
+test_cons.cpp
+test_xeval.cpp
 
+ui.cpp // user command interface
 test.hum // self-test
+nc.cpp // ncurses extended
+snake.hum // example game
 
