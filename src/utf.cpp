@@ -1,15 +1,14 @@
 #include "utf.hpp"
-#include "api.hpp"
+#include "except.hpp"
 
 #ifdef DEBUG
 #include "debug.hpp"
 #endif
 
 using namespace std;
+using namespace humble;
 
 namespace {
-
-using namespace humble;
 
 Glyph utf_head(std::string_view s)
 {

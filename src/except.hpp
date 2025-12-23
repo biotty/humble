@@ -1,6 +1,6 @@
 #ifndef HUMBLE_API
 #define HUMBLE_API
-#include <string>
+
 #include <stdexcept>
 
 namespace humble {

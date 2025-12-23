@@ -1,5 +1,5 @@
 #include "parse.hpp"
-#include "api.hpp"
+#include "except.hpp"
 #include "detail.hpp"
 #include <sstream>
 #include <tuple>
@@ -9,10 +9,9 @@
 #endif
 
 using namespace std;
+using namespace humble;
 
 namespace {
-
-using namespace humble;
 
 enum {
     PARSE_MODE_TOP = -2,  // inside no form paren

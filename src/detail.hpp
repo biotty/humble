@@ -43,6 +43,10 @@ inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };
 
+bool is_dotform(const LexForm & x);
+LexForm without_dot(const LexForm & x);
+LexForm with_dot(const LexForm & x);
+
 } // ns
 
 #endif

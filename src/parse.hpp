@@ -15,10 +15,6 @@ Macros qt_macros();  // macros needed as part of "parsing"
 LexForm parse(const std::string & s, Names & m, Macros & macros);
 void expand_macros(Lex & t, Macros & macros, int qq);
 
-bool is_dotform(const LexForm & x);
-LexForm without_dot(const LexForm & x);
-LexForm with_dot(const LexForm & x);
-
 struct Quote : Macro { Lex operator()(LexForm & t); };
 struct Quasiquote : Macro { Lex operator()(LexForm & t); };
 struct Unquote : Macro { Lex operator()(LexForm & t); };

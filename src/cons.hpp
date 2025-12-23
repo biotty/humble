@@ -6,14 +6,17 @@
 namespace humble {
 
 using ConsPtr = std::shared_ptr<Cons>;
-using ConsReg = std::variant<EnvEntry, ConsPtr>;
+using ConsNext = std::variant<ConsPtr, EnvEntry>;
 
 struct Cons {
-    ConsReg a;
-    ConsReg d;
+    EnvEntry a;
+    ConsNext d;
 
-    Cons(ConsReg a, ConsReg d);
+    Cons(EnvEntry a, ConsNext d);
+    VarCons xcopy(size_t n);
+    size_t length();
     static VarCons from_list(std::span<EnvEntry> x);
+    static VarCons from_nonlist(std::span<EnvEntry> x);
     static Cons * last;
 };
 
