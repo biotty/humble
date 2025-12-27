@@ -14,6 +14,7 @@ struct Cons {
 
     Cons(EnvEntry a, ConsNext d);
     VarCons xcopy(size_t n);
+    std::variant<VarList, VarNonlist> to_list_var();
     size_t length();
     static VarCons from_list(std::span<EnvEntry> x);
     static VarCons from_nonlist(std::span<EnvEntry> x);

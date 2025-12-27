@@ -40,3 +40,17 @@ TEST_F(ConsTest, length)
             make_shared<Cons>(t, ConsPtr{}));
     ASSERT_EQ(2, c->length());
 }
+
+TEST_F(ConsTest, to_var_list)
+{
+    {
+        auto c = make_shared<Cons>(s,
+                make_shared<Cons>(t, ConsPtr{}));
+        ASSERT_EQ((vector<EnvEntry>{s, t}), get<VarList>(c->to_list_var()).v);
+    }
+    {
+        auto c = make_shared<Cons>(s,
+                make_shared<Cons>(t, s));
+        ASSERT_EQ((vector<EnvEntry>{s, t, s}), get<VarNonlist>(c->to_list_var()).v);
+    }
+}

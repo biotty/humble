@@ -74,15 +74,26 @@
 
 # Work-in-Progress:  (elaboration)
 
-# The c++ implementation will instead of the registering
-# plugins be able to dynload unaware libraries and use
-# a thin libffi wrapper to invoke symbols.  The code that
-# populates the top environment with this facility is
-# itself an (other kind of) extension that is added
-# by the program that runs the interpreter.  This
-# latter resembles the mechanism I have in the python
-# implementation with curses function additions, except
-# the interpreter is not separated out as a library.
+# * "handlers" global env entry (like stdout) that also each
+#   builtin has a ref to, will be tried for symbol-key on
+#   (error).  function will get invoked with error args,
+#   which is for builtin functions the args, and the handler
+#   may mutate these args.  the bultin functions will
+#   call the handler of its name when arg types are
+#   invalid or other situation, and re-try unless yields #f,
+#   or if re-try fails on same reason, terminating as now.
+# * label form set symbol on scope, which may then be used
+#   in a break statement.  This is implemented by flagging
+#   the environment by the break symbol, which inhibits
+#   evaluation until form of respective label(s) observed.
+# * The c++ implementation will instead of the registering
+#   plugins be able to dynload unaware libraries and use
+#   a thin libffi wrapper to invoke symbols.  The code that
+#   populates the top environment with this facility is
+#   itself an (other kind of) extension that is added
+#   by the program that runs the interpreter.  This
+#   latter resembles the mechanism I have in the python
+#   implementation with curses function additions.
 #
 # Excluded:  (non-features)
 #
@@ -2085,7 +2096,12 @@ class Dict:
 
     def __init__(self, w):
         self.t = w[0][0][0]
-        self.d = dict([(x[1], y) for x, y in w if x[0] == self.t])
+        a = []
+        for x, y in w:
+            if x[0] != self.t:
+                raise RunError("dict key types differ")
+            a.append((x[1], y))
+        self.d = dict(a)
 
     def ditems(self):
         return [([self.t, k], v) for k, v in self.d.items()]
@@ -2096,15 +2112,9 @@ def f_alist_z_dict(*args):
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     d = []
     for x in ConsOrListIter(args[0][1]):
-        if x[0] == VAR_CONS:
-            a = x[1].a
-            b = x[1].d
-        elif var_in(x[0], VAR_NONLIST | VAR_LIST):
-            a = x[1][0]
-            b = x[1][1]
-        else:
+        if not var_in(x[0], VAR_CONS | VAR_NONLIST | VAR_LIST):
             raise RunError("not alist")
-        d.append((a, b))
+        d.append((f_car(x), f_cdr(x)))
     if not d:
         return [VAR_DICT, None]
     return [VAR_DICT, Dict(d)]

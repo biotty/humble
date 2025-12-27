@@ -46,6 +46,20 @@ size_t Cons::length()
     return r;
 }
 
+variant<VarList, VarNonlist> Cons::to_list_var()
+{
+    vector<EnvEntry> r;
+    auto cur = this;
+    do {
+        r.push_back(cur->a);
+        if (not holds_alternative<ConsPtr>(cur->d)) {
+            r.push_back(get<EnvEntry>(cur->d));
+            return VarNonlist{r};
+        }
+    } while (cons_iter_next(cur));
+    return VarList{r};
+}
+
 VarCons Cons::from_list(span<EnvEntry> x)
 {
     if (x.empty())
