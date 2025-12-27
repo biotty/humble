@@ -1,5 +1,5 @@
 (export i j 'mm 'G)
-(import "import_test/bar.hum")
+(import "import_test/bar.scm")
 (ref i 1)
 (G)
 (macro mm () 123)

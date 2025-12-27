@@ -36,7 +36,7 @@ test_cons.cpp
 test_xeval.cpp
 
 ui.cpp // user command interface
-test.hum // self-test
+test.scm // self-test
 nc.cpp // ncurses extended
-snake.hum // example game
+snake.scm // example game
 

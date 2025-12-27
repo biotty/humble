@@ -1,6 +1,6 @@
 (export 'aaG)
 (ref aaargh 1255)
-(import "import_test/foo.hum" 'aa)
+(import "import_test/foo.scm" 'aa)
 (aamm)
 aai
 (macro a (z . x) `(list ,z ,@x 'yyy))
