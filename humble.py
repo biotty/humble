@@ -1693,9 +1693,10 @@ def f_car(*args):
 
 def f_list_ref(*args):
     def c_list_ref(c, i):
-        if i == 0:
-            return c.a
-        return c_list_ref(c.d, i - 1)
+        while i:
+            c = c.d
+            i -= 1
+        return c.a
     fargt_must_eq("list-ref", args, 1, VAR_NUM)
     if args[0][0] == VAR_CONS:
         return c_list_ref(args[0][1], args[1][1])
@@ -3114,11 +3115,23 @@ def run_top(ast, env, names):
 import itertools
 
 def inc_functions(names, env, macros):
+    def cxr(s):
+        if not s:
+            return "x"
+        n, r = s[0], cxr(s[1:])
+        if n.isdigit():
+            return "(list-ref %s %s)" % (r, n)
+        return "(c%sr %s)" % (n, r)
     a = []
     for w in itertools.product( * ["ad"] * 2):
-        a.append("(ref (c%s%sr x) (c%sr (c%sr x)))" % (2 * w))
+        s = "".join(w).replace("ad", "1")
+        a.append("(ref (c%s%sr x) %s)" % tuple(list(w) + [cxr(s)]))
     for w in itertools.product( * ["ad"] * 3):
-        a.append("(ref (c%s%s%sr x) (c%sr (c%sr (c%sr x))))" % (2 * w))
+        s = "".join(w).replace("add", "2").replace("ad", "1")
+        a.append("(ref (c%s%s%sr x) %s)" % tuple(list(w) + [cxr(s)]))
+    for w in itertools.product( * ["ad"] * 4):
+        s = "".join(w).replace("addd", "3").replace("add", "2").replace("ad", "1")
+        a.append("(ref (c%s%s%s%sr x) %s)" % tuple(list(w) + [cxr(s)]))
     t = compx("\n".join(a), names, macros, env.keys())
     run_top(t, env, names)
 
