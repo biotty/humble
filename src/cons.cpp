@@ -86,5 +86,76 @@ VarCons Cons::from_nonlist(span<EnvEntry> x)
 
 Cons * Cons::last;
 
+ConsPtr to_cons(Var & x)
+{
+    if (holds_alternative<VarCons>(x)) {
+        return get<VarCons>(x).c;
+    } else if (holds_alternative<VarList>(x)) {
+        return Cons::from_list(get<VarList>(x).v).c;
+    } else if (holds_alternative<VarNonlist>(x)) {
+        return Cons::from_nonlist(get<VarNonlist>(x).v).c;
+    }
+    throw CoreError("to_cons on not list");
+}
+
+ConsPtr to_cons_copy(Var & x)
+{
+    if (holds_alternative<VarCons>(x)) {
+        get<VarCons>(x).c->xcopy(0);
+    }
+    return to_cons(x);
+}
+
+VarList normal_list(Var & x)
+{
+    if (holds_alternative<VarCons>(x)) {
+        ConsPtr c = get<VarCons>(x).c;
+        if (not c)
+            return {};
+        auto r = c->to_list_var();
+        if (not holds_alternative<VarList>(r))
+            throw RunError("nonlist for list-use");
+        return get<VarList>(r);
+    }
+    return get<VarList>(x);
+}
+
+ConsOrListIter::~ConsOrListIter() { }
+
+struct ListIter : ConsOrListIter {
+    vector<EnvEntry> & v;
+    size_t i;
+    ListIter(vector<EnvEntry> & v) : v(v), i() { }
+    EnvEntry get() override
+    {
+        if (i == v.size())
+            return nullptr;
+        return v[i++];
+    }
+};
+
+struct ConsIter : ConsOrListIter {
+    Cons * c;
+    ConsIter(ConsPtr c) : c(c.get()) { }
+    EnvEntry get() override
+    {
+        if (not c)
+            return nullptr;
+        auto r = c;
+        if (not cons_iter_next(c))
+            c = nullptr;
+        return r->a;
+    }
+};
+
+std::unique_ptr<ConsOrListIter> make_iter(Var & x)
+{
+    if (holds_alternative<VarList>(x))
+        return make_unique<ListIter>( get<VarList>(x).v );
+    if (holds_alternative<VarCons>(x))
+        return make_unique<ConsIter>( get<VarCons>(x).c );
+    return {};
+}
+
 } // ns
 
