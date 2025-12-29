@@ -9,8 +9,8 @@
 ; alternative parens, unicode, and the many r7rs forms.
 ; demo of io: the high-score is recorded in a file.
 
-(ref (inc! v) (setv! v (+ v 1)))
-(ref (dec! v) (setv! v (- v 1)))
+(ref (inc! v) (set! v (+ v 1)))
+(ref (dec! v) (set! v (- v 1)))
 ; demonstrates that we pass by reference
 
 (ref random (prng (clock)))
@@ -80,11 +80,11 @@
     (inc! x)
     (ref (get-head) (list y x))
     (ref frog (rnd-frog '()))
-    (ref (set-dir! v) (setv! dir v))
+    (ref (set-dir! v) (set! dir v))
     (ref (step! score-fun)
-      (setv! body (cons (nonlist (dup y) (dup x)) body))
+      (set! body (cons (nonlist (dup y) (dup x)) body))
       (ref d (list-tail body (- body-length 1)))
-      (setv! butt (list (caar d) (cdar d)))
+      (set! butt (list (caar d) (cdar d)))
       (set-cdr! d '())
       (case dir
         (('up) (dec! y))
@@ -93,9 +93,9 @@
         (('right) (inc! x))
         (else => error))
       (when (equal? (list y x) frog)
-        (setv! frog (rnd-frog body))
-        (setv! body (append body (butt-dup GROWPF)))
-        (setv! body-length (+ GROWPF body-length))
+        (set! frog (rnd-frog body))
+        (set! body (append body (butt-dup GROWPF)))
+        (set! body-length (+ GROWPF body-length))
         (score-fun (/ (- body-length INIT-LENGTH) GROWPF))))
     (ref (get-frog) frog)
     (ref (is-over)
@@ -129,11 +129,11 @@
 (ref score 0)
 (ref has-record #f)
 (ref (up-score n)
-     (setv! score n)
+     (set! score n)
      (show-score 8 n)
      (when (> score hiscore)
-       (setv! hiscore score)
-       (setv! has-record #t)
+       (set! hiscore score)
+       (set! has-record #t)
        (show-score 14 score)))
 (show-score 14 hiscore)
 (up-score 0)

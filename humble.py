@@ -8,25 +8,25 @@
 # Deviations:  (concept)
 #
 # The environment cannot be mutated from an inner scope,
-# as (set!) does (I don't have it).  Only (re-)defining
+# as (set!) traditionally does.  Only (re-)defining
 # a name alters the environment, which can only be done
-# at its own lexical scope.  Instead of such env mutation
-# I permit mutation of variables themselves, with (setv!).
-# Names are detached from the variables they refer to so
-# the variables here resemble (assignable) value entities.
+# at its own lexical scope.  The term "name" here is to
+# mean a scoped variable-name, and not simply the
+# interned entity (symbol).
 # Variable names in the program works as in usual scheme.
-# The environment does not contain variable entries directly
-# directly but references to them.  The variables themselves
-# may be shared with a list or with another environment:
-# Parameter variables to a procedure are not copied,
+# Now a crucial difference with traditional scheme:
+# Parameter values to a procedure are not copied,
 # but taken "by reference".  I have (alias? a b) to report
-# whether a and b refers to the same variable.
+# whether a and b refers to the same object/lvalue.
+# The let(rec)(*) macros, being constructed of lambda,
+# reflects the by-reference passing (in the rare case needed
+# we may duplicate explicitly as mentioned below).
 #
 # To facilitate value-semantics clone (such as use of
-# a names number) and prevent "a reference mess" I provide
+# a number) and facilitate for separation of lvalues I provide
 # (dup) and (local), and have renamed (define) to (ref) as a
-# reminder.  Surprises with references obviously only occur
-# due to mutation.  Given this layout of names and variables,
+# reminder.  Surprises with references will only occur
+# due to mutation.  Given this layout of names and values,
 # I allow mutation of the variables themselves as "lvalues"
 # and I drop the mutation of set! that replaces on the
 # location of a name (list-set! is not dropped).  The
@@ -34,10 +34,16 @@
 # when you hold cons-cells or lambda-captures.
 # There is both simplification and practical benefit in
 # generalizing mutation to "values" but eliminating remote
-# mutation on the environments, as done by set! --
-# Instead I have the general setv! that operates on what a
-# name refers to.  A local name can only be re-defined in
+# mutation on the environments.
+# A local name can only be re-defined in
 # the very same scope -- as opposed to traditional scheme.
+# (def) is a convenience that does ref and dup.
+# the dup implementation is required to never take a copy
+# when not needed (only one reference held to the object).
+#
+# Now that the warning about variable-names, reference
+# semantics and the local environment has been given, I
+# re-introduce set! because a name like setv! is noisy.
 #
 # Features:  (language)
 #
@@ -71,9 +77,9 @@
 # * in-string and out-string provide port interface
 # * #void -- unit type i-e is returned on r7rs "unspec"
 # * (error) function that reports given value and exits.
-
+#
 # Work-in-Progress:  (elaboration)
-
+#
 # * "handlers" global env entry (like stdout) that also each
 #   builtin has a ref to, will be tried for symbol-key on
 #   (error).  function will get invoked with error args,
@@ -94,6 +100,14 @@
 #   by the program that runs the interpreter.  This
 #   latter resembles the mechanism I have in the python
 #   implementation with curses function additions.
+# * special functions untangling the repl components,
+#   (read port) to invoke parse and lex_to_var.  (eval d)
+#   to invoke var_to_lex, macro_expand and run in global
+#   environment.  (write d port) var_to_lex, (compile d port)
+#   same as eval except does not run and instead writes.
+#   this implies two types of files, x: lex not macro-expanded,
+#   and may be leverage for saving data too, and y: lex ready
+#   to be fed to the interpreter and run.
 #
 # Excluded:  (non-features)
 #
@@ -110,7 +124,6 @@
 #   Names cannot start in a '.' or a '@' but may contain them.
 # * FS/System ops, as there is i.e input-command
 # * define-syntax; instead powerful "unhygienic" lisp macro
-# * set! -- setv!(!) operates on the variable, not an env location.
 # * Char, but number parsed for #\ and with utf-8 support.
 # * Only octal escape for bytes in string.
 #
@@ -171,6 +184,12 @@
 # the argument list has a cons chain representation.
 # (take) is not applicable on non-list.
 #
+# The set of cxr-functions should use list-ref for "a"
+# followed by a number of "d"s (such as in "caddr"), so to
+# avoid unneeded cdr-use (and thereby conversion to cons
+# chain).  This is at discression of the implementation.
+#
+
 
 ##
 # code-points
@@ -275,7 +294,7 @@ NAM_CAR        = 6   #| names of functions used in some of the
 NAM_EQVP       = 7   #| language-macros
 NAM_LIST       = 8   #| used for conversions of macro-argument
 NAM_NONLIST    = 9   #| into data-variable representation.
-NAM_SETVJJ     = 10  #| letrec, letrecx
+NAM_SETJJ      = 10  #| letrec, letrecx
 NAM_DUP        = 11  #| def
 NAM_ERROR      = 12  #| default else in case
 NAM_SPLICE     = 13  #| @ expansion
@@ -293,7 +312,7 @@ nam_car = xn(NAM_CAR)
 nam_eqvp = xn(NAM_EQVP)
 nam_list = xn(NAM_LIST)
 nam_nonlist = xn(NAM_NONLIST)
-nam_setvjj = xn(NAM_SETVJJ)
+nam_setjj = xn(NAM_SETJJ)
 nam_dup = xn(NAM_DUP)
 nam_error = xn(NAM_ERROR)
 nam_splice = xn(NAM_SPLICE)
@@ -970,8 +989,8 @@ def recset(let):
         assert z < 0
         n = -z
         b.append(n)
-        let[0].insert(3, [nam_setvjj, (LEX_NAM, n), (LEX_NAM, z)])
-    u.add(NAM_SETVJJ)
+        let[0].insert(3, [nam_setjj, (LEX_NAM, n), (LEX_NAM, z)])
+    u.add(NAM_SETJJ)
     u.update(b)
     u.update(unbound(let[1:], a, False))
 
@@ -1410,29 +1429,29 @@ def m_import(names, macros):
 # builtin functions
 ##
 
-# Arguments to functions are variables, which makes this
-# a good place to describe them, right prior to the
-# definitions of the builtin functions that need to
-# operate on them in a consistent manner.  Support such
-# as the internal types held by them are defined just
-# before the using functions.
+#
+# The arguments to a functions is passed by a list of
+# object-references.  These objects are the lvalues as
+# may be referred to by variable-names.  I call these
+# objects "variables".
 #
 # Notes on Variables
 #
-# A variable is the value of an entry in the environment.
-# It is a mutable pair (type, value).  The value referred
-# to may be referred from other variables (i-e list), and
-# by name-entries in (other) environments.
+# A variable is the value of an entry in the environment,
+# and/or held by another structure such as a list.
+# In this implementation we represent it with a mutable
+# pair [type, value].
 #
-# No function operates on the environment.  setv! operates
-# on the variable.  setv!! is needed to change its type.
+# No function operates on the environment.  Our set! operates
+# on the variable.  set!! is needed to change its type and
+# avoid any warning that may be enabled for set!
 # list-set! replaces the list member and does not affect
-# the previous member variable.  special forms such as
-# DEFINE (i-e ref) operate on the environment itself.
+# any variable as such.  special forms such as
+# DEFINE (i-e ref) operate on the environment.
 #
 # A new non-empty list variable is represented by a
 # contiguous container.  When another reference to
-# it (not to an element, which is irrelevant) at any
+# it (th list, not a variable held) at any
 # index is given out (either by "cdr-usage" or by
 # "dup" of the list so that another variable holds it)
 # requires it to convert to a cons-chain, so that
@@ -1452,7 +1471,7 @@ def m_import(names, macros):
 # a whole and owned privately by this variable.
 # The latter list value is not shared by other variables
 # (but the variable itself may be refered to by several
-# environments).  a cons-cell, on the other hand, may be.
+# environments).  A cons-cell, on the other hand, may be.
 #
 # DICT is an explicit type for efficient lookup operations
 # and is converted from an alist or back, VAR_DICT.  such a
@@ -1461,7 +1480,7 @@ def m_import(names, macros):
 # The record type VAR_REC is not meant for a program but used
 # by the def-record-type macro.
 #
-# VAR_STRING owns the value.  setv! will require a complete
+# VAR_STRING owns the value.  set! will require a complete
 # copy of the value.  An implementation may introduce a
 # (not visible to the language used) variable type for
 # "big strings" that could instead own a shared pointer,
@@ -1967,7 +1986,7 @@ def f_gte(*args):
 
 # mutation of a variable itself
 
-def setvjj(a, b, fn):
+def setjj(a, b, fn):
     if id(a) == id(b):
         debug("%s self-ref %s" % (fn, fargt_repr(a[0])))
     else:
@@ -1978,21 +1997,21 @@ def setvjj(a, b, fn):
         a.extend(b)
     return [VAR_VOID]
 
-def f_setvj(*args):
-    fn = "setv!"
+def f_setj(*args):
+    fn = "set!"
     fargc_must_eq(fn, args, 2)
     if not ((var_in(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
         and var_in(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
         or args[0][0] == args[1][0]):
-        raise RunError("setv! %s with %s"
+        raise RunError("set! %s with %s"
                 % (var_type_name(args[0][0]),
                     var_type_name(args[1][0])))
-    return setvjj(args[0], args[1], fn)
+    return setjj(args[0], args[1], fn)
 
-def f_setvjj(*args):
-    fn = "setv!!"
+def f_setjj(*args):
+    fn = "set!!"
     fargc_must_eq(fn, args, 2)
-    return setvjj(args[0], args[1], fn)
+    return setjj(args[0], args[1], fn)
 
 def f_dup(*args):
     fargc_must_eq("dup", args, 1)
@@ -2005,7 +2024,7 @@ def f_dup(*args):
     if rc == 4:
         return args[0]
     r = [VAR_VOID]
-    setvjj(r, args[0], "dup")
+    setjj(r, args[0], "dup")
     return r
 
 # identity
@@ -3001,7 +3020,7 @@ def init_env(names):
     env[NAM_EQVP] = [VAR_FUN_HOST, f_eqp]  # impl: eq? is identical as eqv?
     env[NAM_LIST] = [VAR_FUN_HOST, f_list]
     env[NAM_NONLIST] = [VAR_FUN_HOST, f_nonlist]
-    env[NAM_SETVJJ] = [VAR_FUN_HOST, f_setvjj]
+    env[NAM_SETJJ] = [VAR_FUN_HOST, f_setjj]
     env[NAM_DUP] = [VAR_FUN_HOST, f_dup]
     env[NAM_ERROR] = [VAR_FUN_HOST, f_error(names)]
     env[NAM_SPLICE] = [VAR_FUN_HOST, f_splice]
@@ -3030,7 +3049,7 @@ def init_env(names):
             ("take", f_take),
             ("member", f_member),
             ("assoc", f_assoc),
-            ("setv!", f_setvj),
+            ("set!", f_setj),
             ("alias?", f_aliasp),
             ("eq?", f_eqp),
             ("equal?", f_equalp),
@@ -3209,7 +3228,7 @@ def init_top(extra_f=()):
             (NAM_EQVP, "eqv?"),
             (NAM_LIST, "list"),
             (NAM_NONLIST, "nonlist"),
-            (NAM_SETVJJ, "setv!!"),
+            (NAM_SETJJ, "set!!"),
             (NAM_DUP, "dup"),
             (NAM_ERROR, "error"),
             (NAM_SPLICE, "splice"))

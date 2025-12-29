@@ -38,15 +38,15 @@ test("""[ ref y 1 ] ; a comment
 {+ 1 2}
 y
 (append '(1) 2)
-(setv! y (+ 1 y))
-(display (setv! y (+ 1 y)))
+(set! y (+ 1 y))
+(display (set! y (+ 1 y)))
 (cond (#f 1) (1 y))
 ((lambda (x) (+ x 1)) 1)
 (ref (adder a) (lambda (b) (ref pluss +) (pluss a b)))
 ((adder 3) 5)""")
 test("(macro M () 123) (ref z (M))")
 test("""
-(macro incr! (yy) `(setv! ,yy (+ 1 ,yy)))
+(macro incr! (yy) `(set! ,yy (+ 1 ,yy)))
 (ref y 1)
 (incr! y)
 (unless (equal? y 2) (error))
@@ -363,7 +363,7 @@ test(""" [ ref y 1 ]
          (read-byte f)));
 (ref (cls foo)
   (ref (get-foo) foo)
-  (ref (set-foo! v) (setv! foo v))
+  (ref (set-foo! v) (set! foo v))
   (class get-foo set-foo!))
 (ref obj (cls 123))
 (obj 'set-foo! 321)
@@ -387,7 +387,7 @@ test(""" [ ref y 1 ]
   (set-car! c 2);
   (chk a (list 0 2 9))
   (local c);
-  (setv! c (list 3))
+  (set! c (list 3))
   (chk b (list 0 2 9))
   ; but not when sole ref
   (def d (list 1 2 3))
