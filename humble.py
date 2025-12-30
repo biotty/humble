@@ -24,8 +24,10 @@
 #
 # To facilitate value-semantics clone (such as use of
 # a number) and facilitate for separation of lvalues I provide
-# (dup) and (local), and have renamed (define) to (ref) as a
-# reminder.  Surprises with references will only occur
+# (dup) and (local).  I have (ref) that only binds to the given
+# object, as well as (define) with traditional semantics;
+# performs (dup) when more references exist.
+# Surprises with references will only occur
 # due to mutation.  Given this layout of names and values,
 # I allow mutation of the variables themselves as "lvalues"
 # and I drop the mutation of set! that replaces on the
@@ -57,13 +59,12 @@
 # * macro (exactly as lisp defmacro) -- and gensym
 # * import of file (that needs "export" as first expr)
 # * ref is as define (allows (recursive) function syntax)
-# * def allows usage of same (previous) name in expression
+# * define allows usage of same (previous) name in expression
 # * ref@ -- define with list values (no multi-value)
 # * seq -- lexical block without own scope
 # * scope -- an import with contents, not loading file
 #     -- export certain names from "here-doc"
-# * Record type -- not provided for user -- but;
-#     def-record-type.  case-lambda.  cadar combos.
+# * Record type, backing traditional define-record-type.
 # * A nonlist function (like list).
 # * ,@ propperly separated as two independent operators.
 # * Functions and special forms as specified in r7rs
@@ -100,14 +101,14 @@
 #   by the program that runs the interpreter.  This
 #   latter resembles the mechanism I have in the python
 #   implementation with curses function additions.
-# * special functions untangling the repl components,
-#   (read port) to invoke parse and lex_to_var.  (eval d)
-#   to invoke var_to_lex, macro_expand and run in global
-#   environment.  (write d port) var_to_lex, (compile d port)
-#   same as eval except does not run and instead writes.
-#   this implies two types of files, x: lex not macro-expanded,
-#   and may be leverage for saving data too, and y: lex ready
-#   to be fed to the interpreter and run.
+# * functions available untangling the repl components,
+#   (read port), (eval d) also does macro_expand and run
+#   in global env, (write d port) and (compile d port).
+#   these could leverage lex_to_var and var_to_lex.
+#   this results in two types of files, x: lex not macro-expanded,
+#   and may save either data or code, and y: op-code-lex ready
+#   to be fed to the interpreter and run.  there is no conversion
+#   from type y, on which only action is to run.
 #
 # Excluded:  (non-features)
 #
@@ -273,14 +274,14 @@ VAR_FUN_HOST   = (1 << 11) + BIT_VAR
 
 # interpreter ops
 
-# OP_DFLT "form" 0 left as bare list for apply-semantics
-OP_DEFINE      = 1
-OP_COND        = 2
-OP_SEQ         = 3
-OP_IMPORT      = 4
-OP_EXPORT      = 5
-OP_LAMBDA      = 6
-OP_LAMBDA_DOT  = 7
+#  APPLY when name (no op.code)
+OP_BIND       = 1
+OP_COND       = 2
+OP_LAMBDA     = 3
+OP_LAMBDA_DOT = 4
+OP_SEQ        = 5
+OP_IMPORT     = 6
+OP_EXPORT     = 7
 
 # known names
 
@@ -295,7 +296,7 @@ NAM_EQVP       = 7   #| language-macros
 NAM_LIST       = 8   #| used for conversions of macro-argument
 NAM_NONLIST    = 9   #| into data-variable representation.
 NAM_SETJJ      = 10  #| letrec, letrecx
-NAM_DUP        = 11  #| def
+NAM_DUP        = 11  #| define
 NAM_ERROR      = 12  #| default else in case
 NAM_SPLICE     = 13  #| @ expansion
 
@@ -729,7 +730,7 @@ def unbound(t, defs, is_block):
                 r.update(unbound(x[1], defs, False))
         elif type(x[0]) != int:
             r.update(unbound(x, defs, False))
-        elif x[0] == OP_DEFINE:
+        elif x[0] == OP_BIND:
             if not is_block:
                 raise SrcError("define in non-block")
             i = x[1]
@@ -771,7 +772,7 @@ def find_unbound(t, y):
             r = find_unbound(x, y)
             if r:
                 return r
-        elif x[0] == OP_DEFINE:
+        elif x[0] == OP_BIND:
             r = find_unbound([x[2]], y)
             if r:
                 return r
@@ -787,14 +788,25 @@ def find_unbound(t, y):
         else:
             broken("unknown form")
 
-def info_unbound(x, names):
+def report_unbound(u, t, names):
+    if not u:
+        return
+    def info(x, names):
+        a = []
+        if x[0] != LEX_NAM:
+            broken("(non-name)")
+        elif len(x) == 3:
+            a.append("line %d: " % (x[2]))
+        a.append("%s" % (names[x[1]],))
+        return "".join(a)
     a = []
-    if x[0] != LEX_NAM:
-        broken("(non-name)")
-    elif len(x) == 3:
-        a.append("line %d: " % (x[2]))
-    a.append("%s" % (names[x[1]],))
-    return "".join(a)
+    for y in u:
+        x = find_unbound(t, y)
+        if x:
+            a.append(info(x, names))
+        else:
+            a.append("(reportedly) %s" % (names[y],))
+    raise SrcError("unbound,\n" + "\n".join(a))
 
 def compx(s, names, macros, env_keys):
     # "compile" or "compl" would give clashes
@@ -802,17 +814,9 @@ def compx(s, names, macros, env_keys):
     linenumber = 1
     t = parse(s, names, macros)
     u = unbound(t, set(env_keys), True)
-    if not u:
-        zloc_scopes(t, None)
-        return t
-    a = []
-    for y in u:
-        x = find_unbound(t, y)
-        if x:
-            a.append(info_unbound(x, names))
-        else:
-            a.append("(reportedly) %s" % (names[y],))
-    raise SrcError("unbound,\n" + "\n".join(a))
+    report_unbound(u, t, names)
+    zloc_scopes(t, None)
+    return t
 
 class LexEnv:
 
@@ -875,7 +879,7 @@ def zloc_scopes(t, local_env):
                 t[i] = (x[0], zloc_scopes(x[1], local_env))
         elif type(x[0]) != int:
             t[i] = zloc_scopes(x, local_env)
-        elif x[0] == OP_DEFINE:
+        elif x[0] == OP_BIND:
             if local_env:
                 x[1] = local_env.rewrite_name(x[1])
             x[2:] = zloc_scopes([x[2]], local_env)
@@ -918,7 +922,7 @@ def margc_must_ge(mn, s, z):
 # naming - let
 
 def m_ref(s):
-    s[0] = OP_DEFINE
+    s[0] = OP_BIND
     if type(s[1]) == list:
         n = s[1][0]
         s[2] = m_lambda([-99, s[1][1:], *s[2:]])
@@ -935,13 +939,13 @@ def m_ref(s):
         # a letrec.  this leaves immediate i-e (ref i (+ i))
         # "non-working", then instead use def
         y = (LEX_NAM, i)
-        return [OP_DEFINE, i,
+        return [OP_BIND, i,
                 m_letrec([-99, [[y, d]], y])]
     return s
 
-def m_def(s):
-    s[0] = OP_DEFINE
-    mchk_or_fail(s[1][0] == LEX_NAM, "def.1 expects name")
+def m_define(s):
+    s[0] = OP_BIND
+    mchk_or_fail(s[1][0] == LEX_NAM, "define.1 expects name")
     s[1] = s[1][1]
     d = s[2]
     s[2] = [nam_dup, d]
@@ -1365,17 +1369,22 @@ class Overlay:
     def __setitem__(self, k, v):
         self.e[k] = v
 
-def m_scope(s):
-    # a.k.a "here-import"
-    set_up = dict()
-    if s[1][0] != OP_EXPORT:
-        raise SrcError("missing export")
-    for n in s[1][1:]:
-        if n[0] != LEX_NAM:
-            raise SrcError("export of non-name")
-        y = n[1]
-        set_up[y] = y
-    return [OP_IMPORT, set_up, *zloc_scopes(s[2:], None)]
+def m_scope(names, env_keys):
+    def xscope(s):
+        # a.k.a "here-import"
+        set_up = dict()
+        if s[1][0] != OP_EXPORT:
+            raise SrcError("missing export")
+        for n in s[1][1:]:
+            if n[0] != LEX_NAM:
+                raise SrcError("export of non-name")
+            y = n[1]
+            set_up[y] = y
+        t = s[2:]
+        u = unbound(t, set(env_keys), True)
+        report_unbound(u, t, names)
+        return [OP_IMPORT, set_up, *zloc_scopes(t, None)]
+    return xscope
 
 def m_import(names, macros):
     def ximport(s):
@@ -1478,7 +1487,7 @@ def m_import(names, macros):
 # variable is not eqv? itself.
 #
 # The record type VAR_REC is not meant for a program but used
-# by the def-record-type macro.
+# by the define-record-type macro.
 #
 # VAR_STRING owns the value.  set! will require a complete
 # copy of the value.  An implementation may introduce a
@@ -2001,11 +2010,11 @@ def f_setj(*args):
     fn = "set!"
     fargc_must_eq(fn, args, 2)
     if not ((var_in(args[0][0], VAR_LIST | VAR_NONLIST | VAR_CONS)
-        and var_in(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
-        or args[0][0] == args[1][0]):
-        raise RunError("set! %s with %s"
+             and var_in(args[1][0], VAR_LIST | VAR_NONLIST | VAR_CONS))
+            or args[0][0] == args[1][0]):
+        warning("set! %s with %s"
                 % (var_type_name(args[0][0]),
-                    var_type_name(args[1][0])))
+                   var_type_name(args[1][0])))
     return setjj(args[0], args[1], fn)
 
 def f_setjj(*args):
@@ -2021,7 +2030,7 @@ def f_dup(*args):
     rc = sys.getrefcount(args[0])
     if rc < 3:
         broken("assumption of refs to an arg")
-    if rc == 4:
+    if rc == 3:
         return args[0]
     r = [VAR_VOID]
     setjj(r, args[0], "dup")
@@ -2924,7 +2933,7 @@ def xeval(x, env):
     return xapply(run_each(x, env))
 
 def xeval_op(x, env):
-    if x[0] == OP_DEFINE:
+    if x[0] == OP_BIND:
         v = run(x[2], env)
         env[x[1]] = v
         return [VAR_VOID]
@@ -2991,7 +3000,7 @@ def init_macros(env, names):
     with_new_name("gensym", m_gensym(names), macros, names)
     for a, b in [
             ("ref", m_ref),
-            ("def", m_def),
+            ("define", m_define),
             ("seq", m_seq),
             ("lambda", m_lambda),
             ("let", m_let),
@@ -3007,11 +3016,11 @@ def init_macros(env, names):
             ("or", m_or),
             ("when", m_when),
             ("unless", m_unless),
-            ("export", m_export),
-            ("scope", m_scope)]:
+            ("export", m_export)]:
         with_new_name(a, b, macros, names)
 
     with_new_name("import", m_import(names, macros), macros, names)
+    with_new_name("scope", m_scope(names, env.keys()), macros, names)
     return macros
 
 def init_env(names):
@@ -3175,7 +3184,7 @@ def inc_macros(names, env, macros):
      )))
   `(seq (ref ,ls ,s) ,@defs)
 )
-(macro def-record-type (name constructor pred . accessors)
+(macro define-record-type (name constructor pred . accessors)
   (ref (getter x i)
     `(ref (,(cadr x) v) (record-get v ,i)))
   (ref getter-defs
@@ -3210,7 +3219,7 @@ def inc_macros(names, env, macros):
          (else => error))
        args)))
 (macro local args
-  (cons 'seq (map (lambda (n) `(def ,n ,n)) args)))
+  (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
 """
     t = compx(s, names, macros, env.keys())
     run_top(t, env, names)
@@ -3260,8 +3269,8 @@ def xrepr(s, names):
     if type(s) == list:
         if type(s[0]) != int:
             return "(%s)" % (" ".join(xrepr(x, names) for x in s),)
-        if s[0] == OP_DEFINE:
-            return "#<define %s %s #>" % (
+        if s[0] == OP_BIND:
+            return "#<bind %s %s #>" % (
                     names[s[1]], xrepr(s[2], names))
         if s[0] in (OP_LAMBDA, OP_LAMBDA_DOT):
             return "#<lambda #>"

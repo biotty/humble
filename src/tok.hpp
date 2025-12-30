@@ -52,13 +52,14 @@ struct LexNam { int h; int line; };
 struct LexString { std::string s; };
 struct LexOp { int code; };
 enum {
-    OP_DEFINE = 1,
+    /* APPLY when name (no op-code) */
+    OP_BIND = 1,
     OP_COND,
+    OP_LAMBDA,
+    OP_LAMBDA_DOT,
     OP_SEQ,
     OP_IMPORT,
     OP_EXPORT,
-    OP_LAMBDA,
-    OP_LAMBDA_DOT,
 };
 struct LexImport { std::vector<int> a, b; };
 

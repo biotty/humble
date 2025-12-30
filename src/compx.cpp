@@ -36,7 +36,7 @@ Lex find_unbound(span<Lex> t, int y)
             if (auto r = find_unbound(f.v, y); b(r))
                 return r;
         } else if (auto & op = get<LexOp>(f.v.at(0));
-                op.code == OP_DEFINE) {
+                op.code == OP_BIND) {
             if (auto r = find_unbound(span1(f.v, 2), y); b(r))
                 return r;
         } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
@@ -81,7 +81,7 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
                 not holds_alternative<LexOp>(f.v.at(0))) {
             zloc_scopes(f.v, local_env);
         } else if (auto & op = get<LexOp>(f.v[0]);
-                op.code == OP_DEFINE) {
+                op.code == OP_BIND) {
             if (local_env) {
                 auto & n = get<LexNam>(f.v.at(1));
                 n.h = local_env->rewrite_name(n.h);
@@ -132,7 +132,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
             auto u = unbound(f.v, defs, false);
             r.insert(u.begin(), u.end());
         } else if (auto & op = get<LexOp>(f.v[0]);
-                op.code == OP_DEFINE) {
+                op.code == OP_BIND) {
             if (not is_block)
                 throw SrcError("define in non-block");
             auto i = get<LexNam>(f.v.at(1)).h;
@@ -171,15 +171,8 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
     return r;
 }
 
-LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_keys)
+void report_unbound(set<int> u, LexForm & t, Names & names)
 {
-    linenumber = 1;
-    auto t = parse(s, names, macros);
-    auto u = unbound(t.v, env_keys, true);
-    if (u.empty()) {
-        zloc_scopes(t.v, nullptr);
-        return t;
-    }
     ostringstream a;
     for (int y : u) {
         auto x = find_unbound(t.v, y);
@@ -190,6 +183,19 @@ LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_key
         }
     }
     throw SrcError("unbound,\n" + a.str());
+}
+
+LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_keys)
+{
+    linenumber = 1;
+    auto t = parse(s, names, macros);
+    auto u = unbound(t.v, env_keys, true);
+    if (u.empty()) {
+        zloc_scopes(t.v, nullptr);
+        return t;
+    }
+    report_unbound(u, t, names);
+    unreachable();
 }
 
 void compx_dispose()

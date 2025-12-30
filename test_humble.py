@@ -292,7 +292,7 @@ test(""" [ ref y 1 ]
     (unless (string<? "a" "b") (error 'juv))
     (error 'esh)); #| multi-
 ;    line comment |# 123
-(def-record-type <nm> (drt i j) tt? (i iget) (j jget jset))
+(define-record-type <nm> (drt i j) tt? (i iget) (j jget jset))
 (ref v (drt 1 2))
 (tt? v)
 (iget v)
@@ -374,11 +374,11 @@ test(""" [ ref y 1 ]
   (chk (list @li) li)
   )
 (scope (export fo0)
-  ; vfy that dup will list->cons
+  ; vfy that dup will convert cont.list to cons-chain
   (ref a (list 0 1 9))
   (display a " ")
   ; shows (0 1 9)
-  (def b a)
+  (define b a)
   (display b " ")
   ; shows #:(0 1 9)
   (chk #t (eq? a b))
@@ -390,7 +390,7 @@ test(""" [ ref y 1 ]
   (set! c (list 3))
   (chk b (list 0 2 9))
   ; but not when sole ref
-  (def d (list 1 2 3))
+  (define d (list 1 2 3))
   (display d ".\n")
   ; ^ display (1 2 3)
   ; and not #:(1 2 3)

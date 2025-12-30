@@ -65,9 +65,9 @@
 ; game-state, unaware of two-char cells for display
 (ref (make-game maxy maxx)
   (let ((y (random 1 (- maxy 1)))
-        (x (random 1 (/ maxx 2))))
+        (x (random 1 (/ maxx 2))))  ; start in left-half
     (ref INIT-LENGTH 15)
-    (def body-length INIT-LENGTH)
+    (define body-length INIT-LENGTH)
     (ref butt (list (+ y) (+ x)))
     (ref (butt-dup n)
       (let loop ((b '()) (i n))

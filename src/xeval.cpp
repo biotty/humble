@@ -180,7 +180,7 @@ EnvEntry xeval(Lex & x, Env & env)
 EnvEntry xeval_op(LexForm & f, Env & env)
 {
     auto & op = get<LexOp>(f.v.at(0));
-    if (op.code == OP_DEFINE) {
+    if (op.code == OP_BIND) {
         env.set(get<LexNam>(f.v.at(1)).h,
                 run(f.v.at(2), env));
     } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {

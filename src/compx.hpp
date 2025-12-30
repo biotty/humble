@@ -23,6 +23,7 @@ public:
 };
 
 std::set<int> unbound(std::span<Lex> t, std::set<int> & defs, bool is_block);
+void report_unbound(std::set<int> u, LexForm & t, Names & names);
 LexForm compx(const std::string & s, Names & names, Macros & macros, std::set<int> env_keys);
 void compx_dispose();
 
