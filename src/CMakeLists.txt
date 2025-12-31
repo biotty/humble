@@ -10,43 +10,49 @@ add_compile_options(-fsanitize=address)
 
 find_package(GTest REQUIRED)
 
-add_library(humble
+add_library(Humble
+    top.cpp
     xeval.cpp
     cons.cpp
     vars.cpp
     compx.cpp
+    macros.cpp
     parse.cpp
     tok.cpp
     utf.cpp
     debug.cpp)
 
-set(LIBS humble GTest::GTest GTest::Main -lasan)
+set(LIBS Humble -lasan)
+
+add_executable(humble main.cpp)
+target_link_libraries(humble ${LIBS})
+
 
 add_executable(test_utf test_utf.cpp)
-target_link_libraries(test_utf ${LIBS})
+target_link_libraries(test_utf GTest::GTest GTest::Main ${LIBS})
 add_test(utf test_utf)
 
 add_executable(test_tok test_tok.cpp)
-target_link_libraries(test_tok ${LIBS})
+target_link_libraries(test_tok GTest::GTest GTest::Main ${LIBS})
 add_test(tok test_tok)
 
 add_executable(test_parse test_parse.cpp)
-target_link_libraries(test_parse ${LIBS})
+target_link_libraries(test_parse GTest::GTest GTest::Main ${LIBS})
 add_test(parse test_parse)
 
 add_executable(test_compx test_compx.cpp)
-target_link_libraries(test_compx ${LIBS})
+target_link_libraries(test_compx GTest::GTest GTest::Main ${LIBS})
 add_test(compx test_compx)
 
 add_executable(test_vars test_vars.cpp)
-target_link_libraries(test_vars ${LIBS})
+target_link_libraries(test_vars GTest::GTest GTest::Main ${LIBS})
 add_test(vars test_vars)
 
 add_executable(test_cons test_cons.cpp)
-target_link_libraries(test_cons ${LIBS})
+target_link_libraries(test_cons GTest::GTest GTest::Main ${LIBS})
 add_test(cons test_cons)
 
 add_executable(test_xeval test_xeval.cpp)
-target_link_libraries(test_xeval ${LIBS})
+target_link_libraries(test_xeval GTest::GTest GTest::Main ${LIBS})
 add_test(xeval test_xeval)
 

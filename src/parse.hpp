@@ -6,7 +6,12 @@
 
 namespace humble {
 
-struct Macro { virtual Lex operator()(LexForm & t) = 0; };
+struct Macro {
+    virtual Lex operator()(LexForm & t) = 0;
+    bool is_user = false;  // avoids dynamic cast
+    virtual ~Macro();
+};
+
 using Macros = std::map<int, std::unique_ptr<Macro>>;
 
 Names init_names();  // known names by code-point
@@ -18,9 +23,6 @@ void expand_macros(Lex & t, Macros & macros, int qq);
 struct Quote : Macro { Lex operator()(LexForm & t); };
 struct Quasiquote : Macro { Lex operator()(LexForm & t); };
 struct Unquote : Macro { Lex operator()(LexForm & t); };
-
-// delegated from parsing to derive from in macro macro
-struct UserMacro : Macro { };
 
 } // ns
 

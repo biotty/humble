@@ -4,7 +4,7 @@ using namespace std;
 
 namespace humble {
 
-Env & GlobalEnv::instance()
+GlobalEnv & GlobalEnv::instance()
 {
     static GlobalEnv r(create_t{});
     return r;
@@ -20,6 +20,14 @@ EnvEntry GlobalEnv::get(int i)
 }
 
 void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
+
+::set<int> GlobalEnv::keys()
+{
+    ::set<int> r;
+    for (const auto & p : m)
+        r.insert(p.first);
+    return r;
+}
 
 OverlayEnv::OverlayEnv(Env & d) : m(GlobalEnv::create_t{}), e(d) {}
 

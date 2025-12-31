@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 #include <map>
+#include <set>
 #include <memory>
 #include <initializer_list>
 #include <span>
@@ -56,12 +57,13 @@ struct GlobalEnv : Env {
     // note: ^ control construction as primary use is singleton.
     // alternative: split this class in two (secondary use is
     // for testing and in the overlay env implementation)
-    static Env & instance();  // get global aka "initial" env
+    static GlobalEnv & instance();  // get global aka "initial" env
     GlobalEnv(create_t);
     GlobalEnv(Env &) = delete;
     bool operator=(Env &) = delete;
     EnvEntry get(int i) override;
     void set(int i, EnvEntry e) override;
+    std::set<int> keys();
 private:
     std::map<int, EnvEntry> m;
 };

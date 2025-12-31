@@ -19,11 +19,11 @@ cons.cpp
 xeval.hpp // the runtime engine
 xeval.cpp
     port.hpp // io types
-    port.cpp
+    port.cpp // and functions
     dict.hpp // dict type
-    dict.cpp
+    dict.cpp // and functions
     record.hpp // record (backend-)type
-    record.cpp
+    record.cpp // and functions
     functions.hpp // builtin functions
     functions.cpp
 

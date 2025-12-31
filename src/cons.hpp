@@ -10,7 +10,7 @@ using ConsNext = std::variant<ConsPtr, EnvEntry>;
 
 struct Cons {
     EnvEntry a;
-    ConsNext d;
+    ConsNext d;  // invariant: when EnvEntry not VarCons
 
     Cons(EnvEntry a, ConsNext d);
     VarCons xcopy(size_t n);

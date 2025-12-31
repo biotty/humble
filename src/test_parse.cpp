@@ -133,3 +133,22 @@ TEST(expand, twice_quasiquote)
     ASSERT_EQ(h + 5, e.h);
 }
 
+TEST(expand, macro)
+{
+    struct TestMacro : Macro {
+        Lex operator()(LexForm & t) override {
+            EXPECT_TRUE(holds_alternative<LexNam>(t.v.at(0)));
+            auto n = get<LexNum>(t.v.at(1));
+            return LexNum{n.i + 1};
+        }
+    };
+    auto u = make_unique<TestMacro>();
+    Names n = init_names();
+    Macros m = qt_macros();
+    int i = n.intern("foo");
+    m[i] = move(u);
+    auto w = parse("(foo 1)", n, m);
+    auto k = get<LexNum>(w.v.at(0));
+    ASSERT_EQ(2, k.i);
+}
+

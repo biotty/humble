@@ -91,24 +91,30 @@
 #   or if re-try fails on same reason, terminating as now.
 # * label form set symbol on scope, which may then be used
 #   in a break statement.  This is implemented by flagging
-#   the environment by the break symbol, which inhibits
-#   evaluation until form of respective label(s) observed.
-# * The c++ implementation will instead of the registering
-#   plugins be able to dynload unaware libraries and use
-#   a thin libffi wrapper to invoke symbols.  The code that
-#   populates the top environment with this facility is
-#   itself an (other kind of) extension that is added
-#   by the program that runs the interpreter.  This
-#   latter resembles the mechanism I have in the python
-#   implementation with curses function additions.
+#   interpreter state by the break symbol, which inhibits
+#   evaluation until form of respective label(s) observed,
+#   dynamically, with syntax i-e (case-except (raise '(foo 1))
+#   (('foo 'bar) 1)) where car is implicit and the default else
+#   is a no-op.  or general handle-except that takes a lambda
+#   and yields #f iff to consider still not catched.  the flag
+#   state may be checked only in run_each().
+# * The c++ implementation will use engine registering own
+#   sets of macros and functions.  One such set may be
+#   ncurses as of the snake demo, but another more interesting
+#   set of functionality may be libffi support - that also
+#   invites looking into support of an engine-opaque VAR
+#   type where only a user-data and destructor-callback is known.
 # * functions available untangling the repl components,
 #   (read port), (eval d) also does macro_expand and run
 #   in global env, (write d port) and (compile d port).
-#   these could leverage lex_to_var and var_to_lex.
+#   these leverage lex_to_var and var_to_lex, as d is a var,
+#   while read then partly benefits from lex parse.
 #   this results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  there is no conversion
 #   from type y, on which only action is to run.
+# * define-record-type that also accepts r6rs syntax and provides
+#   inheritence as in that case, on the same underlying VAR_REC.
 #
 # Excluded:  (non-features)
 #

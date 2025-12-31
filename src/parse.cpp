@@ -108,6 +108,8 @@ Names init_names()
     };
 }
 
+Macro::~Macro() { }
+
 Macros qt_macros()
 {
     Macros r;
@@ -161,7 +163,7 @@ void expand_macros(Lex & t, Macros & macros, int qq)
     bool is_macro = holds_alternative<LexNam>(w.v.at(0))
         and macros.contains(h = get<LexNam>(w.v.at(0)).h);
     if (is_macro) {
-        is_user = dynamic_cast<UserMacro *>(macros.at(h).get());
+        is_user = macros.at(h)->is_user;
         current = qq == 0;
         if (h == NAM_QUOTE) {
             is_quote = true;
