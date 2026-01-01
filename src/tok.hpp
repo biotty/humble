@@ -13,6 +13,8 @@
 
 namespace humble {
 
+extern int linenumber;
+
 size_t spaces(const char * s, size_t n);
 
 std::pair<std::string_view, size_t> tok(std::string_view s);

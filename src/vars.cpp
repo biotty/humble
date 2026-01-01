@@ -1,4 +1,5 @@
 #include "vars.hpp"
+#include "except.hpp"
 
 using namespace std;
 
@@ -10,7 +11,7 @@ GlobalEnv & GlobalEnv::instance()
     return r;
 }
 
-GlobalEnv::GlobalEnv(create_t) {};
+GlobalEnv::GlobalEnv(create_t) : initial{false} { };
 
 EnvEntry GlobalEnv::get(int i)
 {
@@ -20,6 +21,16 @@ EnvEntry GlobalEnv::get(int i)
 }
 
 void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
+
+GlobalEnv GlobalEnv::init()
+{
+    GlobalEnv r(create_t{});
+    if (this != &instance()) throw CoreError("init on user-env");
+    if (initial) throw CoreError("init more than once");
+    initial = true;
+    r.m = m;
+    return r;
+}
 
 ::set<int> GlobalEnv::keys()
 {

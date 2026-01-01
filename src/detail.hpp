@@ -8,9 +8,6 @@
 
 namespace humble {
 
-extern std::string filename;
-extern int linenumber;
-
 enum {
     NAM_THEN,
     NAM_ELSE,

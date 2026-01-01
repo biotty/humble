@@ -3,11 +3,20 @@
 
 #include <stdexcept>
 
+#ifdef DEBUG
+#include <stacktrace>
+#endif
+
 namespace humble {
 
 struct Error : std::runtime_error
 {
-    using std::runtime_error::runtime_error;
+    Error(const char * s);
+    Error(const std::string & s);
+#ifdef DEBUG
+    std::stacktrace trace;
+#endif
+    const char * what() const noexcept override;
 };
 
 struct CoreError : Error {

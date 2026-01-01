@@ -50,10 +50,11 @@ struct VarApply { std::vector<EnvEntry> a; };
 struct Env {
     virtual EnvEntry get(int i) = 0;
     virtual void set(int i, EnvEntry e) = 0;
+    virtual ~Env() = default;
 };
 
 struct GlobalEnv : Env {
-    struct create_t {};
+    struct create_t { };
     // note: ^ control construction as primary use is singleton.
     // alternative: split this class in two (secondary use is
     // for testing and in the overlay env implementation)
@@ -61,10 +62,12 @@ struct GlobalEnv : Env {
     GlobalEnv(create_t);
     GlobalEnv(Env &) = delete;
     bool operator=(Env &) = delete;
-    EnvEntry get(int i) override;
-    void set(int i, EnvEntry e) override;
+    EnvEntry get(int i) final override;
+    void set(int i, EnvEntry e) final override;
+    GlobalEnv init();
     std::set<int> keys();
 private:
+    bool initial;
     std::map<int, EnvEntry> m;
 };
 

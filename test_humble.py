@@ -17,9 +17,12 @@ from humble import init_top, compx, run_top, set_verbose
 import sys
 
 def test(s):
+    class NoOpen:
+        def __init__(self, name):
+            self.filename = name
+    nope = NoOpen("test-snip")
     sys.stdout.write("test\n")
-    names, env, macros = init_top()
-    filename = "test-snip"
+    names, env, macros = init_top(nope)
     tree = compx(s, names, macros, env.keys())
     run_top(tree, env, names)
     sys.stdout.write("*\n")

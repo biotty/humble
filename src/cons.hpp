@@ -27,7 +27,7 @@ VarList normal_list(Var & x);
 
 struct ConsOrListIter {
     virtual EnvEntry get() = 0;
-    virtual ~ConsOrListIter();
+    virtual ~ConsOrListIter() = default;
 };
 
 std::unique_ptr<ConsOrListIter> make_iter(Var & x);

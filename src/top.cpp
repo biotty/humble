@@ -1,26 +1,19 @@
 #include "top.hpp"
+#include "xeval.hpp"
 
 using namespace std;
 
 namespace humble {
 
-tuple<Names, GlobalEnv, Macros> init_top()
+tuple<Names, GlobalEnv, Macros> init_top(SrcOpener * opener)
 {
-    auto & i_env = GlobalEnv::instance();
-    // TODO:  assert i_env is empty, checking keys()
+    auto & g = GlobalEnv::instance();
 
     Names names;
-    // TODO:  defined in functions.hpp
-    // init_env(i_env, names);
-
-    // TODO: * take arg w extra to also register in i_env
-    //       * make a complete copy of env to give caller and below.
-
-    return {
-        names,
-        i_env/* <-- v-- for now.  TODO: a copy */,
-        init_macros(i_env.keys(), names)
-    };
+    // TODO: (functions.hpp)
+    // init_env(names); // and add ext from arg
+    auto m = init_macros(names, opener);
+    return { names, g.init(), move(m) };
 }
 
 } // ns

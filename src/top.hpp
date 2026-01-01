@@ -8,7 +8,7 @@
 
 namespace humble {
 
-std::tuple<Names, GlobalEnv, Macros> init_top();
+std::tuple<Names, GlobalEnv, Macros> init_top(SrcOpener * src_opener);
 
 } // ns
 

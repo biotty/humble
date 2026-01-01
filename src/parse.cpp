@@ -108,8 +108,6 @@ Names init_names()
     };
 }
 
-Macro::~Macro() { }
-
 Macros qt_macros()
 {
     Macros r;
@@ -126,7 +124,6 @@ LexForm parse(const std::string & s, Names & names, Macros & macros)
     try {
         z = lex(s, names);
     } catch (const SrcError & e) {
-        if (filename.empty()) throw;
         ostringstream oss;
         oss << "line " << linenumber << ": " << e.what();
         throw SrcError(oss.str());

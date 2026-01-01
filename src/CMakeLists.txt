@@ -20,9 +20,10 @@ add_library(Humble
     parse.cpp
     tok.cpp
     utf.cpp
-    debug.cpp)
+    debug.cpp
+    except.cpp)
 
-set(LIBS Humble -lasan)
+set(LIBS Humble -lstdc++exp -lasan)
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})

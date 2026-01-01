@@ -120,8 +120,6 @@ VarList normal_list(Var & x)
     return get<VarList>(x);
 }
 
-ConsOrListIter::~ConsOrListIter() { }
-
 struct ListIter : ConsOrListIter {
     vector<EnvEntry> & v;
     size_t i;

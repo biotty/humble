@@ -8,8 +8,8 @@ namespace humble {
 
 struct Macro {
     virtual Lex operator()(LexForm & t) = 0;
-    bool is_user = false;  // avoids dynamic cast
-    virtual ~Macro();
+    bool is_user = false;  // instead of dynamic cast
+    virtual ~Macro() = default;
 };
 
 using Macros = std::map<int, std::unique_ptr<Macro>>;

@@ -1,7 +1,8 @@
-api.hpp // for users of this library
+except.hpp // for users of library
+except.cpp // - exception types
+detail.hpp // internal across library
 debug.hpp // controls for development
 debug.cpp
-detail.hpp // internal across library
 utf.hpp // utf-8 string operations
 utf.cpp
 tok.hpp // the scanner and tokenizer
@@ -19,13 +20,15 @@ cons.cpp
 xeval.hpp // the runtime engine
 xeval.cpp
     port.hpp // io types
-    port.cpp // and functions
+    port.cpp // - and functions
     dict.hpp // dict type
-    dict.cpp // and functions
+    dict.cpp // - and functions
     record.hpp // record (backend-)type
-    record.cpp // and functions
+    record.cpp // - and functions
     functions.hpp // builtin functions
     functions.cpp
+top.hpp // toplevel api
+top.cpp
 
 test_utf.cpp // unit-tests
 test_tok.cpp
@@ -35,7 +38,7 @@ test_compx.cpp
 test_cons.cpp
 test_xeval.cpp
 
-ui.cpp // user command interface
+main.cpp // command using library
 test.scm // self-test
 nc.cpp // ncurses extended
 snake.scm // example game

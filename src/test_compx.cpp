@@ -6,6 +6,12 @@
 using namespace humble;
 using namespace std;
 
+#ifdef DEBUG
+#define HUMBLE_EXCEPT_M(E, M) EXPECT_TRUE(string(E.what()).starts_with(M "\n"))
+#else
+#define HUMBLE_EXCEPT_M(E, M) EXPECT_STREQ(M, E.what())
+#endif
+
 TEST(LexEnv, rewrite)
 {
     std::vector<int> p = {5, 6};
@@ -18,26 +24,30 @@ TEST(LexEnv, rewrite)
 
 TEST(compx, unbound)
 {
+    Names n = init_names();
+    n.intern("c");
+    auto i = n.intern("d");
     string s = "((a (1 b)))";
-    Names n = { "c", "d" };
+    auto i_a = ++i;
+    auto i_b = ++i;
     Macros m;
     try {
-        auto t = compx(s, n, m, { 3 });
+        auto t = compx(s, n, m, { i_b });
         FAIL();
     } catch (SrcError & e) {
-        EXPECT_STREQ("unbound,\nline 1: a\n", e.what());
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\n");
     }
     try {
-        auto t = compx(s, n, m, { 2 });
+        auto t = compx(s, n, m, { i_a });
         FAIL();
     } catch (SrcError & e) {
-        EXPECT_STREQ("unbound,\nline 1: b\n", e.what());
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: b\n");
     }
     try {
         auto t = compx(s, n, m, {});
         FAIL();
     } catch (SrcError & e) {
-        EXPECT_STREQ("unbound,\nline 1: a\nline 1: b\n", e.what());
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\nline 1: b\n");
     }
     compx_dispose();
 }

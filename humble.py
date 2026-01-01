@@ -107,7 +107,7 @@
 # * functions available untangling the repl components,
 #   (read port), (eval d) also does macro_expand and run
 #   in global env, (write d port) and (compile d port).
-#   these leverage lex_to_var and var_to_lex, as d is a var,
+#   these leverage from_lex and to_lex, as d is a var,
 #   while read then partly benefits from lex parse.
 #   this results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
@@ -370,9 +370,7 @@ def broken(*args):
 # tokenization
 ##
 
-filename = None
 linenumber = None
-
 def spaces(s, i, n):
     global linenumber
     while i != n:
@@ -703,11 +701,11 @@ def expand_macros(t, macros, qq):
     return t
 
 def parse(s, names, macros):
+    global linenumber
+    linenumber = 1
     try:
         z = lex(s, names)
     except SrcError as e:
-        if not filename:
-            raise e;
         raise SrcError("line %d: " % (linenumber,) + e.args[0])
     ast, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
     if i != len(z):
@@ -816,8 +814,6 @@ def report_unbound(u, t, names):
 
 def compx(s, names, macros, env_keys):
     # "compile" or "compl" would give clashes
-    global linenumber
-    linenumber = 1
     t = parse(s, names, macros)
     u = unbound(t, set(env_keys), True)
     report_unbound(u, t, names)
@@ -1161,7 +1157,7 @@ def from_lex(s):
     if s[0] == LEX_SYM:
         return from_lex([nam_quote, (LEX_NAM, s[1])])
     if s[0] == LEX_VOID:
-        return (VAR_VOID,)
+        return [VAR_VOID,]
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
         raise SrcError("from lex %r" % (s,))
@@ -1392,17 +1388,15 @@ def m_scope(names, env_keys):
         return [OP_IMPORT, set_up, *zloc_scopes(t, None)]
     return xscope
 
-def m_import(names, macros):
+def m_import(names, macros, opener):
     def ximport(s):
-        global filename
-        u_fn = filename
+        u_fn = opener.filename
         mchk_or_fail(len(s) in (2, 3), "import expects 2 or 3 args")
         mchk_or_fail(s[1][0] == LEX_STRING, "import.1 expects string")
-        filename = s[1][1]
         e_macros = Overlay(macros)
         e_macros[NAM_MACRO] = m_macro(e_macros, names)
         try:
-            f = open(filename, "r", encoding="utf-8")
+            f = opener(s[1][1])
         except:
             raise SrcError("no such file")
         global linenumber
@@ -1435,7 +1429,7 @@ def m_import(names, macros):
                 raise SrcError("export of non-name")
         # note: unbound check with i_env not needed, as this will
         #       be done from top-level
-        filename = u_fn
+        opener.filename = u_fn
         linenumber = u_ln
         return [OP_IMPORT, set_up, *r[1:]]
     return ximport
@@ -2286,6 +2280,19 @@ def f_substring(*args):
         r = s[i:]
     return [VAR_STRING, r]
 
+def f_substring_index(*args):
+    fn = "substring-index"
+    fargc_must_ge(fn, args, 2)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_eq(fn, args, 1, VAR_STRING)
+    u = args[0][1]
+    s = args[1][1]
+    i = 0
+    if len(args) >= 3:
+        fargt_must_eq(fn, args, 2, VAR_NUM)
+        i = args[2][1]
+    return [VAR_NUM, s.find(u, i)]
+
 def f_string_length(*args):
     fn = "string-length"
     fargc_must_ge(fn, args, 1)
@@ -2997,7 +3004,7 @@ def with_new_name(name, f, d, names):
         broken("not new")
     d[i] = f
 
-def init_macros(env, names):
+def init_macros(env, names, opener):
     macros = dict()
     macros[NAM_QUOTE] = m_quote
     macros[NAM_QUASIQUOTE] = m_quasiquote
@@ -3025,7 +3032,7 @@ def init_macros(env, names):
             ("export", m_export)]:
         with_new_name(a, b, macros, names)
 
-    with_new_name("import", m_import(names, macros), macros, names)
+    with_new_name("import", m_import(names, macros, opener), macros, names)
     with_new_name("scope", m_scope(names, env.keys()), macros, names)
     return macros
 
@@ -3104,6 +3111,7 @@ def init_env(names):
             ("list->string", f_list_z_string),
             ("string-ref", f_string_ref),
             ("substring", f_substring),
+            ("substring-index", f_substring_index),
             ("string-length", f_string_length),
             ("string-append", f_string_append),
             ("string=?", f_stringeqp),
@@ -3230,8 +3238,7 @@ def inc_macros(names, env, macros):
     t = compx(s, names, macros, env.keys())
     run_top(t, env, names)
 
-def init_top(extra_f=()):
-    global filename
+def init_top(opener, extra_f=()):
     names = Names(
             (NAM_THEN, "=>"),
             (NAM_ELSE, "else"),
@@ -3251,18 +3258,18 @@ def init_top(extra_f=()):
     for a, b in extra_f:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)
 
-    macros = init_macros(env, names)
+    macros = init_macros(env, names, opener)
 
-    filename = "inc-functions"
+    opener.filename = "inc-functions"
     inc_functions(names, env, macros)
 
     global i_env
     i_env = dict(env)
 
-    filename = "inc-macros"
+    opener.filename = "inc-macros"
     inc_macros(names, env, macros)
 
-    filename = None
+    opener.filename = None
     return names, env, macros
 
 ##
@@ -3488,17 +3495,22 @@ efs_nc = [
 #         shutil.copyfile(fn, bak)
 
 if __name__ == "__main__":
+    class SrcOpener:
+        def __init__(self):
+            self.filename = None
+        def __call__(self, path):
+            self.filename = path
+            return open(path, "r", encoding="utf-8")
+    opener = SrcOpener()
     if len(sys.argv) == 2:
 
         efs = efs_nc
-
-        names, env, macros = init_top(efs)
-        filename = sys.argv[1]
-        with open(filename) as f:
+        names, env, macros = init_top(opener, efs)
+        with opener(sys.argv[1]) as f:
             try:
                 tree = compx(f.read(), names, macros, env.keys())
             except SrcError as e:
-                sys.stderr.write("error in file: %s\n" % (filename,))
+                sys.stderr.write("error in file: %s\n" % (opener.filename,))
                 sys.stderr.write(e.args[0] + "\n")
                 sys.exit(1)
             else:
@@ -3516,7 +3528,7 @@ if __name__ == "__main__":
             "End line with ';' to run and with ';;' to show expanded code.\n"
             "Enter a lone ;; on a line to toggle verbose debug.\n"
             "Provide eof indication to exit.\n--\n")
-    names, env, macros = init_top()
+    names, env, macros = init_top(opener)
     buf = []
     while True:
         line = sys.stdin.readline()
@@ -3534,10 +3546,10 @@ if __name__ == "__main__":
             try:
                 t = compx("".join(buf), names, macros, env.keys())
             except SrcError as e:
-                if filename:
+                if opener.filename:
                     sys.stderr.write("error in file: %s\n"
-                            % (filename,))
-                    filename = None
+                            % (opener.filename,))
+                    opener.filename = None
                 sys.stderr.write("lexical error: " + e.args[0] + "\n")
             else:
                 if line.endswith(";;"):

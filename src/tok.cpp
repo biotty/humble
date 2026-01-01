@@ -17,7 +17,6 @@ using namespace std;
 
 namespace humble {
 
-string filename;
 int linenumber;
 
 static const char * quotes = "'`,";

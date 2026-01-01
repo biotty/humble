@@ -6,7 +6,13 @@
 
 namespace humble {
 
-Macros init_macros(std::set<int> env_keys, Names & names);
+struct SrcOpener {
+    std::string filename;
+    virtual std::string operator()(std::string name) = 0;
+    virtual ~SrcOpener() = default;
+};
+
+Macros init_macros(Names & names, SrcOpener * opener);
 
 } // ns
 

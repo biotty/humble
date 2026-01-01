@@ -187,7 +187,6 @@ void report_unbound(set<int> u, LexForm & t, Names & names)
 
 LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_keys)
 {
-    linenumber = 1;
     auto t = parse(s, names, macros);
     auto u = unbound(t.v, env_keys, true);
     if (u.empty()) {
