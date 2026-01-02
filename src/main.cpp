@@ -24,7 +24,7 @@ void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
 {
     for (auto & a : ast.v) {
         auto r = run(a, env);
-        os << r->index() << "\n";  (void)names;
+        print(r, names, os);
     }
 }
 
@@ -40,6 +40,7 @@ int main()
             auto expr = buf + line.substr(0, line.size() - 1);
             auto ast = compx(expr, names, macros, env.keys());
             run_top(ast, env, names, cout);
+            cout << '\n';
         } else {
             buf += line;
         }

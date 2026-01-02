@@ -9,7 +9,7 @@
 #include <utility>
 #include <variant>
 #include <map>
-// #include <iostream>
+#include <iosfwd>
 
 namespace humble {
 
@@ -88,6 +88,7 @@ struct LexQuasiquote { std::vector<Lex> y; };
 struct LexUnquote { std::vector<Lex> y; };
 
 std::vector<Lex> lex(const std::string & s, Names & names);
+void print(const Lex & x, Names & n, std::ostream & os);
 
 } // ns
 

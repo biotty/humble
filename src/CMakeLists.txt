@@ -11,6 +11,7 @@ add_compile_options(-fsanitize=address)
 find_package(GTest REQUIRED)
 
 add_library(Humble
+    functions.cpp
     top.cpp
     xeval.cpp
     cons.cpp

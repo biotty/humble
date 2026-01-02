@@ -9,6 +9,7 @@
 #include <memory>
 #include <initializer_list>
 #include <span>
+#include <iosfwd>
 
 namespace humble {
 

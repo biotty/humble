@@ -108,11 +108,16 @@
 #   (read port), (eval d) also does macro_expand and run
 #   in global env, (write d port) and (compile d port).
 #   these leverage from_lex and to_lex, as d is a var,
-#   while read then partly benefits from lex parse.
+#   while read then benefits from lex parse.
 #   this results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  there is no conversion
 #   from type y, on which only action is to run.
+#   this means we would parse during run-time, but the ast
+#   is temporary.  however, names are interned.  also, for eval
+#   there may be references to global names.  local names in
+#   existing functions are unafected, and i do not see a reason
+#   to not add (string->symbol).
 # * define-record-type that also accepts r6rs syntax and provides
 #   inheritence as in that case, on the same underlying VAR_REC.
 #
@@ -478,6 +483,8 @@ def unescape_string(s):
                 c = "\n"
             elif c == "r":
                 c = "\r"
+            elif c == '"':
+                c = '"'
             elif c in octals:
                 b = int(c)
                 while i + 1 != n:
@@ -1275,10 +1282,9 @@ def m_cond(s):
 
 def m_if(s):
     if len(s) == 3:
-        s.append([(LEX_BOOL, True), (LEX_VOID,)])
+        s.append((LEX_VOID,))
     elif len(s) != 4:
-        raise SrcError("if-expression of length %d"
-                % (len(s),))
+        raise SrcError("if-expression of length %d" % (len(s),))
     return [OP_COND, [s[1], s[2]], [(LEX_BOOL, True), s[3]]]
 
 def and_r(s):
@@ -3352,7 +3358,7 @@ def vrepr(s, names, q=None):
     if s[0] == VAR_NUM:
         return str(s[1])
     if s[0] == VAR_STRING:
-        return "\"" + s[1] + "\""
+        return '"' + s[1].replace('"', '\\"') + '"'
     if s[0] == VAR_DICT:
         if s[1] is None:
             return "#{}"

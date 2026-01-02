@@ -125,6 +125,7 @@ string unescape_string(string_view s)
                 case 't': c = '\t'; break;
                 case 'n': c = '\n'; break;
                 case 'r': c = '\r'; break;
+                case '"': c = '\"'; break;
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7':
                           {
@@ -272,6 +273,52 @@ vector<Lex> lex(const string & s, Names & names)
         cout << "lex: " << r << "\n";
 #endif
     return r;
+}
+
+static string escape(string s)
+{
+    size_t p{};
+    while ((p = s.find("\"", p)) != s.npos) {
+        s.replace(p, 1, "\\\"");
+        p += 2;
+    }
+    return s;
+}
+
+void print(const Lex & x, Names & n, std::ostream & os)
+{
+    visit([&n, &os](auto && z) {
+            using T = decay_t<decltype(z)>;
+            if constexpr (is_same_v<T, LexForm>) {
+                if (z.v.empty()) {
+                    os << "()";
+                    return;
+                }
+                char c = '(';
+                for (auto & w : z.v) {
+                    os << c;
+                    print(w, n, os);
+                    c = ' ';
+                }
+                os << ')';
+            } else if constexpr (is_same_v<T, LexList>) {
+                vector<Lex> v { LexNam{ NAM_LIST, 0 } };
+                copy(z.v.begin(), z.v.end(), back_inserter(v));
+                print(LexForm{ v }, n, os);
+            } else if constexpr (is_same_v<T, LexBool>) {
+                os << (z.b ? "#true" : "#false");
+            } else if constexpr (is_same_v<T, LexNum>) {
+                os << z.i;
+            } else if constexpr (is_same_v<T, LexString>) {
+                os << '"' << escape(z.s) << '"';
+            } else if constexpr (is_same_v<T, LexNam>) {
+                os << n.get(z.h);
+            } else if constexpr (is_same_v<T, LexDot>) {
+                os << '.';
+            } else {
+                throw CoreError("unexpected token for print");
+            }
+    }, x);
 }
 
 } // ns

@@ -2,6 +2,7 @@
 #define HUMBLE_MACROS
 
 #include "parse.hpp"
+#include "vars.hpp"
 #include <set>
 
 namespace humble {
@@ -13,6 +14,8 @@ struct SrcOpener {
 };
 
 Macros init_macros(Names & names, SrcOpener * opener);
+Lex to_lex(EnvEntry a);
+EnvEntry from_lex(const Lex & x);
 
 } // ns
 
