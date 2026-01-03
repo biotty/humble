@@ -117,7 +117,26 @@
 #   is temporary.  however, names are interned.  also, for eval
 #   there may be references to global names.  local names in
 #   existing functions are unafected, and i do not see a reason
-#   to not add (string->symbol).
+#   to not add (string->symbol).  independently, since the
+#   partial parse (without meacro-expand) invoked by (read)
+#   should serialize symbols and records, and I choose to not
+#   represent dict and record natively in code but instead by
+#   the natural operation for converting lex to var namely to
+#   evaluate it (escaped in parsed code by "#:(..)", we here also
+#   (string->symbol) for this usage, and we thus see that it needs
+#   by as host function as expected (not a macro).  the choice
+#   done by LISP to write/output a list as (foo bar) and not something
+#   such as #:(list 'foo 'bar) almost looks unnatural.  but for
+#   this "eval mode" of print, we need the reader to lex into
+#   a separate lexical type, and this type is only accepted by
+#   (read) as it invokes from_lex, and in the arguments to a macro
+#   as it invokes from_lex.  the composition fits together, and
+#   we are left with a counter argument from a "security" concern
+#   habbit/reaction pointing out that we can provoke invokation
+#   of arbitraty functions when reading data.  the slap back from
+#   LISP is to then argue that this is true for any program
+#   processing data, and that code and data should be treated
+#   as far possible as interchangable matter.
 # * define-record-type that also accepts r6rs syntax and provides
 #   inheritence as in that case, on the same underlying VAR_REC.
 #
@@ -200,6 +219,9 @@
 # followed by a number of "d"s (such as in "caddr"), so to
 # avoid unneeded cdr-use (and thereby conversion to cons
 # chain).  This is at discression of the implementation.
+#
+# Note that the "record-type" name is ignored completely,
+# and only part of the syntax for r7rs compatibility.
 #
 
 
@@ -2223,7 +2245,7 @@ class Record:
         self.values = values
 
 def f_make_record(*args):
-    return [VAR_REC, Record(args[0][1], list(args))]
+    return [VAR_REC, Record(args[0][1], list(args[1:]))]
 
 def f_record_get(*args):
     fn = "record-get"
@@ -3221,11 +3243,11 @@ def inc_macros(names, env, macros):
         (let ((e (setter (car d) i)))
           (loop (cdr d) (if e (cons e r) r) (+ i 1))
     ))))
+  (ref c-args (cdr constructor))
   (ref c-name (car constructor))
   `(seq
-    (ref ,constructor
-      (make-record ,@(cdr constructor)))
-    (ref (,pred v) (record? v ',name))
+    (ref ,constructor (make-record ',c-name @`,(list ,@c-args)))
+    (ref (,pred v) (record? v ',c-name))
     ,@getter-defs
     ,@setter-defs
 ))
@@ -3338,9 +3360,12 @@ def xrepr(s, names):
         return "#<unquote %s #>" % (xrepr(s[1], names),)
     return "#< %r #>" % (s,)
 
-def vrepr(s, names, q=None):
+def vrepr(s, names, q=None, e=False):
     if var_in(s[0], VAR_LIST | VAR_NONLIST):
-        w  = [vrepr(x, names, q) for x in s[1]]
+        w  = [vrepr(x, names, q, e) for x in s[1]]
+        if e:
+            return "(%s %s)" % (("list" if s[0] == VAR_LIST
+                                else "nonlist"), " ".join(w))
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
         return "(%s)" % " ".join(w)
@@ -3348,23 +3373,27 @@ def vrepr(s, names, q=None):
         return "#@(%s)" % " ".join(
                 vrepr(x, names, q) for x in s[1])
     if s[0] == VAR_CONS:
-        # alt: show as usual
         if s[1] is None:
-            return "#:()"
-        else:
-            return "#:%s" % vrepr(s[1].to_list_var(), names, q)
+            return "()" if not e else "'()"
+        return "%s" % vrepr(s[1].to_list_var(), names, q, e)
     if s[0] == VAR_NAM:
         return names[s[1]]
     if s[0] == VAR_NUM:
         return str(s[1])
     if s[0] == VAR_STRING:
         return '"' + s[1].replace('"', '\\"') + '"'
+    if s[0] == VAR_REC:
+        esc = "#:" if not e else ""
+        return "%s(%s %s)" % (esc, names[s[1].nam], " ".join(
+            vrepr(x, names, q, True) for x in s[1].values))
     if s[0] == VAR_DICT:
+        esc = "#:" if not e else ""
         if s[1] is None:
-            return "#{}"
-        return "#{ " + " ".join(
-                ["(%s . %s)" % (vrepr(x, names, q), vrepr(y, names, q))
-                    for x, y in s[1].ditems()]) + " }"
+            return esc + "(alist->dict '())"
+        return esc + "(alist->dict (list " + " ".join(
+                ["(%s . %s)" % (vrepr(x, names, q, True),
+                                vrepr(y, names, q, True))
+                    for x, y in s[1].ditems()]) + "))"
     if var_in(s[0], VAR_FUN_OPS | VAR_FUN_HOST):
         if s[0] == VAR_FUN_HOST:
             return "#~builtin"

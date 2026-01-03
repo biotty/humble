@@ -53,14 +53,23 @@ Macros init_macros(Names & names, SrcOpener * opener)
     return m;
 }
 
+static EnvEntry to_list_var(const ConsPtr & c)
+{
+    if (not c) {
+        return make_shared<Var>(VarList{});
+    } else {
+        auto b = c->to_list_var();
+        if (holds_alternative<VarList>(b))
+            return make_shared<Var>(get<VarList>(b));
+        else
+            return make_shared<Var>(get<VarNonlist>(b));
+    }
+}
+
 Lex to_lex(EnvEntry a)
 {
     if (holds_alternative<VarCons>(*a)) {
-        auto b = get<VarCons>(*a).c->to_list_var();
-        if (holds_alternative<VarList>(b))
-            a = make_shared<Var>(get<VarList>(b));
-        else
-            a = make_shared<Var>(get<VarNonlist>(b));
+        a = to_list_var(get<VarCons>(*a).c);
     }
     return visit([](auto && q) -> Lex {
             using T = decay_t<decltype(q)>;
@@ -92,6 +101,11 @@ Lex to_lex(EnvEntry a)
                 throw RunError("latent-apply to lex");
             } else if constexpr (is_same_v<T, VarVoid>) {
                 return LexVoid{};
+            // plan: to support VarRec and VarDict, will convert
+            // to a LexVar with the generating expression, so that
+            // lex outputs as reference vrepr; "#:(...)" that may
+            // then be parsed (omitting macro-expand) as part of
+            // possible (read) implementation with from_lex
             } else {
                 throw CoreError("to lex not handled");
             }
