@@ -1,3 +1,4 @@
+#include "except.hpp"
 #include "functions.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
@@ -8,6 +9,13 @@ using namespace std;
 
 namespace {
 
+template <typename T>
+void valt_or_fail(Var & v, string s)
+{
+    if (not holds_alternative<T>(v))
+        throw RunError(s);
+}
+
 EnvEntry f_list(span<EnvEntry> args)
 {
     return make_shared<Var>(VarList{ { args.begin(), args.end() } });
@@ -16,6 +24,16 @@ EnvEntry f_list(span<EnvEntry> args)
 EnvEntry f_nonlist(span<EnvEntry> args)
 {
     return make_shared<Var>(VarNonlist{ { args.begin(), args.end() } });
+}
+
+EnvEntry f_pluss(span<EnvEntry> args)
+{
+    long long r{};
+    for (auto & a : args) {
+        valt_or_fail<VarNum>(*a, "+ arg expected number");
+        r += get<VarNum>(*a).i;
+    }
+    return make_shared<Var>(VarNum{ r });
 }
 
 } // ans
@@ -44,6 +62,7 @@ Names init_env()
     auto & g = GlobalEnv::instance();
     g.set(NAM_LIST, make_shared<Var>(VarFunHost{ f_list }));
     g.set(NAM_NONLIST, make_shared<Var>(VarFunHost{ f_nonlist }));
+    g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
 
     return n;
 }

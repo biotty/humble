@@ -11,11 +11,6 @@ namespace {
 
 std::vector<LexEnv *> local_envs;
 
-span<Lex> span1(span<Lex> x, size_t i)
-{
-    return {x.begin() + i, x.begin() + i + 1};
-}
-
 Lex find_unbound(span<Lex> t, int y)
 {
     auto b = [](Lex & q) { return not holds_alternative<LexVoid>(q); };
@@ -109,6 +104,11 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
 
 namespace humble {
 
+span<Lex> span1(span<Lex> x, size_t i)
+{
+    return {x.begin() + i, x.begin() + i + 1};
+}
+
 set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
 {
     auto r = set<int>();
@@ -136,7 +136,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
             if (not is_block)
                 throw SrcError("define in non-block");
             auto i = get<LexNam>(f.v.at(1)).h;
-            auto u = unbound(get<LexForm>(f.v.at(2)).v, defs, false);
+            auto u = unbound(span1(f.v, 2), defs, false);
 #ifdef DEBUG
             if (defs.contains(i)) {
                 cout << "re-define\n";

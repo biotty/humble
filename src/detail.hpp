@@ -2,6 +2,7 @@
 #define HUMBLE_DETAIL
 
 #include "tok.hpp"
+#include <span>
 
 #define PAR_BEG "([{"
 #define PAR_END ")]}"
@@ -40,9 +41,13 @@ inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };
 
+// parse.cpp
 bool is_dotform(const LexForm & x);
 LexForm without_dot(const LexForm & x);
 LexForm with_dot(const LexForm & x);
+
+// compx.cpp
+std::span<Lex> span1(std::span<Lex> x, size_t i);
 
 } // ns
 

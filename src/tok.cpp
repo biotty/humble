@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <charconv>
+#include <ostream>
 
 #ifdef DEBUG
 #include "debug.hpp"

@@ -2,7 +2,8 @@
 
 ./humble.py import_test/main.scm > out.import_test.txt
 ./humble.py io_test.scm > out.io_test.txt
-./test_humble.py > out.test_humble.txt
+./humble.py test.scm > out.test.txt
 
-cmake -S src && cmake --build . && ctest --verbose
+cmake -S src && cmake --build . && ctest # --verbose
+head -n 9 test.scm > hest.scm
 

@@ -1,42 +1,9 @@
-#!/usr/bin/env python3
-#
-# Welcome to "Humble Scheme", copyright Christian Oeien
-#
-# My Scheme is more humble than yours!
-#
-# The tests are running documentation of a working language.
-# The following tests grew together with development
-# of this interpreter.  In general one must regression-
-# diff the output, but at some point the chk macro
-# was established to assert correctness in a test.
-# For import testing, run on import_test/main
-#
-
-from humble import init_top, compx, run_top, set_verbose
-
-import sys
-
-def test(s):
-    class NoOpen:
-        def __init__(self, name):
-            self.filename = name
-    nope = NoOpen("test-snip")
-    sys.stdout.write("test\n")
-    names, env, macros = init_top(nope)
-    tree = compx(s, names, macros, env.keys())
-    run_top(tree, env, names)
-    sys.stdout.write("*\n")
-
-# uncomment: for debug
-# set_verbose(True)
-
-test("")
-test("1")
-test("(+)")
-test("'(#f #t)")
-test("(ref i '()) i")
-test("(ref (f) 1) `(,(f))")
-test("""[ ref y 1 ] ; a comment
+1
+(+)
+'(#f #t)
+(ref i '()) i
+(ref (f) 1) `(,(f))
+[ ref y 1 ] ; a comment
 (list y (list y y))
 {+ 1 2}
 y
@@ -63,8 +30,7 @@ test("""
     '(1 2 1 3))
   (error))
 (display "hello world!\n")
-""")
-test(""" [ ref y 1 ]
+  [ ref y 1 ]
 (let ((s 2))
   (let ((s 3) (t s)) (+ s t)))
 (let* ((A 300) (B (+ A 10))) (+ A B 9))
@@ -263,7 +229,7 @@ test(""" [ ref y 1 ]
 (range 3)
 (range 3 5)
 (ref (aa s) 2)
-'(#\\tab #\\@ #\\# #\\")
+'(#\tab #\@ #\# #\")
 (macro zx (a) a)
 (zx (aa ''e))
 (* 1 2 3)
@@ -371,7 +337,7 @@ test(""" [ ref y 1 ]
 (ref obj (cls 123))
 (obj 'set-foo! 321)
 (chk (obj 'get-foo) 321)
-(list->string '(#\\Ø 0x69 #\\e 0o156))
+(list->string '(#\Ø 0x69 #\e 0o156))
 (let ((li '(1 2 3)))
   (chk (list @(list 1 2 3)) li)
   (chk (list @li) li)
@@ -424,5 +390,4 @@ test(""" [ ref y 1 ]
 (chk #t (cont?? '(@(list))))  ; quoted splice
 (chk (list 3) (list @(list (+ 1 2))));
 (chk 3 @(list (+ 1 2)));
-""")
 

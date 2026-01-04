@@ -89,7 +89,7 @@
 #   call the handler of its name when arg types are
 #   invalid or other situation, and re-try unless yields #f,
 #   or if re-try fails on same reason, terminating as now.
-# * label form set symbol on scope, which may then be used
+# * Label form set symbol on scope, which may then be used
 #   in a break statement.  This is implemented by flagging
 #   interpreter state by the break symbol, which inhibits
 #   evaluation until form of respective label(s) observed,
@@ -104,7 +104,7 @@
 #   set of functionality may be libffi support - that also
 #   invites looking into support of an engine-opaque VAR
 #   type where only a user-data and destructor-callback is known.
-# * functions available untangling the repl components,
+# * Functions available untangling the repl components,
 #   (read port), (eval d) also does macro_expand and run
 #   in global env, (write d port) and (compile d port).
 #   these leverage from_lex and to_lex, as d is a var,
@@ -112,31 +112,26 @@
 #   this results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  there is no conversion
-#   from type y, on which only action is to run.
-#   this means we would parse during run-time, but the ast
-#   is temporary.  however, names are interned.  also, for eval
-#   there may be references to global names.  local names in
-#   existing functions are unafected, and i do not see a reason
-#   to not add (string->symbol).  independently, since the
+#   from type y, on which only action is to run.  names are interned,
+#   and why not add (string->symbol).  independently, since the
 #   partial parse (without meacro-expand) invoked by (read)
 #   should serialize symbols and records, and I choose to not
 #   represent dict and record natively in code but instead by
 #   the natural operation for converting lex to var namely to
 #   evaluate it (escaped in parsed code by "#:(..)", we here also
 #   (string->symbol) for this usage, and we thus see that it needs
-#   by as host function as expected (not a macro).  the choice
+#   be as host function as expected (not a macro).  the choice
 #   done by LISP to write/output a list as (foo bar) and not something
 #   such as #:(list 'foo 'bar) almost looks unnatural.  but for
 #   this "eval mode" of print, we need the reader to lex into
-#   a separate lexical type, and this type is only accepted by
+#   a separate lexical type.  This lex-type is only accepted by
 #   (read) as it invokes from_lex, and in the arguments to a macro
-#   as it invokes from_lex.  the composition fits together, and
-#   we are left with a counter argument from a "security" concern
-#   habbit/reaction pointing out that we can provoke invokation
-#   of arbitraty functions when reading data.  the slap back from
-#   LISP is to then argue that this is true for any program
-#   processing data, and that code and data should be treated
-#   as far possible as interchangable matter.
+#   as it invokes from_lex.
+# * Ad previous idea:  One could have a graft-point in the AST,
+#   denoted by an expression, that is globally named and may then
+#   by used as a target p for (compile p), allowing to mutate
+#   the code itself.  The graft point may be wrapped as possibly
+#   a lambda or OP_IMPORT (at hand waving level of thought here).
 # * define-record-type that also accepts r6rs syntax and provides
 #   inheritence as in that case, on the same underlying VAR_REC.
 #
@@ -222,6 +217,13 @@
 #
 # Note that the "record-type" name is ignored completely,
 # and only part of the syntax for r7rs compatibility.
+#
+# As an optimization the implementation should (maybe as
+# part of compx) strip away non-last #void as well as all
+# flattening LEX_SEQ diminishing need to eval it.  The
+# LEX_EXPORT already gets removed in processing of (import)
+# and (scope), and should not have been OP_EXPORT but
+# rather just among the known names, i-e NAM_EXPORT.
 #
 
 
@@ -968,13 +970,15 @@ def m_ref(s):
     if i in u:
         # permit define of recursive lambda by wrapping with
         # a letrec.  this leaves immediate i-e (ref i (+ i))
-        # "non-working", then instead use def
+        # "non-working", then instead use define
         y = (LEX_NAM, i)
         return [OP_BIND, i,
                 m_letrec([-99, [[y, d]], y])]
     return s
 
 def m_define(s):
+    if type(s[1]) == list:
+        return m_ref(s)
     s[0] = OP_BIND
     mchk_or_fail(s[1][0] == LEX_NAM, "define.1 expects name")
     s[1] = s[1][1]

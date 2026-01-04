@@ -2,11 +2,13 @@ cmake_minimum_required(VERSION 3.14)
 project(humble CXX)
 set(CMAKE_CXX_STANDARD 23)
 enable_testing()
-add_compile_options(-Wall -Wextra -Werror)  # -Wshadow
-add_compile_options(-DDEBUG)
-add_compile_options(-ggdb)
-add_compile_options(-fsanitize=address)
-#alt: valgrind
+add_compile_options(-Wall -Wextra -Werror
+    # -Wshadow     # for potential tidyup
+)
+# add_compile_options(-DDEBUG)
+# add_compile_options(-ggdb)
+# add_compile_options(-fsanitize=address)
+# # alt: valgrind
 
 find_package(GTest REQUIRED)
 
@@ -24,11 +26,13 @@ add_library(Humble
     debug.cpp
     except.cpp)
 
-set(LIBS Humble -lstdc++exp -lasan)
+set(LIBS Humble
+    # -lstdc++exp # when DEBUG, to allow backtrace
+    # -lasan      # when sanitize address enabled.
+)
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})
-
 
 add_executable(test_utf test_utf.cpp)
 target_link_libraries(test_utf GTest::GTest GTest::Main ${LIBS})
