@@ -20,7 +20,7 @@ enum {
     NAM_EQVP,
     NAM_LIST,
     NAM_NONLIST,
-    NAM_SETVJJ,
+    NAM_SETJJ,
     NAM_DUP,
     NAM_ERROR,
     NAM_SPLICE,
@@ -36,7 +36,7 @@ inline auto nam_car = LexNam{ NAM_CAR, 0 };
 inline auto nam_eqvp = LexNam{ NAM_EQVP, 0 };
 inline auto nam_list = LexNam{ NAM_LIST, 0 };
 inline auto nam_nonlist = LexNam{ NAM_NONLIST, 0 };
-inline auto nam_setvjj = LexNam{ NAM_SETVJJ, 0 };
+inline auto nam_setjj = LexNam{ NAM_SETJJ, 0 };
 inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };

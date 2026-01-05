@@ -101,7 +101,7 @@ Names init_names()
         /* NAM_EQVP */ "eqv?",
         /* NAM_LIST */ "list",
         /* NAM_NONLIST */ "nonlist",
-        /* NAM_SETVJJ */ "setv!!",
+        /* NAM_SETJJ */ "set!!",
         /* NAM_DUP */ "dup",
         /* NAM_ERROR */ "error",
         /* NAM_SPLICE */ "splice"

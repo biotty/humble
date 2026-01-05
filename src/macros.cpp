@@ -4,6 +4,7 @@
 #include "cons.hpp"
 #include "detail.hpp"
 #include "except.hpp"
+#include "debug.hpp"
 
 #include <iostream>
 
@@ -17,6 +18,17 @@ void malt_or_fail(Lex & x, string s)
 {
     if (not holds_alternative<T>(x))
         throw SrcError(s);
+}
+
+// for unbound set, as vector is used
+// keeps sorted as set is (invariant)
+// nota bene:  not use on lambda params
+//             as they are ordered.
+void make_set(LexArgs & u)
+{
+    sort(u.begin(), u.end());
+    u.erase(unique(u.begin(), u.end()),
+            u.end());
 }
 
 Lex m_lambda(LexForm & s)
@@ -39,17 +51,159 @@ Lex m_lambda(LexForm & s)
     s.v[1] = a;
     ::set<int> k{a.begin(), a.end()};
     auto u = unbound({s.v.begin() + 2, s.v.end()}, k, true);
-    LexArgs b;
-    for (auto i : u) b.push_back(i);
-    s.v.push_back(b);
+    s.v.push_back(LexArgs{u.begin(), u.end()});
     rotate(s.v.begin() + 2, s.v.begin() + 3, s.v.end());
     return move(s);
 }
 
-Lex m_letrec(LexForm & s)
+void recset(LexForm & let)
 {
-    if (s.v.size() < 3) throw SrcError("letrec argc");
-    throw CoreError("nyi");
+    malt_or_fail<LexForm>(let.v[0], "recset");
+    auto & f = get<LexForm>(let.v[0]);
+    if (f.v.size() != 3) SrcError("recset length");
+    LexArgs a = get<LexArgs>(f.v[1]);
+    LexArgs b;
+    for (int z : a) {
+        if (z >= 0) throw CoreError("recset id");
+        int n = -z;
+        b.push_back(n);
+        f.v.push_back(LexForm{{nam_setjj, LexNam{n, 0}, LexNam{z, 0}}});
+    }
+    rotate(f.v.begin() + 3, f.v.begin() + 3 + b.size(), f.v.end());
+    // ^ as-if we did insert at 3 in the loop, except reversed (ok)
+    LexArgs & u = get<LexArgs>(f.v[2]);
+    // nota bene:  reference not taken prior to growing v
+    u.push_back(NAM_SETJJ);
+    for (int m : b)
+        u.push_back(m);
+    ::set<int> k{a.begin(), a.end()};
+    for (int m : unbound({let.v.begin() + 1, let.v.end()}, k, false))
+        u.push_back(m);
+    make_set(u);
+}
+
+LexForm rectmp(LexForm & let, LexArgs & a)
+{
+    LexForm & f = get<LexForm>(let.v[0]);
+    LexArgs u = get<LexArgs>(f.v[2]);
+    vector<Lex> v;
+    for (int z : a) {
+        if (z < 0) throw CoreError("rectmp id");
+        v.push_back(LexVoid{});
+    }
+    LexArgs w = u;
+    for (int m : a) erase(w, m);
+    LexForm r{{LexForm{{LexOp{ OP_LAMBDA }, a, w, move(let)}}}};
+    move(v.begin(), v.end(), back_inserter(r.v));
+    return r;
+}
+
+struct unzip_r {
+    LexArgs a;
+    vector<Lex> v;
+};
+
+unzip_r bnd_unzip(LexForm & s)
+{
+    unzip_r r;
+    for (auto & z : s.v) {
+        malt_or_fail<LexForm>(z, "let bind-item not list");
+        auto & f = get<LexForm>(z);
+        if (f.v.size() != 2) SrcError("let expected binding");
+        auto & x = f.v[0];
+        auto & y = f.v[1];
+        malt_or_fail<LexNam>(x, "bind not to name");
+        r.a.push_back(get<LexNam>(x).h);
+        r.v.push_back(y);
+    }
+    return r;
+}
+
+Lex named_let(LexForm & s);
+
+Lex m_let(LexForm & s, bool rec = false)
+{
+    if (s.v.size() < 2) throw SrcError("let argc");
+    if (holds_alternative<LexNam>(s.v[1]))
+        return named_let(s);
+    LexForm lbd{{LexOp{ OP_LAMBDA }}};
+    auto [a, v] = bnd_unzip(get<LexForm>(s.v[1]));
+    LexArgs t;
+    if (rec) {
+        t = a;
+        for (int & z : a) z = -z;
+    }
+    lbd.v.push_back(a);
+    ::set<int> k{a.begin(), a.end()};
+    auto u = unbound({s.v.begin() + 2, s.v.end()}, k, true);
+    lbd.v.push_back(LexArgs{u.begin(), u.end()});
+    if (s.v.size() == 2) lbd.v.push_back(LexVoid{});
+    else move(s.v.begin() + 2, s.v.end(), back_inserter(lbd.v));
+    LexForm r{{lbd}};
+    move(v.begin(), v.end(), back_inserter(r.v));
+    if (rec) {
+        recset(r);
+        r = rectmp(r, t);
+    }
+    return r;
+}
+
+Lex m_letx(LexForm & s, bool rec = false)
+{
+    if (s.v.size() < 2) throw SrcError("let* argc");
+    malt_or_fail<LexForm>(s.v[1], "let*.1 expected sub-form");
+    auto & f = get<LexForm>(s.v[1]);
+    if (f.v.empty())
+        return m_let(s);
+    LexForm block{{s.v.begin() + 2, s.v.end()}};
+    if (block.v.empty()) block.v.push_back(LexVoid{});
+    LexArgs t;
+    for (auto rit = f.v.rbegin(); rit != f.v.rend(); ++rit) {
+        malt_or_fail<LexForm>(*rit, "let* bind-item not list");
+        auto & z = get<LexForm>(*rit);
+        if (z.v.size() != 2) SrcError("let* expected binding");
+        auto & x = z.v[0];  // for let we unzip once, in func -
+        auto & y = z.v[1];  // but here we wrap lambda for each
+        malt_or_fail<LexNam>(x, "let* not to name");
+        LexArgs a{get<LexNam>(x).h};
+        if (rec) {
+            int & z = a[0];
+            t.push_back(z);
+            z = -z;
+        }
+        LexForm lbd{{LexOp{ OP_LAMBDA }, a}};
+        ::set<int> k{a[0]};
+        LexArgs u;
+        for (auto m : unbound(block.v, k, true))
+            u.push_back(m);
+        lbd.v.push_back(u);
+        move(block.v.begin(), block.v.end(), back_inserter(lbd.v));
+        LexForm r{{move(lbd), move(y)}};
+        if (rec) recset(r);
+        block.v = {r};
+    }
+    auto r = move(get<LexForm>(block.v[0]));
+    if (rec) r = rectmp(r, t);
+    return r;
+}
+
+Lex named_let(LexForm & s)
+{
+    malt_or_fail<LexNam>(s.v[1], "let not name");
+    auto name = get<LexNam>(s.v[1]);
+    auto [a, v] = bnd_unzip(get<LexForm>(s.v[2]));
+    span<Lex> blk{s.v.begin() + 3, s.v.end()};
+    ::set<int> k{a.begin(), a.end()};
+    LexArgs u;
+    for (int m : unbound(blk, k, true))
+        u.push_back(m);
+    LexForm lbd{{LexOp{ OP_LAMBDA}, a, u}};
+    move(blk.begin(), blk.end(), back_inserter(lbd.v));
+    LexForm bnd{{LexForm{{ name, lbd }}}};
+    LexForm x{{ name }};
+    move(v.begin(), v.end(), back_inserter(x.v));
+    LexForm r{{ LexOp{}, bnd, x }};
+    return m_let(r, true);
 }
 
 Lex m_ref(LexForm & s)
@@ -76,7 +230,7 @@ Lex m_ref(LexForm & s)
         // "non-working", then instead use define
         auto y = i;
         LexForm a{{LexOp{}, LexForm{{ LexForm{{ y, move(s.v[2]) }}}}, y}};
-        return move(LexForm{{ LexOp{ OP_BIND }, i, m_letrec(a)}});
+        return move(LexForm{{ LexOp{ OP_BIND }, i, m_let(a, true)}});
     }
     return move(s);
 }
@@ -101,7 +255,7 @@ struct If : Macro {
         if (s.v.size() == 3) {
             s.v.push_back(LexVoid{});
         } else if (s.v.size() != 4) {
-            throw SrcError("if-expression length");
+            throw SrcError("if-expr length");
         }
         return LexForm{{
             LexOp{ OP_COND },
@@ -114,8 +268,17 @@ struct If : Macro {
 struct Lambda : Macro { Lex operator()(LexForm & s) override {
     return m_lambda(s);
 } };
+struct Let : Macro { Lex operator()(LexForm & s) override {
+    return m_let(s);
+} };
+struct Letx : Macro { Lex operator()(LexForm & s) override {
+    return m_letx(s);
+} };
 struct Letrec : Macro { Lex operator()(LexForm & s) override {
-    return m_letrec(s);
+    return m_let(s, true);
+} };
+struct Letrecx : Macro { Lex operator()(LexForm & s) override {
+    return m_letx(s, true);
 } };
 struct Ref : Macro { Lex operator()(LexForm & s) override {
     return m_ref(s);
@@ -143,7 +306,10 @@ Macros init_macros(Names & names, SrcOpener * opener)
     (void)opener;
 
     with_name(names, m, "lambda", make_unique<Lambda>());
+    with_name(names, m, "let", make_unique<Let>());
+    with_name(names, m, "let*", make_unique<Letx>());
     with_name(names, m, "letrec", make_unique<Letrec>());
+    with_name(names, m, "letrec*", make_unique<Letrecx>());
     with_name(names, m, "ref", make_unique<Ref>());
     with_name(names, m, "define", make_unique<Define>());
     with_name(names, m, "if", make_unique<If>());

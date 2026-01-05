@@ -1007,15 +1007,15 @@ def m_lambda(s):
 
 def bnd_unzip(s):
     if type(s) != list:
-        raise SrcError("bindings not a list")
+        raise SrcError("let expected sub-form")
     a = []
     v = []
     for z in s:
         if type(z) != list:
-            raise SrcError("bind-item not list")
+            raise SrcError("let expected binding")
         x, y = z
         if x[0] != LEX_NAM:
-            raise SrcError("bind not to name")
+            raise SrcError("let binding not to name")
         a.append(x[1])
         v.append(y)
     return a, v
@@ -1054,7 +1054,10 @@ def m_let(s, rec=False):
         a = [-z for z in t]
     lbd.append(a)
     lbd.append(unbound(s[2:], set(a), True))
-    lbd.extend(s[2:])
+    if len(s) == 2:
+        lbd.append((LEX_VOID,))
+    else:
+        lbd.extend(s[2:])
     r = [lbd, *v]
     if rec:
         recset(r)
@@ -1066,14 +1069,14 @@ def m_letx(s, rec=False):
     block = s[2:]
     if not block:
         block = [(LEX_VOID,)]
-    mchk_or_fail(type(s[1]) == list, "let*.1 expected sub-form")
+    mchk_or_fail(type(s[1]) == list, "let* expected sub-form")
     if not s[1]:
         return [[OP_LAMBDA, [], unbound(block, set(), True), *block]]
     t = []
     for z in reversed(s[1]):
         lbd = [OP_LAMBDA]
-        x, y = z
-        mchk_or_fail(x[0] == LEX_NAM, "let* expects name in form")
+        x, y = z  # lambda wrap each as opposed to let's unzip
+        mchk_or_fail(x[0] == LEX_NAM, "let* binding not to name")
         a = [x[1]]
         if rec:
             t.extend(a)
@@ -2029,7 +2032,7 @@ def f_gte(*args):
 
 def setjj(a, b, fn):
     if id(a) == id(b):
-        debug("%s self-ref %s" % (fn, fargt_repr(a[0])))
+        debug("%s self-set %s" % (fn, fargt_repr(a[0])))
     else:
         if var_in(b[0], VAR_LIST | VAR_NONLIST):
             k = to_cons(b)
