@@ -165,7 +165,7 @@ EnvEntry xeval(Lex & x, Env & env)
                     or is_same_v<T, LexQuasiquote>)
                 CoreError("eval quote");
             if constexpr (is_same_v<T, LexDot>)
-                RunError("eval dot");
+                RunError("invalid use of dot");
             if constexpr (is_same_v<T, LexForm>) {
                 // cout << &z.v.back() << " xeval form back\n";
                 if (z.v.empty()) throw CoreError("empty form");

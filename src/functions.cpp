@@ -10,15 +10,42 @@ using namespace std;
 
 namespace {
 
-template <typename T>
-void valt_or_fail(Var & v, string s)
+const char * var_type_name[] {
+    "void",    // ordered:  Var variant index
+    "number",
+    "bool",
+    "name",
+    "string",
+    "list",
+    "nonlist",
+    "splice",
+    "unquote",
+    "fun-ops",
+    "fun-host",
+    "lz-apply",
+    "const",
+};
+
+template <typename T, typename... Ts>
+bool valt_in(Var & v)
 {
-    if (not holds_alternative<T>(v))
-        throw RunError(s);
+    if (holds_alternative<T>(v)) return true;
+    if constexpr (sizeof...(Ts) != 0) return valt_in<Ts...>(v);
+    return false;
+}
+
+template <typename... Ts>
+void valt_or_fail(span<EnvEntry> args, size_t i, string s)
+{
+    if (valt_in<Ts...>(*args[i])) return;
+    ostringstream ost;
+    ost << s << " args[" << i << "] " << var_type_name[args[i]->index()];
+    throw RunError(ost.str());
 }
 
 EnvEntry f_list(span<EnvEntry> args)
 {
+    if (args.empty()) return make_shared<Var>(VarCons{});
     return make_shared<Var>(VarList{ { args.begin(), args.end() } });
 }
 
@@ -27,12 +54,126 @@ EnvEntry f_nonlist(span<EnvEntry> args)
     return make_shared<Var>(VarNonlist{ { args.begin(), args.end() } });
 }
 
+EnvEntry f_list_copy(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("list-copy argc");
+    valt_or_fail<VarList, VarCons>(args, 0, "list-copy");
+    return make_shared<Var>(normal_list(*args[0]));
+}
+
+EnvEntry f_cons(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("cons argc");
+    if (valt_in<VarCons, VarList, VarNonlist>(*args[1])) {
+        auto c = to_cons(*args[1]);
+        *args[1] = VarCons{c};
+        return make_shared<Var>(VarCons{make_shared<Cons>(args[0], c)});
+    }
+    return make_shared<Var>(VarNonlist{{args.begin(), args.end()}});
+}
+
+EnvEntry f_car(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("car argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "car");
+    Var & v = *args[0];
+    if (valt_in<VarList>(v)) return get<VarList>(v).v[0];
+    if (valt_in<VarNonlist>(v)) return get<VarNonlist>(v).v[0];
+    auto & d = get<VarCons>(v);
+    if (not d.c) throw RunError("car on null");
+    return d.c->a;
+}
+
+EnvEntry c_list_ref(ConsPtr c, int i)
+{
+    while (i) {
+        c = get<ConsPtr>(c->d);
+        if (not c)
+            throw RunError("list-ref cdr null");
+        --i;
+    }
+    return c->a;
+}
+
+EnvEntry v_list_ref(const vector<EnvEntry> & v, int i)
+{
+    if (v.size() <= static_cast<size_t>(i))
+        throw RunError("list-ref index overflow");
+    return v[i];
+}
+
+EnvEntry f_list_ref(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("list-ref argc");
+    valt_or_fail<VarNum>(args, 1, "car");
+    auto i = get<VarNum>(*args[1]).i;
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "car");
+    auto & v = *args[0];
+    if (valt_in<VarCons>(v))
+        return c_list_ref(get<VarCons>(v).c, i);
+    return v_list_ref((valt_in<VarList>(v))
+            ? get<VarList>(v).v : get<VarNonlist>(v).v, i);
+}
+
+EnvEntry f_cdr(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("cdr argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "cdr");
+    Var & a = *args[0];
+    if (not valt_in<VarCons>(a)) {
+        if (valt_in<VarNonlist>(a)) {
+            auto & u = get<VarNonlist>(a);
+            if (u.v.size() <= 1)
+                throw CoreError("short nonlist");
+            if (u.v.size() == 2)
+                return u.v[1];
+        }
+        auto c = to_cons(a);
+        a = VarCons{c};
+    }
+    VarCons & r = get<VarCons>(a);
+    if (not r.c) throw RunError("cdr on null");
+    if (holds_alternative<EnvEntry>(r.c->d))
+        return get<EnvEntry>(r.c->d);
+    return make_shared<Var>(VarCons{get<ConsPtr>(r.c->d)});
+}
+
+EnvEntry f_append(span<EnvEntry> args)
+{
+    if (args.size() == 0) return make_shared<Var>(VarCons{});
+    if (args.size() == 1) return args[0];
+    size_t i_last = args.size() - 1;
+    auto last = args[i_last];
+    if (valt_in<VarList, VarNonlist>(*last)) {
+        auto c = to_cons(*last);
+        *last = VarCons{c};
+    }
+    ConsNext p = to_cons_copy(*args[0]);
+    ConsPtr r = get<ConsPtr>(p);
+    Cons * q{};
+    for (size_t i = 1; i != args.size(); ++i) {
+        if (holds_alternative<ConsPtr>(p)
+                and get<ConsPtr>(p) != nullptr)
+            q = Cons::last;
+        if (i == i_last) {
+            if (holds_alternative<VarCons>(*last))
+                p = get<VarCons>(*last).c;
+            else p = last;
+        } else {
+            valt_or_fail<VarCons, VarList>(args, i, "append");
+            p = to_cons_copy(*args[i]);
+        }
+        if (q) q->d = p;
+    }
+    return make_shared<Var>(VarCons{r});
+}
+
 EnvEntry f_pluss(span<EnvEntry> args)
 {
     long long r{};
-    for (auto & a : args) {
-        valt_or_fail<VarNum>(*a, "+ arg expected number");
-        r += get<VarNum>(*a).i;
+    for (auto i = 0u; i != args.size(); ++i) {
+        valt_or_fail<VarNum>(args, i, "+");
+        r += get<VarNum>(*args[i]).i;
     }
     return make_shared<Var>(VarNum{ r });
 }
@@ -51,8 +192,7 @@ EnvEntry setjj(span<EnvEntry> args)
 
 EnvEntry f_setj(span<EnvEntry> args)
 {
-    if (args.size() != 2)
-        throw RunError("set! requires 2 args");
+    if (args.size() != 2) throw RunError("set! argc");
     if (args[0]->index() != args[1]->index()) {
 #ifdef DEBUG
         cout << "set! to different type\n";
@@ -63,9 +203,49 @@ EnvEntry f_setj(span<EnvEntry> args)
 
 EnvEntry f_setjj(span<EnvEntry> args)
 {
-    if (args.size() != 2)
-        throw RunError("set!! requires 2 args");
+    if (args.size() != 2) throw RunError("set!! argc");
     return setjj(args);
+}
+
+EnvEntry f_aliasp(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("alias? argc");
+    return make_shared<Var>(VarBool{&*args[0] == &*args[1]});
+}
+
+EnvEntry f_eqp(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("eq? argc");
+    Var & a = *args[0];
+    Var & b = *args[1];
+    bool r{};
+    if (args[0]->index() != args[1]->index()) {
+        // false.  different types
+    } else if (valt_in<VarNum>(a)) {
+        r = (get<VarNum>(a).i == get<VarNum>(b).i);
+    } else if (valt_in<VarString>(a)) {
+        r = (get<VarString>(a).s == get<VarString>(b).s);
+    } else if (valt_in<VarBool>(a)) {
+        r = (get<VarBool>(a).b == get<VarBool>(b).b);
+    } else if (valt_in<VarNam>(a)) {
+        r = (get<VarNam>(a).h == get<VarNam>(b).h);
+    } else {
+        r = (&a == &b);
+    }
+    return make_shared<Var>(VarBool{r});
+}
+
+EnvEntry f_contpp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("cont?? argc");
+    return make_shared<Var>(
+            VarBool{valt_in<VarList, VarNonlist>(*args[0])});
+}
+
+EnvEntry f_voidp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("void? argc");
+    return make_shared<Var>(VarBool{valt_in<VarVoid>(*args[0])});
 }
 
 } // ans
@@ -94,9 +274,19 @@ Names init_env()
     auto & g = GlobalEnv::instance();
     g.set(n.intern("list"), make_shared<Var>(VarFunHost{ f_list }));
     g.set(n.intern("nonlist"), make_shared<Var>(VarFunHost{ f_nonlist }));
+    g.set(n.intern("list-copy"), make_shared<Var>(VarFunHost{ f_list_copy }));
+    g.set(n.intern("cons"), make_shared<Var>(VarFunHost{ f_cons }));
+    g.set(n.intern("car"), make_shared<Var>(VarFunHost{ f_car }));
+    g.set(n.intern("list-ref"), make_shared<Var>(VarFunHost{ f_list_ref }));
+    g.set(n.intern("cdr"), make_shared<Var>(VarFunHost{ f_cdr }));
+    g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
     g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
     g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));
+    g.set(n.intern("alias?"), make_shared<Var>(VarFunHost{ f_aliasp }));
+    g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
+    g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
+    g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
 
     return n;
 }

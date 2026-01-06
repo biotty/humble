@@ -5,5 +5,6 @@
 ./humble.py test.scm > out.test.txt
 
 cmake -S src && cmake --build . && ctest # --verbose
-head -n 9 test.scm > hest.scm
+head -n 11 test.scm > hest.scm
+./humble hest.scm > out.hest.txt
 

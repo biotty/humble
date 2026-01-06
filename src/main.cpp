@@ -50,8 +50,13 @@ int main(int argc, char ** argv)
     while (std::getline(cin, line)) {
         if (line.back() == ';') {
             auto expr = buf + line.substr(0, line.size() - 1);
-            auto ast = compx(expr, names, macros, env.keys());
-            run_top(ast, env, names, cout);
+            LexForm ast;
+            try {
+                ast = compx(expr, names, macros, env.keys());
+                run_top(ast, env, names, cout);
+            } catch (const runtime_error & e) {
+                cout << e.what();
+            }
             move(ast.v.begin(), ast.v.end(), back_inserter(x.v));
         } else {
             buf += line;

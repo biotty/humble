@@ -1789,7 +1789,7 @@ def f_cdr(*args):
 
 def f_append(*args):
     if len(args) == 0:
-        return [VAR_LIST, []]
+        return [VAR_CONS, None]
     if len(args) == 1:
         return args[0]
     i_last = len(args) - 1
@@ -2082,8 +2082,9 @@ def f_eqp(*args):
     if args[0][0] != args[1][0]:
         return [VAR_BOOL, False]
     if var_in(args[0][0], VAR_LIST | VAR_NONLIST):
-        return [VAR_BOOL, (len(args[0][1]) == 0 and len(args[1][1]) == 0)
-                or (id(args[0][1]) == id(args[1][1]))]
+        assert len(args[0][1]) != 0  # invariant:
+        assert len(args[1][1]) != 0  # all empty-lists as consptr null
+        return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
     if (var_in(args[0][0], VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)
             or args[0][0] == VAR_DICT):
         return [VAR_BOOL, id(args[0][1]) == id(args[1][1])]
