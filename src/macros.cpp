@@ -13,11 +13,27 @@ using namespace std;
 
 namespace {
 
-template <typename T>
+/* serves as blex
+bool nameq(Lex & x, int h)
+{
+    return (holds_alternative<LexNam>(x)
+            and get<LexNam>(x).h == h);
+}
+*/
+
+template <typename T, typename... Ts>
+bool malt_in(Lex & x)
+{
+    if (holds_alternative<T>(x)) return true;
+    if constexpr (sizeof...(Ts) != 0) return malt_in<Ts...>(x);
+    return false;
+}
+
+template <typename... Ts>
 void malt_or_fail(Lex & x, string s)
 {
-    if (not holds_alternative<T>(x))
-        throw SrcError(s);
+    if (malt_in<Ts...>(x)) return;
+    throw SrcError(s);
 }
 
 // for unbound set, as vector is used
@@ -235,7 +251,7 @@ Lex m_ref(LexForm & s)
     return move(s);
 }
 
-struct Define : Macro {
+struct Define : MacroClone<Define> {
     Lex operator()(LexForm & s) override
     {
         if (s.v.size() < 3) throw SrcError("define argc");
@@ -249,7 +265,7 @@ struct Define : Macro {
     }
 };
 
-struct If : Macro {
+struct If : MacroClone<If> {
     Lex operator()(LexForm & s) override
     {
         if (s.v.size() == 3) {
@@ -265,22 +281,94 @@ struct If : Macro {
     }
 };
 
-struct Lambda : Macro { Lex operator()(LexForm & s) override {
+int get_nam_sym(Lex & x, bool & is_sym)
+{
+    malt_or_fail<LexNam, LexSym>(x, "expected name or symbol");
+    is_sym = holds_alternative<LexSym>(x);
+    return is_sym ? get<LexSym>(x).h : get<LexNam>(x).h;
+}
+
+Macros i_macros;
+
+struct Import : MacroNotClone<Import> {
+    Names * names;
+    Macros * macros;
+    SrcOpener * opener;
+    Import(Names & names, Macros & macros, SrcOpener & opener)
+        : names(&names)
+        , macros(&macros)
+        , opener(&opener)
+    { }
+
+    Lex operator()(LexForm & s) override
+    {
+
+        auto u_fn = opener->filename;
+        if (s.v.size() != 2 and s.v.size() != 3) throw SrcError("import argc");
+        malt_or_fail<LexString>(s.v[1], "import.1 expects name");
+        auto e_macros = clone_macros(i_macros);
+        e_macros[NAM_MACRO] = {}/*TODO: m_macro*/;
+        e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener);
+        auto src = (*opener)(get<LexString>(s.v[1]).s);
+        auto u_ln = linenumber;
+        auto r = compx(src, *names, e_macros, GlobalEnv::instance().keys());
+        string prefix_s;
+        bool is_prefix_sym{};
+        if (s.v.size() == 3) {
+            int h = get_nam_sym(s.v[2], is_prefix_sym);
+            prefix_s = names->get(h);
+        }
+        auto & f = get<LexForm>(r.v[0]);
+        LexImport set_up;
+        if (get<LexOp>(f.v[0]).code != OP_EXPORT)
+            throw SrcError("missing export");
+        for (auto & n : f.v) {
+            if (&n == &f.v[0]) continue;
+            bool is_sym;
+            int x = get_nam_sym(n, is_sym);
+            int y = x;
+            if (not is_sym) {
+                if (not prefix_s.empty())
+                    y = names->intern(prefix_s + names->get(x));
+                set_up.a.push_back(y);
+                set_up.b.push_back(x);
+            } else {
+                if (not prefix_s.empty() and is_prefix_sym)
+                    y = names->intern(prefix_s + names->get(x));
+                if (not e_macros.contains(x))
+                    throw SrcError("no macro to import");
+                (*macros)[y] = move(e_macros[x]);
+            }
+        }
+        opener->filename = u_fn;
+        linenumber = u_ln;
+        LexForm t{{ LexOp{ OP_IMPORT }, move(set_up)}};
+        move(r.v.begin(), r.v.end(), back_inserter(t.v));
+        return t;
+    }
+};
+
+struct Export : MacroClone<Export> { Lex operator()(LexForm & s) override {
+    s.v[0] = LexOp{ OP_EXPORT };
+    return move(s);
+} };
+
+struct Lambda : MacroClone<Lambda> { Lex operator()(LexForm & s) override {
     return m_lambda(s);
 } };
-struct Let : Macro { Lex operator()(LexForm & s) override {
+struct Let : MacroClone<Let> { Lex operator()(LexForm & s) override {
     return m_let(s);
 } };
-struct Letx : Macro { Lex operator()(LexForm & s) override {
+struct Letx : MacroClone<Letx> { Lex operator()(LexForm & s) override {
     return m_letx(s);
 } };
-struct Letrec : Macro { Lex operator()(LexForm & s) override {
+struct Letrec : MacroClone<Letrec> { Lex operator()(LexForm & s) override {
     return m_let(s, true);
 } };
-struct Letrecx : Macro { Lex operator()(LexForm & s) override {
+struct Letrecx : MacroClone<Letrecx> { Lex operator()(LexForm & s) override {
     return m_letx(s, true);
 } };
-struct Ref : Macro { Lex operator()(LexForm & s) override {
+struct Ref : MacroClone<Ref> { Lex operator()(LexForm & s) override {
     return m_ref(s);
 } };
 
@@ -296,14 +384,12 @@ void with_name(Names & n, Macros & m, string name, unique_ptr<Macro> nm)
 
 namespace humble {
 
-Macros init_macros(Names & names, SrcOpener * opener)
+Macros init_macros(Names & names, SrcOpener & opener)
 {
     auto env_keys = GlobalEnv::instance().keys();
     auto m = qt_macros();
 
     (void)env_keys;
-    (void)names;
-    (void)opener;
 
     with_name(names, m, "lambda", make_unique<Lambda>());
     with_name(names, m, "let", make_unique<Let>());
@@ -313,8 +399,15 @@ Macros init_macros(Names & names, SrcOpener * opener)
     with_name(names, m, "ref", make_unique<Ref>());
     with_name(names, m, "define", make_unique<Define>());
     with_name(names, m, "if", make_unique<If>());
+    with_name(names, m, "import", make_unique<Import>(names, m, opener));
+    with_name(names, m, "export", make_unique<Export>());
 
     return m;
+}
+
+void init_macros(Macros & macros)
+{
+    i_macros = clone_macros(macros);
 }
 
 static EnvEntry to_list_var(const ConsPtr & c)

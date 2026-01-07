@@ -220,10 +220,7 @@
 #
 # As an optimization the implementation should (maybe as
 # part of compx) strip away non-last #void as well as all
-# flattening LEX_SEQ diminishing need to eval it.  The
-# LEX_EXPORT already gets removed in processing of (import)
-# and (scope), and should not have been OP_EXPORT but
-# rather just among the known names, i-e NAM_EXPORT.
+# flattening LEX_SEQ diminishing need to eval it.
 #
 
 
@@ -334,6 +331,7 @@ NAM_SETJJ      = 10  #| letrec, letrecx
 NAM_DUP        = 11  #| define
 NAM_ERROR      = 12  #| default else in case
 NAM_SPLICE     = 13  #| @ expansion
+NAM_IMPORT     = 14
 
 def xn(n):
     return (LEX_NAM, n)
@@ -352,6 +350,7 @@ nam_setjj = xn(NAM_SETJJ)
 nam_dup = xn(NAM_DUP)
 nam_error = xn(NAM_ERROR)
 nam_splice = xn(NAM_SPLICE)
+nam_import = xn(NAM_IMPORT)
 
 ##
 # diagnostics
@@ -783,7 +782,6 @@ def unbound(t, defs, is_block):
                 r.update(unbound([y], defs, True))
         elif x[0] == OP_IMPORT:
             defs.update(x[1])
-            # note: no recurse, as checked when generating it
         elif x[0] == OP_EXPORT:
             pass
         else:
@@ -926,9 +924,11 @@ def zloc_scopes(t, local_env):
             x[2] = c
         elif x[0] in (OP_COND, OP_SEQ):
             x[1:] = zloc_scopes(x[1:], local_env)
-        elif x[0] in (OP_EXPORT, OP_IMPORT):
+        elif x[0] == OP_IMPORT:
             # an import has already parsed (zloc performed),
             # and I therefore in m_scope also zloc.
+            pass
+        elif x[0] == OP_EXPORT:
             pass
         else:
             broken("unknown form")
@@ -1180,6 +1180,8 @@ def m_unquote(s):
 
 # macro
 
+i_macros = {}
+
 def from_lex(s):
     if type(s) == list:
         if is_dotform(s):
@@ -1244,7 +1246,7 @@ class UserMacro:
         debug("result as lex", r)
         return r
 
-def m_macro(macros, names):
+def m_macro(names, macros):
     def macro(s):
         margc_must_ge("macro", s, 4)
         if s[1][0] != LEX_NAM:
@@ -1382,11 +1384,11 @@ def m_case(s):
     # note: abuse of "else" as switch variable name
     return m_letx([-99, [[nam_else, s[1]]], xcase(s[2:])])
 
-# naming - modules
-
 def m_export(s):
     s[0] = OP_EXPORT
     return s
+
+# naming - modules
 
 class Overlay:
 
@@ -1428,8 +1430,9 @@ def m_import(names, macros, opener):
         u_fn = opener.filename
         mchk_or_fail(len(s) in (2, 3), "import expects 2 or 3 args")
         mchk_or_fail(s[1][0] == LEX_STRING, "import.1 expects string")
-        e_macros = Overlay(macros)
-        e_macros[NAM_MACRO] = m_macro(e_macros, names)
+        e_macros = dict(i_macros)
+        e_macros[NAM_MACRO] = m_macro(names, e_macros)
+        e_macros[NAM_IMPORT] = m_import(names, e_macros, opener)
         try:
             f = opener(s[1][1])
         except:
@@ -2935,7 +2938,6 @@ def run_each(x, env):
     return flatten_splices([run(y, env) for y in x])
 
 i_env = {}
-# initial subset of env -- conceptually part of
 
 def xeval(x, env):
     debug("eval", x)
@@ -3005,13 +3007,12 @@ def xeval_op(x, env):
                 raise RunError("no %s for export" % (names[b],))
             env[a] = e[b]
         return [VAR_VOID]
-    if x[0] == OP_EXPORT:
-        # idea: feature when invoking from command line
-        return [VAR_VOID]
     if x[0] == OP_SEQ:
         for y in x[1:]:
             r = run(y, env)
         return r
+    if x[0] == OP_EXPORT:
+        return [VAR_VOID]
     broken("unknown form")
 
 def xapply(a):
@@ -3040,12 +3041,13 @@ def with_new_name(name, f, d, names):
         broken("not new")
     d[i] = f
 
-def init_macros(env, names, opener):
+def init_macros(env_keys, names, opener):
     macros = dict()
     macros[NAM_QUOTE] = m_quote
     macros[NAM_QUASIQUOTE] = m_quasiquote
     macros[NAM_UNQUOTE] = m_unquote
-    macros[NAM_MACRO] = m_macro(macros, names)
+    macros[NAM_MACRO] = m_macro(names, macros)
+    macros[NAM_IMPORT] = m_import(names, macros, opener)
     with_new_name("gensym", m_gensym(names), macros, names)
     for a, b in [
             ("ref", m_ref),
@@ -3068,8 +3070,7 @@ def init_macros(env, names, opener):
             ("export", m_export)]:
         with_new_name(a, b, macros, names)
 
-    with_new_name("import", m_import(names, macros, opener), macros, names)
-    with_new_name("scope", m_scope(names, env.keys()), macros, names)
+    with_new_name("scope", m_scope(names, env_keys), macros, names)
     return macros
 
 def init_env(names):
@@ -3213,7 +3214,7 @@ def inc_functions(names, env, macros):
     t = compx("\n".join(a), names, macros, env.keys())
     run_top(t, env, names)
 
-def inc_macros(names, env, macros):
+def inc_macros(names, macros):
     s = """
 (macro case-lambda args
 `(lambda =>
@@ -3271,6 +3272,7 @@ def inc_macros(names, env, macros):
 (macro local args
   (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
 """
+    env = i_env
     t = compx(s, names, macros, env.keys())
     run_top(t, env, names)
 
@@ -3289,21 +3291,23 @@ def init_top(opener, extra_f=()):
             (NAM_SETJJ, "set!!"),
             (NAM_DUP, "dup"),
             (NAM_ERROR, "error"),
-            (NAM_SPLICE, "splice"))
+            (NAM_SPLICE, "splice"),
+            (NAM_IMPORT, "import"))
     env = init_env(names)
     for a, b in extra_f:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)
 
-    macros = init_macros(env, names, opener)
+    macros = init_macros(env.keys(), names, opener)
 
     opener.filename = "inc-functions"
     inc_functions(names, env, macros)
-
     global i_env
     i_env = dict(env)
 
     opener.filename = "inc-macros"
-    inc_macros(names, env, macros)
+    inc_macros(names, macros)
+    global i_macros
+    i_macros = dict(macros)
 
     opener.filename = None
     return names, env, macros

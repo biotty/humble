@@ -206,13 +206,13 @@ EnvEntry xeval_op(LexForm & f, Env & env)
             if (not p) throw RunError("no such name for export");
             env.set(m.a.at(i), p);
         }
-    } else if (op.code == OP_EXPORT) {
-        // idea: feature when invoking from command line
     } else if (op.code == OP_SEQ) {
         EnvEntry r;
         for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi)
             r = run(*yi, env);
         return r;
+    } else if (op.code == OP_EXPORT) {
+        // pass
     } else {
         throw CoreError("unknown op");
     }

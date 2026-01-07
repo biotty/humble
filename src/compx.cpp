@@ -92,7 +92,7 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
                 c = local_env->rewrite_names(c);
         } else if (op.code == OP_COND or op.code == OP_SEQ) {
             zloc_scopes({f.v.begin() + 1, f.v.end()}, local_env);
-        } else if (op.code == OP_IMPORT or op.code == OP_IMPORT) {
+        } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
             // pass
         } else {
             throw CoreError("unknown form");
@@ -194,7 +194,7 @@ LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_key
         return t;
     }
     report_unbound(u, t, names);
-    unreachable();
+    terminate();
 }
 
 void compx_dispose()

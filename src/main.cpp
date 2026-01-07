@@ -35,8 +35,10 @@ void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
+    Names names;
+    Macros macros;
     Opener opener;
-    auto [names, env, macros] = init_top(&opener);
+    auto env = init_top(names, macros, opener);
     if (argc == 2) {
         auto x = opener(argv[1]);
         auto t = compx(x, names, macros, env.keys());

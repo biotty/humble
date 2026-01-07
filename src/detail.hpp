@@ -24,6 +24,7 @@ enum {
     NAM_DUP,
     NAM_ERROR,
     NAM_SPLICE,
+    NAM_IMPORT,
 };
 
 inline auto nam_then = LexNam{ NAM_THEN, 0 };
@@ -40,6 +41,7 @@ inline auto nam_setjj = LexNam{ NAM_SETJJ, 0 };
 inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };
+inline auto nam_import = LexNam{ NAM_IMPORT, 0 };
 
 // parse.cpp
 bool is_dotform(const LexForm & x);

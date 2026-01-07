@@ -2,3 +2,4 @@
 (ref j 123)
 (macro G () 7)
 (ref (doo x) (+ x j))
+;(none- 1)

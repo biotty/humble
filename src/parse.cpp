@@ -104,7 +104,8 @@ Names init_names()
         /* NAM_SETJJ */ "set!!",
         /* NAM_DUP */ "dup",
         /* NAM_ERROR */ "error",
-        /* NAM_SPLICE */ "splice"
+        /* NAM_SPLICE */ "splice",
+        /* NAM_IMPORT */ "import",
     };
 }
 
@@ -114,6 +115,16 @@ Macros qt_macros()
     r.insert({NAM_QUOTE, make_unique<Quote>()});
     r.insert({NAM_QUASIQUOTE, make_unique<Quasiquote>()});
     r.insert({NAM_UNQUOTE, make_unique<Unquote>()});
+    return r;
+}
+
+Macros clone_macros(Macros & macros)
+{
+    Macros r;
+    for (auto & p : macros) {
+        auto c = p.second->clone();
+        if (c) r[p.first] = move(c);
+    }
     return r;
 }
 

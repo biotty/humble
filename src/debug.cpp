@@ -13,7 +13,7 @@ void out(ostream & os, const LexEnd & x) { os << x.par; }
 void out(ostream & os, const LexNum & x) { os << x.i; }
 void out(ostream & os, const LexBool & x) { os << boolalpha << x.b; }
 void out(ostream &, const LexVoid &) { }
-void out(ostream & os, const LexString & x) { os << x.s; }
+void out(ostream & os, const LexString & x) { os << '"' << x.s << '"'; }
 void out(ostream &, const LexDot &) { }
 void out(ostream & os, const LexSplice & x);
 void out(ostream &, const LexQt &) { }

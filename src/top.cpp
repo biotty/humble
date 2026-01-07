@@ -6,14 +6,17 @@ using namespace std;
 
 namespace humble {
 
-tuple<Names, GlobalEnv, Macros> init_top(SrcOpener * opener)
+GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
 {
+    names = init_env();
     auto & g = GlobalEnv::instance();
-
-    Names names = init_env();
     // TODO: and add ext from arg
-    auto m = init_macros(names, opener);
-    return { names, g.init(), move(m) };
+
+    macros = init_macros(names, opener);
+    // TODO: add more macros if desired
+    init_macros(macros);
+
+    return g.init();
 }
 
 void print(EnvEntry a, Names & n, std::ostream & os)

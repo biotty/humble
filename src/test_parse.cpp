@@ -141,6 +141,7 @@ TEST(expand, macro)
             auto n = get<LexNum>(t.v.at(1));
             return LexNum{n.i + 1};
         }
+        unique_ptr<Macro> clone() const override { return nullptr; }
     };
     auto u = make_unique<TestMacro>();
     Names n = init_names();
