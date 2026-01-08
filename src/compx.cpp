@@ -58,48 +58,6 @@ string info_unbound(Lex & x, Names & names)
     return oss.str();
 }
 
-void zloc_scopes(span<Lex> t, LexEnv * local_env)
-{
-    for (auto & x : t) {
-        if (not holds_alternative<LexForm>(x)) {
-            if (holds_alternative<LexNam>(x)) {
-                if (local_env) {
-                    auto & n = get<LexNam>(x);
-                    n.h = local_env->rewrite_name(n.h);
-                }
-            } else if (holds_alternative<LexList>(x)) {
-                zloc_scopes(get<LexList>(x).v, local_env);
-            } else if (holds_alternative<LexNonlist>(x)) {
-                zloc_scopes(get<LexNonlist>(x).v, local_env);
-            }
-        } else if (auto & f = get<LexForm>(x);
-                not holds_alternative<LexOp>(f.v.at(0))) {
-            zloc_scopes(f.v, local_env);
-        } else if (auto & op = get<LexOp>(f.v[0]);
-                op.code == OP_BIND) {
-            if (local_env) {
-                auto & n = get<LexNam>(f.v.at(1));
-                n.h = local_env->rewrite_name(n.h);
-            }
-            zloc_scopes(span1(f.v, 2), local_env);
-        } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
-            auto & c = get<LexArgs>(f.v.at(2));
-            auto fun_env = new LexEnv(get<LexArgs>(f.v[1]), c);
-            local_envs.push_back(fun_env);
-            zloc_scopes({f.v.begin() + 3, f.v.end()}, fun_env);
-            f.v[1] = fun_env;
-            if (local_env)
-                c = local_env->rewrite_names(c);
-        } else if (op.code == OP_COND or op.code == OP_SEQ) {
-            zloc_scopes({f.v.begin() + 1, f.v.end()}, local_env);
-        } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
-            // pass
-        } else {
-            throw CoreError("unknown form");
-        }
-    }
-}
-
 } // and
 
 namespace humble {
@@ -183,6 +141,48 @@ void report_unbound(set<int> u, LexForm & t, Names & names)
         }
     }
     throw SrcError("unbound,\n" + a.str());
+}
+
+void zloc_scopes(span<Lex> t, LexEnv * local_env)
+{
+    for (auto & x : t) {
+        if (not holds_alternative<LexForm>(x)) {
+            if (holds_alternative<LexNam>(x)) {
+                if (local_env) {
+                    auto & n = get<LexNam>(x);
+                    n.h = local_env->rewrite_name(n.h);
+                }
+            } else if (holds_alternative<LexList>(x)) {
+                zloc_scopes(get<LexList>(x).v, local_env);
+            } else if (holds_alternative<LexNonlist>(x)) {
+                zloc_scopes(get<LexNonlist>(x).v, local_env);
+            }
+        } else if (auto & f = get<LexForm>(x);
+                not holds_alternative<LexOp>(f.v.at(0))) {
+            zloc_scopes(f.v, local_env);
+        } else if (auto & op = get<LexOp>(f.v[0]);
+                op.code == OP_BIND) {
+            if (local_env) {
+                auto & n = get<LexNam>(f.v.at(1));
+                n.h = local_env->rewrite_name(n.h);
+            }
+            zloc_scopes(span1(f.v, 2), local_env);
+        } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
+            auto & c = get<LexArgs>(f.v.at(2));
+            auto fun_env = new LexEnv(get<LexArgs>(f.v[1]), c);
+            local_envs.push_back(fun_env);
+            zloc_scopes({f.v.begin() + 3, f.v.end()}, fun_env);
+            f.v[1] = fun_env;
+            if (local_env)
+                c = local_env->rewrite_names(c);
+        } else if (op.code == OP_COND or op.code == OP_SEQ) {
+            zloc_scopes({f.v.begin() + 1, f.v.end()}, local_env);
+        } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
+            // pass
+        } else {
+            throw CoreError("unknown form");
+        }
+    }
 }
 
 LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_keys)

@@ -12,9 +12,9 @@ GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
     auto & g = GlobalEnv::instance();
     // TODO: and add ext from arg
 
-    macros = init_macros(names, opener);
+    init_macros(macros, names, opener);
     // TODO: add more macros if desired
-    init_macros(macros);
+    macros_init(macros);
 
     return g.init();
 }

@@ -13,10 +13,10 @@ struct SrcOpener {
     virtual ~SrcOpener() = default;
 };
 
-Macros init_macros(Names & names, SrcOpener & opener);
-void init_macros(Macros & macros);
+void init_macros(Macros & macros, Names & names, SrcOpener & opener);
+void macros_init(Macros & macros);
 Lex to_lex(EnvEntry a);
-EnvEntry from_lex(const Lex & x);
+EnvEntry from_lex(Lex & x);
 
 } // ns
 

@@ -1,5 +1,6 @@
 #include "macros.hpp"
 #include "compx.hpp"
+#include "xeval.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
 #include "detail.hpp"
@@ -271,13 +272,87 @@ struct If : MacroClone<If> {
         if (s.v.size() == 3) {
             s.v.push_back(LexVoid{});
         } else if (s.v.size() != 4) {
-            throw SrcError("if-expr length");
+            throw SrcError("if-expr argc");
         }
         return LexForm{{
             LexOp{ OP_COND },
                 LexForm{{move(s.v[1]), move(s.v[2])}},
                 LexForm{{LexBool{ true }, move(s.v[3])}}
         }};
+    }
+};
+
+struct UserMacro : MacroNotClone<UserMacro>
+{
+    string mname;
+    LexArgs parms;
+    bool isdot;
+    LexForm block;
+    Names * names;
+    UserMacro(string mname, LexArgs parms, bool isdot, LexForm block, Names & names)
+        : mname(mname), parms(parms), isdot(isdot), block(block), names(&names)
+    { }
+
+    Lex operator()(LexForm & s) override
+    {
+        vector<EnvEntry> args;
+        for (auto & x : s.v)
+            if (&x != &s.v[0])
+                args.push_back(from_lex(x));
+        auto env = OverlayEnv(GlobalEnv::instance());
+        if (isdot) {
+            size_t last = parms.size() - 1;
+            if (args.size() < last) throw SrcError("user-macro dot argc");
+            for (size_t i = 0; i != last; ++i)
+                env.set(parms[i], args[i]);
+            env.set(parms[last], make_shared<Var>(
+                        VarList{{args.begin() + last, args.end()}}));
+        } else {
+            if (args.size() != parms.size())
+                throw SrcError("user-macro argc");
+            for (size_t i = 0; i != args.size(); ++i)
+                env.set(parms[i], args[i]);
+        }
+        EnvEntry r;
+        for (auto & x : block.v)
+            r = run(x, env);
+        return to_lex(r);
+    }
+};
+
+struct MacroMacro : MacroNotClone<Macro> {
+    Names * names;
+    Macros * macros;
+    MacroMacro(Names & names, Macros & macros)
+        : names(&names)
+        , macros(&macros)
+    { }
+
+    Lex operator()(LexForm & s) override
+    {
+        if (s.v.size() <= 3)
+            throw SrcError("macro argc");
+        malt_or_fail<LexNam>(s.v[1], "macro not name");
+        auto & n = get<LexNam>(s.v[1]);
+        bool isdot{true};
+        auto & y = s.v[2];
+        if (not malt_in<LexForm>(y)) {
+            y = LexForm{{ move(y) }};
+        } else {
+            isdot = is_dotform(get<LexForm>(y));
+            if (isdot) y = without_dot(get<LexForm>(y));
+        }
+        zloc_scopes({s.v.begin() + 3, s.v.end()}, nullptr);
+        LexArgs parms;
+        for (auto & p : get<LexForm>(y).v) {
+            malt_or_fail<LexNam>(p, "macro expected name");
+            parms.push_back(get<LexNam>(p).h);
+        }
+        LexForm block;
+        move(s.v.begin() + 3, s.v.end(), back_inserter(block.v));
+        (*macros)[n.h] = make_unique<UserMacro>(names->get(n.h),
+                parms, isdot, move(block), *names);
+        return LexVoid{};
     }
 };
 
@@ -348,10 +423,12 @@ struct Import : MacroNotClone<Import> {
     }
 };
 
-struct Export : MacroClone<Export> { Lex operator()(LexForm & s) override {
-    s.v[0] = LexOp{ OP_EXPORT };
-    return move(s);
-} };
+struct Export : MacroClone<Export> {
+    Lex operator()(LexForm & s) override {
+        s.v[0] = LexOp{ OP_EXPORT };
+        return move(s);
+    }
+};
 
 struct Lambda : MacroClone<Lambda> { Lex operator()(LexForm & s) override {
     return m_lambda(s);
@@ -384,13 +461,14 @@ void with_name(Names & n, Macros & m, string name, unique_ptr<Macro> nm)
 
 namespace humble {
 
-Macros init_macros(Names & names, SrcOpener & opener)
+void init_macros(Macros & m, Names & names, SrcOpener & opener)
 {
-    auto env_keys = GlobalEnv::instance().keys();
-    auto m = qt_macros();
+    m = qt_macros();
 
+    auto env_keys = GlobalEnv::instance().keys();
     (void)env_keys;
 
+    m[NAM_MACRO] = make_unique<MacroMacro>(names, m);
     with_name(names, m, "lambda", make_unique<Lambda>());
     with_name(names, m, "let", make_unique<Let>());
     with_name(names, m, "let*", make_unique<Letx>());
@@ -399,13 +477,11 @@ Macros init_macros(Names & names, SrcOpener & opener)
     with_name(names, m, "ref", make_unique<Ref>());
     with_name(names, m, "define", make_unique<Define>());
     with_name(names, m, "if", make_unique<If>());
-    with_name(names, m, "import", make_unique<Import>(names, m, opener));
     with_name(names, m, "export", make_unique<Export>());
-
-    return m;
+    with_name(names, m, "import", make_unique<Import>(names, m, opener));
 }
 
-void init_macros(Macros & macros)
+void macros_init(Macros & macros)
 {
     i_macros = clone_macros(macros);
 }
@@ -469,10 +545,46 @@ Lex to_lex(EnvEntry a)
     }, *a);
 }
 
-EnvEntry from_lex(const Lex & x)
+EnvEntry from_lex(Lex & x)
 {
-    (void)x;
-    return make_shared<Var>(VarVoid{});
+    return visit([](auto & q) -> EnvEntry {
+            using T = decay_t<decltype(q)>;
+            if constexpr (is_same_v<T, LexForm>) {
+                bool isd = is_dotform(q);
+                if (isd) q = without_dot(q);
+                vector<EnvEntry> v;
+                for (auto & w : q.v)
+                    v.push_back(from_lex(w));
+                if (isd) return make_shared<Var>(VarNonlist{v});
+                return make_shared<Var>(VarList{v});
+            } else if constexpr (is_same_v<T, LexList>) {
+                vector<Lex> v{ nam_list };
+                move(q.v.begin(), q.v.end(), back_inserter(v));
+                Lex r = LexForm{ v };
+                return from_lex(r);
+            } else if constexpr (is_same_v<T, LexNonlist>) {
+                vector<Lex> v{ nam_nonlist };
+                move(q.v.begin(), q.v.end(), back_inserter(v));
+                Lex r = LexForm{ v };
+                return from_lex(r);
+            } else if constexpr (is_same_v<T, LexSym>) {
+                vector<Lex> v{ nam_quote, q };
+                Lex r = LexForm{ v };
+                return from_lex(r);
+            } else if constexpr (is_same_v<T, LexBool>) {
+                return make_shared<Var>(VarBool{ q.b });
+            } else if constexpr (is_same_v<T, LexNum>) {
+                return make_shared<Var>(VarNum{ q.i });
+            } else if constexpr (is_same_v<T, LexString>) {
+                return make_shared<Var>(VarString{ q.s });
+            } else if constexpr (is_same_v<T, LexNam>) {
+                return make_shared<Var>(VarNam{ q.h });
+            } else if constexpr (is_same_v<T, LexVoid>) {
+                return make_shared<Var>(VarVoid{});
+            } else {
+                throw CoreError("to lex not handled");
+            }
+    }, x);
 }
 
 } // ns
