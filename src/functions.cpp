@@ -3,6 +3,7 @@
 #include "detail.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
+#include "compx.hpp"
 #include "debug.hpp"
 
 using namespace humble;
@@ -248,13 +249,28 @@ EnvEntry f_voidp(span<EnvEntry> args)
     return make_shared<Var>(VarBool{valt_in<VarVoid>(*args[0])});
 }
 
+Names * u_names;
+
+EnvEntry f_display(span<EnvEntry> args)
+{
+    for (auto & a : args) {
+        if (&a != &args[0]) cout << ' ';
+        if (holds_alternative<VarString>(*a))
+            cout << get<VarString>(*a).s;
+        else
+            print(a, *u_names, cout);
+    }
+    return make_shared<Var>(VarVoid{});
+}
+
 } // ans
 
 namespace humble {
 
-Names init_env()
+void init_env(Names & n)
 {
-    Names n{              /* note: ordered */
+    u_names = &n;
+    n = Names{            /* note: ordered */
             "=>",         /* NAM_THEN = 0  */
             "else",       /* NAM_ .. etc   */
             "quote",      /* as detail.hpp */
@@ -287,8 +303,12 @@ Names init_env()
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
     g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
+    g.set(n.intern("display"), make_shared<Var>(VarFunHost{ f_display }));
+}
 
-    return n;
+void print(EnvEntry a, Names & n, std::ostream & os)
+{
+    print(to_lex(a), n, os);
 }
 
 } // ns

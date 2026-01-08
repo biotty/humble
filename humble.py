@@ -2469,12 +2469,13 @@ def f_not(*args):
 
 def f_display(names):
     def display(*args):
+        r = []
         for a in args:
             if a[0] == VAR_STRING:
-                s = a[1]
+                r.append(a[1])
             else:
-                s = vrepr(a, names)
-            sys.stdout.write(s)
+                r.append(vrepr(a, names))
+        sys.stdout.write(" ".join(r))
         return [VAR_VOID]
     return display
 

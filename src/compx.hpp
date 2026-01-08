@@ -28,6 +28,9 @@ void zloc_scopes(std::span<Lex> t, LexEnv * local_env);
 LexForm compx(const std::string & s, Names & names, Macros & macros, std::set<int> env_keys);
 void compx_dispose();
 
+Lex to_lex(EnvEntry a);
+EnvEntry from_lex(Lex & x);
+
 } // ns
 
 #endif

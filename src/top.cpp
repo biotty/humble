@@ -8,7 +8,7 @@ namespace humble {
 
 GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
 {
-    names = init_env();
+    init_env(names);
     auto & g = GlobalEnv::instance();
     // TODO: and add ext from arg
 
@@ -17,11 +17,6 @@ GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
     macros_init(macros);
 
     return g.init();
-}
-
-void print(EnvEntry a, Names & n, std::ostream & os)
-{
-    print(to_lex(a), n, os);
 }
 
 } // ns

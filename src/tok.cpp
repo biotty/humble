@@ -314,6 +314,8 @@ void print(const Lex & x, Names & n, std::ostream & os)
                 os << '"' << escape(z.s) << '"';
             } else if constexpr (is_same_v<T, LexNam>) {
                 os << n.get(z.h);
+            } else if constexpr (is_same_v<T, LexVoid>) {
+                os << "#void";
             } else if constexpr (is_same_v<T, LexDot>) {
                 os << '.';
             } else {

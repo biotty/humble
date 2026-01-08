@@ -15,8 +15,6 @@ struct SrcOpener {
 
 void init_macros(Macros & macros, Names & names, SrcOpener & opener);
 void macros_init(Macros & macros);
-Lex to_lex(EnvEntry a);
-EnvEntry from_lex(Lex & x);
 
 } // ns
 
