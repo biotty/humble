@@ -1292,8 +1292,6 @@ def blex(y):
 
 def m_cond(s):
     s[0] = OP_COND
-    if len(s) == 1:
-        return s
     n = len(s)
     i = 1
     while i < n:
@@ -1384,11 +1382,7 @@ def m_case(s):
     # note: abuse of "else" as switch variable name
     return m_letx([-99, [[nam_else, s[1]]], xcase(s[2:])])
 
-def m_export(s):
-    s[0] = OP_EXPORT
-    return s
-
-# naming - modules
+# (here-) import
 
 class Overlay:
 
@@ -1471,6 +1465,10 @@ def m_import(names, macros, opener):
         linenumber = u_ln
         return [OP_IMPORT, set_up, *r[1:]]
     return ximport
+
+def m_export(s):
+    s[0] = OP_EXPORT
+    return s
 
 ##
 # builtin functions
@@ -1719,6 +1717,8 @@ def fargt_must_in(fn, args, i, vts):
                 % (fn, i, "/".join(fargt_repr(vt)
                     for vt in var_members(vts)),
                     fargt_repr(args[i][0])))
+
+# functions on CONS, (NON)LIST
 
 def f_list(*args):
     if len(args) == 0:

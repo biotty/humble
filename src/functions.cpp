@@ -12,8 +12,8 @@ using namespace std;
 namespace {
 
 const char * var_type_name[] {
-    "void",    // ordered:  Var variant index
-    "number",
+    "void",                     // note:  ordered as
+    "number",                   // Var variant index
     "bool",
     "name",
     "string",
@@ -43,6 +43,10 @@ void valt_or_fail(span<EnvEntry> args, size_t i, string s)
     ost << s << " args[" << i << "] " << var_type_name[args[i]->index()];
     throw RunError(ost.str());
 }
+
+//
+// cons, non(list)
+//
 
 EnvEntry f_list(span<EnvEntry> args)
 {
@@ -176,6 +180,10 @@ EnvEntry f_splice(span<EnvEntry> args)
     return make_shared<Var>(VarSplice{normal_list(*args[0]).v});
 }
 
+//
+// numbers
+//
+
 EnvEntry f_pluss(span<EnvEntry> args)
 {
     long long r{};
@@ -185,6 +193,10 @@ EnvEntry f_pluss(span<EnvEntry> args)
     }
     return make_shared<Var>(VarNum{ r });
 }
+
+//
+// mutation
+//
 
 EnvEntry setjj(span<EnvEntry> args)
 {
@@ -215,6 +227,10 @@ EnvEntry f_setjj(span<EnvEntry> args)
     return setjj(args);
 }
 
+//
+// identity
+//
+
 EnvEntry f_aliasp(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("alias? argc");
@@ -243,6 +259,22 @@ EnvEntry f_eqp(span<EnvEntry> args)
     return make_shared<Var>(VarBool{r});
 }
 
+//
+// DICT
+//
+
+//
+// REC
+//
+
+//
+// string
+//
+
+//
+// type checks
+//
+
 EnvEntry f_contpp(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("cont?? argc");
@@ -255,6 +287,31 @@ EnvEntry f_voidp(span<EnvEntry> args)
     if (args.size() != 1) throw RunError("void? argc");
     return make_shared<Var>(VarBool{valt_in<VarVoid>(*args[0])});
 }
+
+//
+// boolean functions (one, others are macros on cond)
+//
+
+// display functions (see I/O functions)
+//
+//   for development purposes and as of r7rs, not suggested for
+//   program utilization
+
+//
+// list usage
+//
+
+//
+// input/output
+//
+
+//
+// prng
+//
+
+//
+// time
+//
 
 Names * u_names;
 
@@ -277,10 +334,10 @@ namespace humble {
 void init_env(Names & n)
 {
     u_names = &n;
-    n = Names{            /* note: ordered */
-            "=>",         /* NAM_THEN = 0  */
-            "else",       /* NAM_ .. etc   */
-            "quote",      /* as detail.hpp */
+    n = Names{            // note:  known names ordered
+            "=>",         //        as in detail.hpp
+            "else",
+            "quote",
             "quasiquote",
             "unquote",
             "macro",
