@@ -15,7 +15,7 @@ void out(ostream & os, const LexBool & x) { os << boolalpha << x.b; }
 void out(ostream &, const LexVoid &) { }
 void out(ostream & os, const LexString & x) { os << '"' << x.s << '"'; }
 void out(ostream &, const LexDot &) { }
-void out(ostream & os, const LexSplice & x);
+void out(ostream &, const LexSpl &) { };
 void out(ostream &, const LexQt &) { }
 void out(ostream &, const LexQqt &) { }
 void out(ostream &, const LexUnq &) { }
@@ -44,7 +44,7 @@ ostream & operator<<(ostream & os, const Glyph & g)
 ostream & operator<<(ostream & os, const Lex & x)
 {
     array<string, 23> tn = {
-    "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Splice",
+    "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Spl",
     "Void", "Sym", "Num", "Bool", "Nam", "String",
     "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
     "Args", "Env~", "Op", "Import" };
@@ -69,7 +69,6 @@ namespace {
 
 using namespace humble;
 
-void out(ostream & os, const LexSplice & x) { os << x.v; }
 void out(ostream & os, const LexForm & x) { os << x.v; }
 void out(ostream & os, const LexList & x) { os << x.v; }
 void out(ostream & os, const LexNonlist & x) { os << x.v; }

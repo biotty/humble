@@ -40,6 +40,7 @@ struct LexDot { };
 struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
+struct LexSpl { };
 
 struct LexVoid { };
 struct LexNum { long long i;
@@ -66,7 +67,6 @@ enum {
 struct LexImport { std::vector<int> a, b; };
 
 struct LexEnv;  // from compx for efficient activation records
-struct LexSplice;
 struct LexForm;
 struct LexList;
 struct LexNonlist;
@@ -75,11 +75,10 @@ struct LexQuasiquote;
 struct LexUnquote;
 using LexArgs = std::vector<int>;  // for fun parms and (sorted) capture
 using Lex = std::variant<
-    LexBeg/*0*/, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSplice/*6*/,
+    LexBeg/*0*/, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSpl/*6*/,
     LexVoid/*7*/, LexSym, LexNum, LexBool, LexNam, LexString/*12*/,
     LexList/*13*/, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote/*18*/,
     LexArgs/*19*/, LexEnv *, LexOp, LexImport/*22*/>;
-struct LexSplice { std::vector<Lex> v; };
 struct LexForm { std::vector<Lex> v; };
 struct LexList { std::vector<Lex> v; };
 struct LexNonlist { std::vector<Lex> v; };

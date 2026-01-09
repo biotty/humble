@@ -100,7 +100,7 @@ vector<EnvEntry> run_each(span<Lex> v, Env & env)
             auto & u = get<VarSplice>(*y).v;
             copy(u.begin(), u.end(), back_inserter(r));
         } else {
-            r.push_back(move(y));
+            r.push_back(y);
         }
     }
     return r;

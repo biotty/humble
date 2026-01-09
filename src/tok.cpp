@@ -257,7 +257,7 @@ vector<Lex> lex(const string & s, Names & names)
             v = LexDot{};
         } else if (t[0] == '@') {
             if (t.size() != 1) throw SrcError("token starts in '@'");
-            v = LexSplice{};
+            v = LexSpl{};
         } else if (t[0] == quotes[0]) {
             v = LexQt{};
         } else if (t[0] == quotes[1]) {

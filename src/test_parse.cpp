@@ -57,8 +57,8 @@ TEST(parse, splice)
     Names n;
     Macros m;
     auto w = parse("@a", n, m);
-    auto s = get<LexSplice>(w.v.at(0));
-    ASSERT_TRUE(holds_alternative<LexNam>(s.v.at(0)));
+    auto f = get<LexForm>(w.v.at(0));
+    ASSERT_EQ(NAM_SPLICE, get<LexNam>(f.v.at(0)).h);
 }
 
 TEST(expand, quote_list)

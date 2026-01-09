@@ -169,6 +169,13 @@ EnvEntry f_append(span<EnvEntry> args)
     return make_shared<Var>(VarCons{r});
 }
 
+EnvEntry f_splice(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("splice argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "splice");
+    return make_shared<Var>(VarSplice{normal_list(*args[0]).v});
+}
+
 EnvEntry f_pluss(span<EnvEntry> args)
 {
     long long r{};
@@ -296,6 +303,7 @@ void init_env(Names & n)
     g.set(n.intern("list-ref"), make_shared<Var>(VarFunHost{ f_list_ref }));
     g.set(n.intern("cdr"), make_shared<Var>(VarFunHost{ f_cdr }));
     g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
+    g.set(n.intern("splice"), make_shared<Var>(VarFunHost{ f_splice }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
     g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
     g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));

@@ -59,8 +59,8 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
             r.push_back(LexForm{{nam_quasiquote, parse1()}});
         } else if (std::holds_alternative<LexUnq>(x)) {
             r.push_back(LexForm{{nam_unquote, parse1()}});
-        } else if (std::holds_alternative<LexSplice>(x)) {
-            r.push_back(LexSplice{{parse1()}});
+        } else if (std::holds_alternative<LexSpl>(x)) {
+            r.push_back(LexForm{{nam_splice, parse1()}});
         } else {
             i += 1;
             r.push_back(x);

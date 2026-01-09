@@ -344,7 +344,7 @@ EnvEntry from_lex(Lex & x)
                 Lex r = LexForm{ v };
                 return from_lex(r);
             } else if constexpr (is_same_v<T, LexSym>) {
-                vector<Lex> v{ nam_quote, q };
+                vector<Lex> v{ nam_quote, LexNam{q.h, 0} };
                 Lex r = LexForm{ v };
                 return from_lex(r);
             } else if constexpr (is_same_v<T, LexBool>) {
