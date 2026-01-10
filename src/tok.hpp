@@ -47,12 +47,7 @@ struct LexUnq { };
 struct LexSpl { };
 
 struct LexVoid { };
-struct LexNum { long long i;
-    // LexNum() : i{} {};
-    // LexNum(long long i) : i(i) { std::cout << "INIT\n"; };
-    // LexNum(const LexNum&rhs) { i=rhs.i; std::cout << "COPY\n"; }
-    // LexNum&operator=(const LexNum&rhs) { i=rhs.i; std::cout << "ASSIGN\n"; return *this; }
-};
+struct LexNum { long long i; };
 struct LexBool { bool b; };
 struct LexSym { int h; };
 struct LexNam { int h; int line; };
@@ -83,7 +78,17 @@ using Lex = std::variant<
     LexVoid/*7*/, LexSym, LexNum, LexBool, LexNam, LexString/*12*/,
     LexList/*13*/, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote/*18*/,
     LexArgs/*19*/, LexEnv *, LexOp, LexImport/*22*/>;
-struct LexForm { std::vector<Lex> v; };
+struct LexForm { std::vector<Lex> v;
+    /* cannot do the following because i use aggregate construct syntax at callers
+     * (doing the following collapses one level)
+    LexForm() { std::cout << "LexForm DFLT-INIT " << this << std::endl; };
+    LexForm(const std::vector<Lex> & v) : v(v) { std::cout << "LexForm INIT " << this << std::endl; };
+    LexForm(const LexForm&rhs) : v(rhs.v) { std::cout << "LexForm COPY " << this << " from " << &rhs << std::endl; }
+    LexForm(const LexForm&&rhs) : v(std::move(rhs.v)) { std::cout << "LexForm MOVE " << this << "from " << &rhs << std::endl; }
+    LexForm&operator=(const LexForm&rhs) { v=rhs.v; std::cout << "LexForm ASSIGN " << this << " from " << &rhs << std::endl; return *this; }
+    ~LexForm() { std::cout << "LexForm DELETE " << this << "\n"; }
+    */
+};
 struct LexList { std::vector<Lex> v; };
 struct LexNonlist { std::vector<Lex> v; };
 struct LexQuote { std::vector<Lex> y; };

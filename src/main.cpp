@@ -1,6 +1,7 @@
 #include "compx.hpp"
 #include "xeval.hpp"
 #include "top.hpp"
+#include "except.hpp"
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -22,6 +23,7 @@ struct Opener : SrcOpener {
 };
 
 void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
+    try
 {
     for (auto & a : ast.v) {
         auto r = run(a, env);
@@ -31,6 +33,12 @@ void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
             os << '\n';
         }
     }
+} catch (const SrcError & e) {
+    cout << "src error: " << e.what() << endl;
+} catch (const RunError & e) {
+    cout << "run error: " << e.what() << endl;
+} catch (const runtime_error & e) {
+    cout << "error: " << e.what() << endl;
 }
 
 int main(int argc, char ** argv)
@@ -54,14 +62,10 @@ int main(int argc, char ** argv)
             and std::getline(cin, line)) {
         if (line.back() == ';') {
             auto expr = buf + line.substr(0, line.size() - 1);
-            try {
                 x.push_back(LexForm{});
                 auto & ast = x.back();
                 ast = compx(expr, names, macros, env.keys());
                 run_top(ast, env, names, cout);
-            } catch (const runtime_error & e) {
-                cout << e.what();
-            }
         } else {
             buf += line;
         }

@@ -36,9 +36,9 @@ struct VarApply;
 struct Cons;
 struct VarCons { std::shared_ptr<Cons> c; };
 
-using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString,
-      VarList, VarNonlist, VarSplice, VarUnquote,
-      VarFunOps, VarFunHost, VarApply, VarCons>;
+using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString/*4*/,
+      VarList, VarNonlist, VarSplice, VarUnquote/*8*/,
+      VarFunOps, VarFunHost, VarApply, VarCons/*12*/>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };

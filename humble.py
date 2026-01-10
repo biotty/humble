@@ -1120,6 +1120,8 @@ def m_do(s):
         m_begin([-99, *s[3:]])])])
 
 def m_begin(s):
+    # TBD:  look into optimization and allowance, such as here
+    # length 1: return Void, length 2: just return s[1] itself
     return m_letx([-99, [], *s[1:]])
 
 # quotation

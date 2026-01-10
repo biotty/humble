@@ -16,6 +16,9 @@ struct FunOps {
     LexEnv * local_env;
     bool dot;
     span<Lex> block;
+#ifdef DEBUG
+    ~FunOps() { cout << "FunOps DELETE " << this << endl; }
+#endif
 };
 
 EnvEntry tco(FunOps * f, span<EnvEntry> args)
@@ -29,6 +32,7 @@ EnvEntry tco(FunOps * f, span<EnvEntry> args)
             ->activation(f->captured, f->dot, args);
         done = true;
         for (auto & w : f->block) {
+            // cout << "expr " << &w << endl;
             v = xeval(w, env);
             if (holds_alternative<VarApply>(*v)) {
                 auto & a = get<VarApply>(*v).a;
@@ -84,6 +88,8 @@ VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
     for (auto k : get<LexArgs>(x[1]))
         captured.set(i++, up.get(k));
     auto fun_block = span<Lex>{x.begin() + 2, x.end()};
+    // cout << "make_fun " << fun_block.size() << " -- " << fun_block[0] <<
+    //     " " << &fun_block[0] << " " << fun_block[0].index() << endl;
     bool dot = (op_code == OP_LAMBDA_DOT);
     // cout << get<LexNum>(fun_block.front()).i << " make_fun in block\n";
     // cout << &fun_block.front() << " make_fun block\n";
@@ -120,6 +126,7 @@ EnvEntry xeval_op(LexForm & f, Env & env);
 EnvEntry xeval(Lex & x, Env & env)
 {
 #ifdef DEBUG
+    // cout << "eval " << &x << endl;
     cout << "eval: " << x << "\n";
 #endif
     return visit([&env](auto && z) -> EnvEntry {
@@ -186,13 +193,15 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
         // cout << get<LexNum>(f.v.back()).i << " xeval_op\n";
         // cout << &f.v.back() << " xeval_op\n";
+        // cout << "xeval.make_fun -- " << f.v.size() << " " << &f.v.back() << endl;
+        // cout << "xeval.make_fun expr " << f.v.back() << endl;
         return make_shared<Var>(make_fun(env,
                     {f.v.begin() + 1, f.v.end()}, op.code));
     } else if (op.code == OP_COND) {
         for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi) {
             if (not holds_alternative<LexForm>(*yi))
                 throw RunError("cond term not form");
-            auto y = get<LexForm>(*yi);
+            auto & y = get<LexForm>(*yi);
             auto t = run(y.v.at(0), env);
             if (not holds_alternative<VarBool>(*t) or get<VarBool>(*t).b)
                 return xeval(y.v.at(1), env);
@@ -221,13 +230,21 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     return make_shared<Var>(VarVoid{});
 }
 
+// TODO:  one could think const x propagated from here down would prevent
+// issues, but not when i unintentionally take a copy of a lex and pass
+// that down to make a fun, then for the copies scope to go away prior to
+// invoking that fun -- just what slip-slapped now.
 EnvEntry run(Lex & x, Env & env)
 {
+    // cout << x << " *run*\n";
     auto y = xeval(x, env);
     if (not holds_alternative<VarApply>(*y))
         return y;
     auto & a = get<VarApply>(*y).a;
     auto args = span<EnvEntry>(a.begin() + 1, a.end());
+    // cout << "apply " << &get<VarFunOps>(*a.at(0)).f->block[0] << endl;
+    // cout << "variant " << get<VarFunOps>(*a.at(0)).f->block[0].index() << endl;
+    // cout << "expr " << get<VarFunOps>(*a.at(0)).f->block[0] << endl;
     return tco(&*get<VarFunOps>(*a.at(0)).f, args);
 }
 

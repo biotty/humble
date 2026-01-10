@@ -5,8 +5,8 @@ enable_testing()
 add_compile_options(-Wall -Wextra -Werror
     # -Wshadow     # for potential tidyup
 )
-add_compile_options(-DDEBUG)
-# add_compile_options(-ggdb)
+# add_compile_options(-DDEBUG)
+add_compile_options(-ggdb)
 # add_compile_options(-fsanitize=address)
 # # alt: valgrind
 
