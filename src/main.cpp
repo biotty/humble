@@ -3,6 +3,7 @@
 #include "top.hpp"
 #include <fstream>
 #include <iostream>
+#include <list>
 
 using namespace humble;
 using namespace std;
@@ -47,20 +48,20 @@ int main(int argc, char ** argv)
     }
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
-    LexForm x;
+    list<LexForm> x;
     std::string line, buf;
     while (cout << ":" << flush
             and std::getline(cin, line)) {
         if (line.back() == ';') {
             auto expr = buf + line.substr(0, line.size() - 1);
-            LexForm ast;
             try {
+                x.push_back(LexForm{});
+                auto & ast = x.back();
                 ast = compx(expr, names, macros, env.keys());
                 run_top(ast, env, names, cout);
             } catch (const runtime_error & e) {
                 cout << e.what();
             }
-            move(ast.v.begin(), ast.v.end(), back_inserter(x.v));
         } else {
             buf += line;
         }

@@ -6,7 +6,7 @@ add_compile_options(-Wall -Wextra -Werror
     # -Wshadow     # for potential tidyup
 )
 add_compile_options(-DDEBUG)
-add_compile_options(-ggdb)
+# add_compile_options(-ggdb)
 # add_compile_options(-fsanitize=address)
 # # alt: valgrind
 
@@ -28,7 +28,7 @@ add_library(Humble
 
 set(LIBS Humble
     -lstdc++exp # when DEBUG, to allow backtrace
-    # -lasan      # when sanitize address enabled.
+    #-lasan      # when sanitize address enabled.
 )
 
 add_executable(humble main.cpp)

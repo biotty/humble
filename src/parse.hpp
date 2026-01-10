@@ -7,7 +7,7 @@
 namespace humble {
 
 struct Macro {
-    virtual Lex operator()(LexForm & t) = 0;
+    virtual Lex operator()(LexForm && t) = 0;
     bool is_user = false;  // instead of dynamic cast
     virtual ~Macro() = default;
 
@@ -40,9 +40,9 @@ Macros clone_macros(Macros & macros);
 LexForm parse(const std::string & s, Names & m, Macros & macros);
 void expand_macros(Lex & t, Macros & macros, int qq);
 
-struct Quote : MacroClone<Quote> { Lex operator()(LexForm & t); };
-struct Quasiquote : MacroClone<Quasiquote> { Lex operator()(LexForm & t); };
-struct Unquote : MacroClone<Unquote> { Lex operator()(LexForm & t); };
+struct Quote : MacroClone<Quote> { Lex operator()(LexForm && t); };
+struct Quasiquote : MacroClone<Quasiquote> { Lex operator()(LexForm && t); };
+struct Unquote : MacroClone<Unquote> { Lex operator()(LexForm && t); };
 
 bool is_dotform(const LexForm & x);
 LexForm without_dot(const LexForm & x);

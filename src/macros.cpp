@@ -50,16 +50,16 @@ void make_set(LexArgs & u)
 // name scope and let binding
 //
 
-Lex m_lambda(LexForm & s)
+Lex m_lambda(LexForm && s)
 {
     if (s.v.size() < 3) throw SrcError("lambda argc");
-    s.v[0] = LexOp{ OP_LAMBDA };
+    s.v[0] = LexOp{OP_LAMBDA};
     if (not holds_alternative<LexForm>(s.v[1])) {
         malt_or_fail<LexNam>(s.v[1], "lambda.1 expected name");
-        s.v[0] = LexOp{ OP_LAMBDA_DOT };
-        s.v[1] = LexForm{{ s.v[1] }};
+        s.v[0] = LexOp{OP_LAMBDA_DOT};
+        s.v[1] = LexForm{{s.v[1]}};
     } else if (auto & f = get<LexForm>(s.v[1]); is_dotform(f)) {
-        s.v[0] = LexOp{ OP_LAMBDA_DOT };
+        s.v[0] = LexOp{OP_LAMBDA_DOT};
         s.v[1] = without_dot(f);
     }
     LexArgs a;
@@ -110,7 +110,7 @@ LexForm rectmp(LexForm & let, LexArgs & a)
     }
     LexArgs w = u;
     for (int m : a) erase(w, m);
-    LexForm r{{LexForm{{LexOp{ OP_LAMBDA }, a, w, move(let)}}}};
+    LexForm r{{LexForm{{LexOp{OP_LAMBDA}, a, w, move(let)}}}};
     move(v.begin(), v.end(), back_inserter(r.v));
     return r;
 }
@@ -136,14 +136,14 @@ unzip_r bnd_unzip(LexForm & s)
     return r;
 }
 
-Lex named_let(LexForm & s);
+Lex named_let(LexForm && s);
 
-Lex m_let(LexForm & s, bool rec = false)
+Lex m_let(LexForm && s, bool rec = false)
 {
     if (s.v.size() < 2) throw SrcError("let argc");
     if (holds_alternative<LexNam>(s.v[1]))
-        return named_let(s);
-    LexForm lbd{{LexOp{ OP_LAMBDA }}};
+        return named_let(move(s));
+    LexForm lbd{{LexOp{OP_LAMBDA}}};
     auto [a, v] = bnd_unzip(get<LexForm>(s.v[1]));
     LexArgs t;
     if (rec) {
@@ -165,13 +165,13 @@ Lex m_let(LexForm & s, bool rec = false)
     return r;
 }
 
-Lex m_letx(LexForm & s, bool rec = false)
+Lex m_letx(LexForm && s, bool rec = false)
 {
     if (s.v.size() < 2) throw SrcError("let* argc");
     malt_or_fail<LexForm>(s.v[1], "let*.1 expected sub-form");
     auto & f = get<LexForm>(s.v[1]);
     if (f.v.empty())
-        return m_let(s);
+        return m_let(move(s));
     LexForm block{{s.v.begin() + 2, s.v.end()}};
     if (block.v.empty()) block.v.push_back(LexVoid{});
     LexArgs t;
@@ -188,7 +188,7 @@ Lex m_letx(LexForm & s, bool rec = false)
             t.push_back(z);
             z = -z;
         }
-        LexForm lbd{{LexOp{ OP_LAMBDA }, a}};
+        LexForm lbd{{LexOp{OP_LAMBDA}, a}};
         ::set<int> k{a[0]};
         LexArgs u;
         for (auto m : unbound(block.v, k, true))
@@ -204,7 +204,7 @@ Lex m_letx(LexForm & s, bool rec = false)
     return r;
 }
 
-Lex named_let(LexForm & s)
+Lex named_let(LexForm && s)
 {
     malt_or_fail<LexNam>(s.v[1], "let not name");
     auto name = get<LexNam>(s.v[1]);
@@ -214,28 +214,28 @@ Lex named_let(LexForm & s)
     LexArgs u;
     for (int m : unbound(blk, k, true))
         u.push_back(m);
-    LexForm lbd{{LexOp{ OP_LAMBDA}, a, u}};
+    LexForm lbd{{LexOp{OP_LAMBDA}, a, u}};
     move(blk.begin(), blk.end(), back_inserter(lbd.v));
-    LexForm bnd{{LexForm{{ name, lbd }}}};
-    LexForm x{{ name }};
+    LexForm bnd{{LexForm{{name, lbd}}}};
+    LexForm x{{name}};
     move(v.begin(), v.end(), back_inserter(x.v));
-    LexForm r{{ LexOp{}, bnd, x }};
-    return m_let(r, true);
+    LexForm r{{LexOp{}, bnd, x}};
+    return m_let(move(r), true);
 }
 
-Lex m_ref(LexForm & s)
+Lex m_ref(LexForm && s)
 {
     if (s.v.size() < 3) throw SrcError("ref argc");
-    s.v[0] = LexOp{ OP_BIND };
+    s.v[0] = LexOp{OP_BIND};
     if (holds_alternative<LexForm>(s.v[1])) {
         auto & f = get<LexForm>(s.v[1]);
         auto n = f.v[0];
         LexForm a{{LexOp{}, LexForm{{f.v.begin() + 1, f.v.end()}}}};
         move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
-        s.v[2] = m_lambda(a);
+        s.v[2] = m_lambda(move(a));
         s.v[1] = n;
         s.v.resize(3);
-        s = move(get<LexForm>(m_ref(s)));
+        s = move(get<LexForm>(m_ref(move(s))));
     }
     malt_or_fail<LexNam>(s.v[1], "ref.1 expects name");
     auto & i = get<LexNam>(s.v[1]);
@@ -246,19 +246,19 @@ Lex m_ref(LexForm & s)
         // a letrec.  this leaves immediate i-e (ref i (+ i))
         // "non-working", then instead use define
         auto y = i;
-        LexForm a{{LexOp{}, LexForm{{ LexForm{{ y, move(s.v[2]) }}}}, y}};
-        return move(LexForm{{ LexOp{ OP_BIND }, i, m_let(a, true)}});
+        LexForm a{{LexOp{}, LexForm{{LexForm{{y, move(s.v[2]) }}}}, y}};
+        return move(LexForm{{LexOp{OP_BIND}, i, m_let(move(a), true)}});
     }
     return move(s);
 }
 
 struct Define : MacroClone<Define> {
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
         if (s.v.size() < 3) throw SrcError("define argc");
         if (holds_alternative<LexForm>(s.v[1]))
-            return m_ref(s);
-        s.v[0] = LexOp{ OP_BIND };
+            return m_ref(move(s));
+        s.v[0] = LexOp{OP_BIND};
         malt_or_fail<LexNam>(s.v[1], "define.1 expects name");
         auto d = move(s.v[2]);
         s.v[2] = LexForm{{nam_dup, d}};
@@ -266,11 +266,11 @@ struct Define : MacroClone<Define> {
     }
 };
 
-Lex m_begin(LexForm & s)
+Lex m_begin(LexForm && s)
 {
     LexForm a{{LexOp{}, LexForm{}}};
-    move(s.v.begin(), s.v.end(), back_inserter(a.v));
-    return m_letx(a);
+    move(s.v.begin() + 1, s.v.end(), back_inserter(a.v));
+    return m_letx(move(a));
 }
 
 //
@@ -288,7 +288,7 @@ struct UserMacro : MacroNotClone<UserMacro>
         : mname(mname), parms(parms), isdot(isdot), block(block), names(&names)
     { }
 
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
         vector<EnvEntry> args;
         for (auto & x : s.v)
@@ -323,7 +323,7 @@ struct MacroMacro : MacroNotClone<Macro> {
         , macros(&macros)
     { }
 
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
         if (s.v.size() <= 3)
             throw SrcError("macro argc");
@@ -332,7 +332,7 @@ struct MacroMacro : MacroNotClone<Macro> {
         bool isdot{true};
         auto & y = s.v[2];
         if (not malt_in<LexForm>(y)) {
-            y = LexForm{{ move(y) }};
+            y = LexForm{{move(y)}};
         } else {
             isdot = is_dotform(get<LexForm>(y));
             if (isdot) y = without_dot(get<LexForm>(y));
@@ -355,9 +355,9 @@ struct MacroMacro : MacroNotClone<Macro> {
 // conditions
 //
 
-Lex m_cond(LexForm & s)
+Lex m_cond(LexForm && s)
 {
-    s.v[0] = LexOp{ OP_COND };
+    s.v[0] = LexOp{OP_COND};
     size_t n = s.v.size();
     size_t i = 1;
     for (; i != n; ++i) {
@@ -368,20 +368,20 @@ Lex m_cond(LexForm & s)
             r.push_back(LexBool{true});
             LexForm a{{LexOp{}}};
             move(s.v.begin() + i, s.v.end(), back_inserter(a.v));
-            Lex b = m_begin(a);
+            Lex b = m_begin(move(a));
             auto & f = get<LexForm>(b);
             move(f.v.begin(), f.v.end(), back_inserter(r));
-            return LexForm{ move(r) };
+            return LexForm{move(r)};
         }
         if (nameq(d.v.at(1), NAM_THEN)) break;
         if (d.v.size() != 2) {
             vector<Lex> r{d.v[0]};
             LexForm a{{LexOp{}}};
             move(s.v.begin() + i, s.v.end(), back_inserter(a.v));
-            Lex b = m_begin(a);
+            Lex b = m_begin(move(a));
             auto & f = get<LexForm>(b);
             move(f.v.begin(), f.v.end(), back_inserter(r));
-            s.v[i] = LexForm{ move(r) };
+            s.v[i] = LexForm{move(r)};
         }
     }
     if (i == n) return move(s);
@@ -390,8 +390,8 @@ Lex m_cond(LexForm & s)
         nam_then, LexForm{{move(g.v.at(2)), nam_then}}}}}};
     move(s.v.begin() + i + 1, s.v.end(), back_inserter(a.v));
     LexForm t{{LexOp{}, LexForm{{
-        LexForm{{nam_then, move(g.v.at(0))}}}}, m_cond(a)}};
-    Lex x = m_let(t);
+        LexForm{{nam_then, move(g.v.at(0))}}}}, m_cond(move(a))}};
+    Lex x = m_let(move(t));
     auto & f = get<LexForm>(x);
     LexForm m;
     move(s.v.begin(), s.v.begin() + i, back_inserter(m.v));
@@ -402,7 +402,7 @@ Lex m_cond(LexForm & s)
 
 
 struct If : MacroClone<If> {
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
         if (s.v.size() == 3) {
             s.v.push_back(LexVoid{});
@@ -410,23 +410,24 @@ struct If : MacroClone<If> {
             throw SrcError("if argc");
         }
         return LexForm{{
-            LexOp{ OP_COND },
+            LexOp{OP_COND},
                 LexForm{{move(s.v[1]), move(s.v[2])}},
-                LexForm{{LexBool{ true }, move(s.v[3])}}
+                LexForm{{LexBool{true}, move(s.v[3])}}
         }};
     }
 };
 
 struct Unless : MacroClone<Unless> {
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
         if (s.v.size() < 2)
             throw SrcError("unless argc");
         LexForm a{{LexOp{}}};
         move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
-        Lex b = m_begin(a);
-        return LexForm{{LexOp{OP_COND}, move(s.v[1]), move(b),
-            LexBool{true}, LexVoid{}}};
+        Lex b = m_begin(move(a));
+        return LexForm{{LexOp{OP_COND},
+            LexForm{{move(s.v[1]), LexVoid{}}},
+            LexForm{{LexBool{true}, move(b)}}}};
     }
 };
 
@@ -453,7 +454,7 @@ struct Import : MacroNotClone<Import> {
         return is_sym ? get<LexSym>(x).h : get<LexNam>(x).h;
     }
 
-    Lex operator()(LexForm & s) override
+    Lex operator()(LexForm && s) override
     {
 
         auto u_fn = opener->filename;
@@ -495,15 +496,15 @@ struct Import : MacroNotClone<Import> {
         }
         opener->filename = u_fn;
         linenumber = u_ln;
-        LexForm t{{ LexOp{ OP_IMPORT }, move(set_up)}};
+        LexForm t{{LexOp{OP_IMPORT}, move(set_up)}};
         move(r.v.begin(), r.v.end(), back_inserter(t.v));
         return t;
     }
 };
 
 struct Export : MacroClone<Export> {
-    Lex operator()(LexForm & s) override {
-        s.v[0] = LexOp{ OP_EXPORT };
+    Lex operator()(LexForm && s) override {
+        s.v[0] = LexOp{OP_EXPORT};
         return move(s);
     }
 };
@@ -511,29 +512,29 @@ struct Export : MacroClone<Export> {
 //
 // wrap macro-functions that were needed as such because invoked
 //
-struct Lambda : MacroClone<Lambda> { Lex operator()(LexForm & s) override {
-    return m_lambda(s);
+struct Lambda : MacroClone<Lambda> { Lex operator()(LexForm && s) override {
+    return m_lambda(move(s));
 } };
-struct Ref : MacroClone<Ref> { Lex operator()(LexForm & s) override {
-    return m_ref(s);
+struct Ref : MacroClone<Ref> { Lex operator()(LexForm && s) override {
+    return m_ref(move(s));
 } };
-struct Let : MacroClone<Let> { Lex operator()(LexForm & s) override {
-    return m_let(s);
+struct Let : MacroClone<Let> { Lex operator()(LexForm && s) override {
+    return m_let(move(s));
 } };
-struct Letx : MacroClone<Letx> { Lex operator()(LexForm & s) override {
-    return m_letx(s);
+struct Letx : MacroClone<Letx> { Lex operator()(LexForm && s) override {
+    return m_letx(move(s));
 } };
-struct Letrec : MacroClone<Letrec> { Lex operator()(LexForm & s) override {
-    return m_let(s, true);
+struct Letrec : MacroClone<Letrec> { Lex operator()(LexForm && s) override {
+    return m_let(move(s), true);
 } };
-struct Letrecx : MacroClone<Letrecx> { Lex operator()(LexForm & s) override {
-    return m_letx(s, true);
+struct Letrecx : MacroClone<Letrecx> { Lex operator()(LexForm && s) override {
+    return m_letx(move(s), true);
 } };
-struct Begin : MacroClone<Begin> { Lex operator()(LexForm & s) override {
-    return m_begin(s);
+struct Begin : MacroClone<Begin> { Lex operator()(LexForm && s) override {
+    return m_begin(move(s));
 } };
-struct Cond : MacroClone<Cond> { Lex operator()(LexForm & s) override {
-    return m_cond(s);
+struct Cond : MacroClone<Cond> { Lex operator()(LexForm && s) override {
+    return m_cond(move(s));
 } };
 
 //

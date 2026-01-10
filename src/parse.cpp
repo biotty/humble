@@ -206,7 +206,7 @@ void expand_macros(Lex & t, Macros & macros, int qq)
         expand_macros(x, *args_exp, qq);
     }
     if (current) {
-        t = (*macros.at(h))(w);
+        t = (*macros.at(h))(move(w));
         if (is_user) expand_macros(t, macros, qq);
     }
 #ifdef DEBUG
@@ -290,24 +290,24 @@ Lex quote(Lex & t, bool quasi)
     return move(t);
 }
 
-void QtArgCheck(string name, LexForm & t)
+void QtArgCheck(string name, const LexForm & t)
 {
     if (t.v.size() != 2) throw SrcError(name);
 }
 
-Lex Quote::operator()(LexForm & t)
+Lex Quote::operator()(LexForm && t)
 {
     QtArgCheck("quote", t);
     return quote(t.v[1], false);
 }
 
-Lex Quasiquote::operator()(LexForm & t)
+Lex Quasiquote::operator()(LexForm && t)
 {
     QtArgCheck("quasiquote", t);
     return quote(t.v[1], true);
 }
 
-Lex Unquote::operator()(LexForm & t)
+Lex Unquote::operator()(LexForm && t)
 {
     QtArgCheck("unquote", t);
     auto & w = t.v[1];

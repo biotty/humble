@@ -190,6 +190,8 @@ EnvEntry xeval_op(LexForm & f, Env & env)
                     {f.v.begin() + 1, f.v.end()}, op.code));
     } else if (op.code == OP_COND) {
         for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi) {
+            if (not holds_alternative<LexForm>(*yi))
+                throw RunError("cond term not form");
             auto y = get<LexForm>(*yi);
             auto t = run(y.v.at(0), env);
             if (not holds_alternative<VarBool>(*t) or get<VarBool>(*t).b)

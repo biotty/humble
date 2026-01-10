@@ -135,7 +135,7 @@ TEST(expand, twice_quasiquote)
 TEST(expand, macro)
 {
     struct TestMacro : Macro {
-        Lex operator()(LexForm & t) override {
+        Lex operator()(LexForm && t) override {
             EXPECT_TRUE(holds_alternative<LexNam>(t.v.at(0)));
             auto n = get<LexNum>(t.v.at(1));
             return LexNum{n.i + 1};

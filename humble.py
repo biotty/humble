@@ -107,25 +107,25 @@
 # * Functions available untangling the repl components,
 #   (read port), (eval d) also does macro_expand and run
 #   in global env, (write d port) and (compile d port).
-#   these leverage from_lex and to_lex, as d is a var,
+#   These leverage from_lex and to_lex, as d is a var,
 #   while read then benefits from lex parse.
-#   this results in two types of files, x: lex not macro-expanded,
+#   This results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
-#   to be fed to the interpreter and run.  there is no conversion
-#   from type y, on which only action is to run.  names are interned,
-#   and why not add (string->symbol).  the choice done by LISP to
+#   to be fed to the interpreter and run.  There is no conversion
+#   from type y, on which only action is to run.  Names are interned,
+#   and why not add (string->symbol).  The choice done by LISP to
 #   write/output a list as (foo bar) and not something
-#   such as #:(list 'foo 'bar) almost looks unnatural.  but for
+#   such as #:(list 'foo 'bar) almost looks unnatural.  But for
 #   this "eval mode" of print, we need the reader to lex into
 #   a separate lexical type.  This lex-type is only accepted by
 #   (read) as it invokes from_lex, and in the arguments to a macro
-#   as it invokes from_lex.
+#   as it invokes from_lex.  We can have LEX_ESC for this.
 # * Ad previous idea:  One could have a graft-point in the AST,
 #   denoted by an expression, that is globally named and may then
 #   by used as a target p for (compile p), allowing to mutate
 #   the code itself.  The graft point may be wrapped as possibly
 #   a lambda or OP_IMPORT (at hand waving level of thought here).
-# * define-record-type that also accepts r6rs syntax and provides
+# * define-record-type that detect r6rs syntax and provides
 #   inheritence as in that case, on the same underlying VAR_REC.
 #
 # Excluded:  (non-features)
@@ -136,7 +136,8 @@
 #   fashion) the <datum>s)
 # * Other commenting than ; and #| .. |#
 # * Label-syntax.  So a list with a loop cannot be expressed.
-#   (display) of data with loops will not work.
+#   (display) of data with loops will not work.  And it only
+#   un-repr string on top-level, seperating args with LWS.
 # * Float, exact, complex, char (but only integral numbers)
 # * No |n a m e s| and no fold-case mode.  Recommended restriction
 #   to ascii names.  But utf8 accepted in char- or string-literal.
@@ -145,6 +146,7 @@
 # * define-syntax; instead powerful "unhygienic" lisp macro
 # * Char, but number parsed for #\ and with utf-8 support.
 # * Only octal escape for bytes in string.
+# * (newline).
 #
 # Note:  (beware)
 #

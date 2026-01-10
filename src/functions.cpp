@@ -4,6 +4,8 @@
 #include "cons.hpp"
 #include "compx.hpp"
 #include "debug.hpp"
+#include <iostream>
+#include <sstream>
 
 using namespace humble;
 using namespace std;
@@ -200,9 +202,7 @@ EnvEntry f_pluss(span<EnvEntry> args)
 EnvEntry setjj(span<EnvEntry> args)
 {
     if (&*args[0] == &*args[1]) {
-#ifdef DEBUG
-        cout << "self-set\n";
-#endif
+        warn("self-set");
     } else {
         visit([&args](auto && w) { *args[0] = w; }, *args[1]);
     }
@@ -213,9 +213,7 @@ EnvEntry f_setj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set! argc");
     if (args[0]->index() != args[1]->index()) {
-#ifdef DEBUG
-        cout << "set! to different type\n";
-#endif
+        warn("set! to different type");
     }
     return setjj(args);
 }
@@ -373,6 +371,12 @@ void init_env(Names & n)
 void print(EnvEntry a, Names & n, std::ostream & os)
 {
     print(to_lex(a), n, os);
+}
+
+bool warn_off;
+void warn(string m)
+{
+    if (not warn_off) cerr << "warn: " << m << endl;
 }
 
 } // ns

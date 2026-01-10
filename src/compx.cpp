@@ -309,11 +309,7 @@ Lex to_lex(EnvEntry a)
             // lex outputs as reference vrepr; "#:(...)" that may
             // then be parsed (omitting macro-expand) as part of
             // possible (read) implementation with from_lex.
-            // The way I will here escape (have lex produce #:),
-            // may be to stick a LexOp at the head of the LexForm.
-            // This is otherwise used for internal representation
-            // and not parsed, so I will parse #:(...) into
-            // LexForm(LexOp{} ...).
+            // I will escape (have produce "#:"), having a LexEsc.
             } else {
                 throw CoreError("to lex not handled");
             }
