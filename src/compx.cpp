@@ -1,6 +1,5 @@
 #include "compx.hpp"
 #include "debug.hpp"
-#include "detail.hpp"
 #include "except.hpp"
 #include "cons.hpp"
 #include <sstream>
@@ -62,11 +61,6 @@ string info_unbound(Lex & x, Names & names)
 } // and
 
 namespace humble {
-
-span<Lex> span1(span<Lex> x, size_t i)
-{
-    return {x.begin() + i, x.begin() + i + 1};
-}
 
 set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
 {
@@ -311,10 +305,15 @@ Lex to_lex(EnvEntry a)
             } else if constexpr (is_same_v<T, VarVoid>) {
                 return LexVoid{};
             // plan: to support VarRec and VarDict, will convert
-            // to a LexVar with the generating expression, so that
+            // to a LexForm with the generating expression, so that
             // lex outputs as reference vrepr; "#:(...)" that may
             // then be parsed (omitting macro-expand) as part of
-            // possible (read) implementation with from_lex
+            // possible (read) implementation with from_lex.
+            // The way I will here escape (have lex produce #:),
+            // may be to stick a LexOp at the head of the LexForm.
+            // This is otherwise used for internal representation
+            // and not parsed, so I will parse #:(...) into
+            // LexForm(LexOp{} ...).
             } else {
                 throw CoreError("to lex not handled");
             }

@@ -113,15 +113,8 @@
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  there is no conversion
 #   from type y, on which only action is to run.  names are interned,
-#   and why not add (string->symbol).  independently, since the
-#   partial parse (without meacro-expand) invoked by (read)
-#   should serialize symbols and records, and I choose to not
-#   represent dict and record natively in code but instead by
-#   the natural operation for converting lex to var namely to
-#   evaluate it (escaped in parsed code by "#:(..)", we here also
-#   (string->symbol) for this usage, and we thus see that it needs
-#   be as host function as expected (not a macro).  the choice
-#   done by LISP to write/output a list as (foo bar) and not something
+#   and why not add (string->symbol).  the choice done by LISP to
+#   write/output a list as (foo bar) and not something
 #   such as #:(list 'foo 'bar) almost looks unnatural.  but for
 #   this "eval mode" of print, we need the reader to lex into
 #   a separate lexical type.  This lex-type is only accepted by
@@ -408,7 +401,7 @@ def spaces(s, i, n):
             i += 1
         elif s[i] == ';':
             # comment
-            while s[i] != '\n':
+            while i != n and s[i] != '\n':
                 i += 1
         elif s[i] == '#':
             if i + 1 != n and s[i + 1] == '|':
@@ -1706,6 +1699,8 @@ def fargc_must_ge(fn, args, n):
         fargs_count_fail(fn, len(args), n)
 
 def fargt_must_eq(fn, args, i, vt):
+    if len(args) <= i:
+        raise RunError("%s with no args[%d]" % (fn, i))
     if args[i][0] != vt:
         raise RunError("%s expected args[%d] %s got %s"
             % (fn, i,
@@ -3390,7 +3385,10 @@ def vrepr(s, names, q=None, e=False):
             return "()" if not e else "'()"
         return "%s" % vrepr(s[1].to_list_var(), names, q, e)
     if s[0] == VAR_NAM:
-        return names[s[1]]
+        n = names[s[1]]
+        if e:
+            return "'" + n
+        return n
     if s[0] == VAR_NUM:
         return str(s[1])
     if s[0] == VAR_STRING:
@@ -3579,9 +3577,11 @@ if __name__ == "__main__":
     names, env, macros = init_top(opener)
     buf = []
     while True:
-        line = sys.stdin.readline()
-        if not line:
+        try:
+            line = input(":")
+        except EOFError:
             break
+        print(repr(line))
         buf.append(line)
         line = line.rstrip()
         if line.endswith(";"):
@@ -3609,5 +3609,5 @@ if __name__ == "__main__":
                     sys.stderr.write("error: " + e.args[0] + "\n")
                 sys.stdout.flush()  # for evt.display
             buf = []
-    sys.stdout.write("fare well.\n")
+    sys.stdout.write("\nfare well.\n")
 

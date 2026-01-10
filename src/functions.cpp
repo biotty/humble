@@ -1,6 +1,5 @@
 #include "functions.hpp"
 #include "except.hpp"
-#include "detail.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
 #include "compx.hpp"
@@ -335,7 +334,7 @@ void init_env(Names & n)
 {
     u_names = &n;
     n = Names{            // note:  known names ordered
-            "=>",         //        as in detail.hpp
+            "=>",         //        as in tok.hpp
             "else",
             "quote",
             "quasiquote",

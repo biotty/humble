@@ -1,6 +1,5 @@
 #include "tok.hpp"
 #include "except.hpp"
-#include "detail.hpp"
 #include "utf.hpp"
 #include <cctype>
 #include <cstring>
@@ -322,6 +321,11 @@ void print(const Lex & x, Names & n, std::ostream & os)
                 throw CoreError("unexpected token for print");
             }
     }, x);
+}
+
+span<Lex> span1(span<Lex> x, size_t i)
+{
+    return {x.begin() + i, x.begin() + i + 1};
 }
 
 } // ns

@@ -1,6 +1,5 @@
 #include "except.hpp"
 #include "parse.hpp"
-#include "detail.hpp"
 #include "gtest/gtest.h"
 
 using namespace humble;

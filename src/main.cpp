@@ -49,7 +49,8 @@ int main(int argc, char ** argv)
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
     LexForm x;
     std::string line, buf;
-    while (std::getline(cin, line)) {
+    while (cout << ":" << flush
+            and std::getline(cin, line)) {
         if (line.back() == ';') {
             auto expr = buf + line.substr(0, line.size() - 1);
             LexForm ast;
@@ -64,6 +65,6 @@ int main(int argc, char ** argv)
             buf += line;
         }
     }
-    cout << "farewell\n";
+    cout << "\nfare well.\n";
 }
 

@@ -1,5 +1,4 @@
 #include "except.hpp"
-#include "detail.hpp"
 #include "tok.hpp"
 #include "gtest/gtest.h"
 

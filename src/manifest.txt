@@ -1,6 +1,5 @@
 except.hpp // for users of library
 except.cpp // - exception types
-detail.hpp // internal across library
 debug.hpp // controls for development
 debug.cpp
 utf.hpp // utf-8 string operations

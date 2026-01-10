@@ -1,6 +1,5 @@
 #include "parse.hpp"
 #include "except.hpp"
-#include "detail.hpp"
 #include <sstream>
 #include <tuple>
 

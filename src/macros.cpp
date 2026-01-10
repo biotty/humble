@@ -3,7 +3,6 @@
 #include "xeval.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
-#include "detail.hpp"
 #include "except.hpp"
 #include "debug.hpp"
 

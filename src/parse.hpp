@@ -44,6 +44,10 @@ struct Quote : MacroClone<Quote> { Lex operator()(LexForm & t); };
 struct Quasiquote : MacroClone<Quasiquote> { Lex operator()(LexForm & t); };
 struct Unquote : MacroClone<Unquote> { Lex operator()(LexForm & t); };
 
+bool is_dotform(const LexForm & x);
+LexForm without_dot(const LexForm & x);
+LexForm with_dot(const LexForm & x);
+
 } // ns
 
 #endif
