@@ -233,6 +233,10 @@ LEX_QQ         = 5
 LEX_UNQ        = 6
 LEX_SPL        = 7
 
+# data-token
+
+LEX_ESC        = 8
+
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
 par_end = ")]}"  #| - closing.
@@ -594,6 +598,8 @@ def lex(s, names):
                         raise SrcError("#\\ token")
             elif t == "#void":
                 v = (LEX_VOID,)
+            elif t == "#:":
+                v = (LEX_ESC,)
             else:
                 raise SrcError("# token")
         elif t[0] == "\"":
@@ -641,7 +647,7 @@ def parse_r(z, i, paren_mode, d):
         elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
             r.append(s)
-        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_SPL):
+        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_SPL, LEX_ESC):
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
             assert len(x) == 1
             if c == LEX_QT:
@@ -652,6 +658,8 @@ def parse_r(z, i, paren_mode, d):
                 x = [nam_unquote, *x]
             elif c == LEX_SPL:
                 x = [nam_splice, *x]
+            elif c == LEX_ESC:
+                x = (LEX_ESC, *x)
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
@@ -725,25 +733,31 @@ def expand_macros(t, macros, qq):
     debug("expand", t)
     return t
 
-def parse(s, names, macros):
+def readx(s, names):
     global linenumber
     linenumber = 1
     try:
         z = lex(s, names)
     except SrcError as e:
         raise SrcError("line %d: " % (linenumber,) + e.args[0])
-    ast, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
+    t, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
     if i != len(z):
         broken("not fully consumed; unexpected")
+    return t
+
+def parse(s, names, macros):
+    t = readx(s, names)
     try:
-        expand_macros(ast, macros, 0)
+        expand_macros(t, macros, 0)
     except KeyError as e:
         i = e.args[0]
-        raise SrcError("%s unbound in macro-expand" % (names[i],))
+        if i < len(names):
+            raise SrcError("%s (%d) unbound in macro-expand" % (names[i], i))
+        raise CoreError("parse internal key error: %d" % (i,))
     except IndexError as e:
         raise SrcError("form syntax error")
-    debug("tree", ast)
-    return ast
+    debug("tree", t)
+    return t
 
 def unbound(t, defs, is_block):
     # Capture of free names are done in macros themselves such as
@@ -1179,20 +1193,22 @@ def m_unquote(s):
 
 i_macros = {}
 
-def from_lex(s):
+def from_lex(s, ef=None):
     if type(s) == list:
         if is_dotform(s):
             return [VAR_NONLIST,
-                    [from_lex(x) for x in without_dot(s)]]
-        return [VAR_LIST, [from_lex(x) for x in s]]
+                    [from_lex(x, ef) for x in without_dot(s)]]
+        return [VAR_LIST, [from_lex(x, ef) for x in s]]
     if s[0] == LEX_LIST:
-        return from_lex([nam_list, *s[1]])
+        return from_lex([nam_list, *s[1]], ef)
     if s[0] == LEX_NONLIST:
-        return from_lex([nam_nonlist, *s[1]])
+        return from_lex([nam_nonlist, *s[1]], ef)
     if s[0] == LEX_SYM:
-        return from_lex([nam_quote, (LEX_NAM, s[1])])
+        return from_lex([nam_quote, (LEX_NAM, s[1])], ef)
     if s[0] == LEX_VOID:
         return [VAR_VOID,]
+    if s[0] == LEX_ESC:
+        return ef(s[1])
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
         raise SrcError("from lex %r" % (s,))
@@ -2306,10 +2322,16 @@ def f_list_z_string(*args):
         for n in ConsOrListIter(args[0][1])])]
 
 def f_symbol_z_string(names):
-    def to_name_string(*args):
+    def to_string(*args):
         fargt_must_eq("symbol->string", args, 0, VAR_NAM)
         return [VAR_STRING, names[args[0][1]]]
-    return to_name_string
+    return to_string
+
+def f_string_z_symbol(names):
+    def to_name(*args):
+        fargt_must_eq("string->symbol", args, 0, VAR_STRING)
+        return [VAR_NAM, names.intern(args[0][1])]
+    return to_name
 
 def f_substring(*args):
     fn = "substring"
@@ -2433,6 +2455,7 @@ def f_nullp(*args):
 
 def f_listp(*args):
     def get_last(c):
+        warning("cons-iter for count")
         while c.d is not None:
             if not is_cons(c.d):
                 return c
@@ -2569,7 +2592,7 @@ def f_assoc(*args):
                 return x
     return f
 
-# display functions (see I/O functions)
+# display functions (see also, I/O functions)
 #
 #   for development purposes and as of r7rs, not suggested for
 #   program utilization
@@ -2586,6 +2609,41 @@ def f_display(names):
         sys.stdout.flush()
         return [VAR_VOID]
     return display
+
+# serialization
+
+def f_read(names, env):
+    def rd(*args):
+        fn = "read"
+        fargc_must_eq(fn, args, 1)
+        fargt_must_eq(fn, args, 0, VAR_STRING)
+        try:
+            with open(args[0][1], "r") as f:
+                s = f.read()
+        except:
+            warning("no such file")
+            return [VAR_VOID]
+        t = readx(s, names)
+        if len(t) == 0:
+            warning("empty file")
+            return [VAR_VOID]
+        if len(t) != 1:
+            warning("trailing objects")
+        def esc_f(x):
+            return run(x, env)
+        return from_lex(t[0], esc_f)
+    return rd
+
+def f_write(names):
+    def rd(*args):
+        fn = "write"
+        fargc_must_eq(fn, args, 2)
+        fargt_must_eq(fn, args, 0, VAR_STRING)
+        s = vrepr(args[1], names)
+        with open(args[0][1], "w") as f:
+            f.write(s)
+        return [VAR_VOID]
+    return rd
 
 # I/O functions
 
@@ -3090,8 +3148,12 @@ def init_env(names):
     env[NAM_ERROR] = [VAR_FUN_HOST, f_error(names)]
     env[NAM_SPLICE] = [VAR_FUN_HOST, f_splice]
     with_new_name("display", [VAR_FUN_HOST, f_display(names)], env, names)
-    with_new_name("symbol->string", [VAR_FUN_HOST, f_symbol_z_string(names)],
-            env, names)
+    with_new_name("symbol->string",
+                  [VAR_FUN_HOST, f_symbol_z_string(names)], env, names)
+    with_new_name("string->symbol",
+                  [VAR_FUN_HOST, f_string_z_symbol(names)], env, names)
+    with_new_name("read", [VAR_FUN_HOST, f_read(names, env)], env, names)
+    with_new_name("write", [VAR_FUN_HOST, f_write(names)], env, names)
     for a, b in [
             ("+", f_pluss),
             ("-", f_minus),
@@ -3192,10 +3254,16 @@ def init_env(names):
     return env
 
 def run_top(ast, env, names):
-    for a in ast:
-        r = run(a, env)
-        if r[0] != VAR_VOID:
-            result(vrepr(r, names))
+    try:
+        for a in ast:
+            r = run(a, env)
+            if r[0] != VAR_VOID:
+                result(vrepr(r, names))
+    except KeyError as e:
+        i = e.args[0]
+        if i <= len(names):
+            raise RunError("no entry %s (%d)" % (names[i], i))
+        raise CoreError("internal key error: %d" % (i,))
 
 import itertools
 
@@ -3259,10 +3327,9 @@ def inc_macros(names, macros):
           (loop (cdr d) (if e (cons e r) r) (+ i 1))
     ))))
   (ref c-args (cdr constructor))
-  (ref c-name (car constructor))
   `(seq
-    (ref ,constructor (make-record ',c-name @`,(list ,@c-args)))
-    (ref (,pred v) (record? v ',c-name))
+    (ref ,constructor (make-record ',name @`,(list ,@c-args)))
+    (ref (,pred v) (record? v ',name))
     ,@getter-defs
     ,@setter-defs
 ))
@@ -3397,7 +3464,7 @@ def vrepr(s, names, q=None, e=False):
     if s[0] == VAR_NAM:
         n = names[s[1]]
         if e:
-            return "'" + n
+            return "(string->symbol \"%s\")" % (n,)
         return n
     if s[0] == VAR_NUM:
         return str(s[1])
@@ -3560,7 +3627,9 @@ def compxrun(src, names, macros, env, fn):
         elif type(e) == RunError: ty = "run-error"
         if fn: sys.stderr.write("%s in %s,\n" % (ty, fn))
         else: sys.stderr.write("%s,\n" % (ty,))
-        sys.stderr.write(e.args[0] + "\n")
+        sys.stderr.write(str(e.args[0]) + "\n")
+        if verbose:
+            raise e
     else:
         return True
 

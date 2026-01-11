@@ -305,12 +305,6 @@ Lex to_lex(EnvEntry a)
                 throw RunError("latent-apply to lex");
             } else if constexpr (is_same_v<T, VarVoid>) {
                 return LexVoid{};
-            // plan: to support VarRec and VarDict, will convert
-            // to a LexForm with the generating expression, so that
-            // lex outputs as reference vrepr; "#:(...)" that may
-            // then be parsed (omitting macro-expand) as part of
-            // possible (read) implementation with from_lex.
-            // I will escape (have produce "#:"), having a LexEsc.
             } else {
                 throw CoreError("to lex not handled");
             }
@@ -361,6 +355,10 @@ EnvEntry from_lex(Lex & x)
 
 void print(EnvEntry a, Names & n, std::ostream & os)
 {
+    // TODO: instead of using to_lex, recurse print_r
+    // havig a state object with print-arguments and
+    // outout a #~ representation when non-representable.
+    // same as vrepr in the python implementation.
     print(to_lex(a), n, os);
 }
 
