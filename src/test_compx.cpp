@@ -35,19 +35,19 @@ TEST(compx, unbound)
         auto t = compx(s, n, m, { i_b });
         FAIL();
     } catch (SrcError & e) {
-        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\n");
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a");
     }
     try {
         auto t = compx(s, n, m, { i_a });
         FAIL();
     } catch (SrcError & e) {
-        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: b\n");
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: b");
     }
     try {
         auto t = compx(s, n, m, {});
         FAIL();
     } catch (SrcError & e) {
-        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\nline 1: b\n");
+        HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\nline 1: b");
     }
     compx_dispose();
 }

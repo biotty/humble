@@ -23,22 +23,36 @@ struct Opener : SrcOpener {
 };
 
 void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
-    try
 {
     for (auto & a : ast.v) {
         auto r = run(a, env);
         if (not holds_alternative<VarVoid>(*r)) {
             os << "  ==> ";
             print(r, names, os);
-            os << '\n';
+            os << endl;
         }
     }
+}
+
+void errout(const string & ty, const string & wh, const string & fn)
+{
+    cerr << ty;
+    if (not fn.empty())
+        cerr << " in " << fn;
+    cerr << ",\n" << wh << endl;
+}
+
+void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalEnv & env, string & fn)
+    try
+{
+    ast = compx(src, names, macros, env.keys());
+    run_top(ast, env, names, cout);
 } catch (const SrcError & e) {
-    cout << "src error: " << e.what() << endl;
+    errout("src-error", e.what(), fn);
 } catch (const RunError & e) {
-    cout << "run error: " << e.what() << endl;
+    errout("run-error", e.what(), fn);
 } catch (const runtime_error & e) {
-    cout << "error: " << e.what() << endl;
+    errout("error", e.what(), fn);
 }
 
 int main(int argc, char ** argv)
@@ -49,9 +63,9 @@ int main(int argc, char ** argv)
     Opener opener;
     auto env = init_top(names, macros, opener);
     if (argc == 2) {
-        auto x = opener(argv[1]);
-        auto t = compx(x, names, macros, env.keys());
-        run_top(t, env, names, cout);
+        auto src = opener(argv[1]);
+        LexForm ast;
+        compxrun(ast, src, names, macros, env, opener.filename);
         exit(0);
     }
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
@@ -61,11 +75,9 @@ int main(int argc, char ** argv)
     while (cout << ":" << flush
             and std::getline(cin, line)) {
         if (line.back() == ';') {
-            auto expr = buf + line.substr(0, line.size() - 1);
-                x.push_back(LexForm{});
-                auto & ast = x.back();
-                ast = compx(expr, names, macros, env.keys());
-                run_top(ast, env, names, cout);
+            auto src = buf + line.substr(0, line.size() - 1);
+            x.push_back(LexForm{});
+            compxrun(x.back(), src, names, macros, env, opener.filename);
         } else {
             buf += line;
         }

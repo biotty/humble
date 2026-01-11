@@ -1912,6 +1912,12 @@ def f_splice(*args):
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
     return [VAR_SPLICE, normal_list(args[0][1])]
 
+# boolean functions (one, others are macros on cond)
+
+def f_not(*args):
+    fargc_must_eq("not", args, 1)
+    return [VAR_BOOL, args[0] == [VAR_BOOL, False]]
+
 # functions on NUM
 
 def f_pluss(*args):
@@ -1922,7 +1928,7 @@ def f_pluss(*args):
     return [VAR_NUM, r]
 
 def f_minus(*args):
-    fargt_must_eq("minus", args, 0, VAR_NUM)
+    fargt_must_eq("-", args, 0, VAR_NUM)
     if len(args) == 1:
         return [VAR_NUM, -args[0][1]]
     r = args[0][1]
@@ -2128,13 +2134,13 @@ def f_equalp(*args):
     if args[0][0] == VAR_CONS or args[1][0] == VAR_CONS:
         if args[1][0] == VAR_CONS:
             is_nonlist = args[0][0] == VAR_NONLIST
-            a = args[0][1]
+            v = args[0][1]
             c = args[1][1]
         else:
             is_nonlist = args[1][0] == VAR_NONLIST
             c = args[0][1]
-            a = args[1][1]
-        n = len(a)
+            v = args[1][1]
+        n = len(v)
         i = 0
         while c is not None:
             if i == n:
@@ -2142,8 +2148,8 @@ def f_equalp(*args):
             if not is_cons(c):
                 if not is_nonlist or i + 1 != n:
                     return r
-                return f_equalp(c, a[i])
-            if not f_equalp(c.a, a[i])[1]:
+                return f_equalp(c, v[i])
+            if not f_equalp(c.a, v[i])[1]:
                 return r
             c = c.d
             i += 1
@@ -2455,29 +2461,6 @@ def f_voidp(*args):
     fargc_must_eq("void?", args, 1)
     return [VAR_BOOL, args[0][0] == VAR_VOID]
 
-# boolean functions (one, others are macros on cond)
-
-def f_not(*args):
-    fargc_must_eq("not", args, 1)
-    return [VAR_BOOL, args[0] == [VAR_BOOL, False]]
-
-# display functions (see I/O functions)
-#
-#   for development purposes and as of r7rs, not suggested for
-#   program utilization
-
-def f_display(names):
-    def display(*args):
-        r = []
-        for a in args:
-            if a[0] == VAR_STRING:
-                r.append(a[1])
-            else:
-                r.append(vrepr(a, names))
-        sys.stdout.write(" ".join(r))
-        return [VAR_VOID]
-    return display
-
 # list functions
 
 def f_length(*args):
@@ -2580,12 +2563,29 @@ def f_assoc(*args):
                 return x
     return f
 
+# display functions (see I/O functions)
+#
+#   for development purposes and as of r7rs, not suggested for
+#   program utilization
+
+def f_display(names):
+    def display(*args):
+        r = []
+        for a in args:
+            if a[0] == VAR_STRING:
+                r.append(a[1])
+            else:
+                r.append(vrepr(a, names))
+        sys.stdout.write(" ".join(r))
+        sys.stdout.flush()
+        return [VAR_VOID]
+    return display
+
 # I/O functions
 
 def f_error(names):
     def err(*args):
-        f_display([VAR_LIST, args])
-        sys.stderr.write("error-function invoked --\n")
+        sys.stderr.write("error-function invoked,\n")
         for i, a in enumerate(args):
             sys.stdout.write("error-args[%d]: %s\n" % (i, vrepr(a, names)))
         sys.stderr.write("-- sorry'bout that\n")
@@ -3544,6 +3544,20 @@ efs_nc = [
 #     if txt_m > bak_m:
 #         shutil.copyfile(fn, bak)
 
+def compxrun(src, names, macros, env, fn):
+    try:
+        ast = compx(src, names, macros, env.keys())
+        run_top(ast, env, names)
+    except Exception as e:
+        ty = "error"
+        if type(e) == SrcError: ty = "src-error"
+        elif type(e) == RunError: ty = "run-error"
+        if fn: sys.stderr.write("%s in %s,\n" % (ty, fn))
+        else: sys.stderr.write("%s,\n", ty)
+        sys.stderr.write(e.args[0] + "\n")
+    else:
+        return True
+
 if __name__ == "__main__":
     class SrcOpener:
         def __init__(self):
@@ -3553,23 +3567,11 @@ if __name__ == "__main__":
             return open(path, "r", encoding="utf-8")
     opener = SrcOpener()
     if len(sys.argv) == 2:
-
         efs = efs_nc
         names, env, macros = init_top(opener, efs)
         with opener(sys.argv[1]) as f:
-            try:
-                tree = compx(f.read(), names, macros, env.keys())
-            except SrcError as e:
-                sys.stderr.write("error in file: %s\n" % (opener.filename,))
-                sys.stderr.write(e.args[0] + "\n")
-                sys.exit(1)
-            else:
-                try:
-                    run_top(tree, env, names)
-                except RunError as e:
-                    sys.stderr.write("runtime error: %s\n" % (e.args[0],))
-                    sys.exit(2)
-        sys.exit(0)
+            ok = compxrun(f.read(), names, macros, env, opener.filename)
+        sys.exit(int(not ok))
 
     if not sys.stdin.isatty():
         error("missing input file")
@@ -3585,7 +3587,6 @@ if __name__ == "__main__":
             line = input(":")
         except EOFError:
             break
-        print(repr(line))
         buf.append(line)
         line = line.rstrip()
         if line.endswith(";"):
@@ -3595,23 +3596,8 @@ if __name__ == "__main__":
                     debug(list(enumerate(names)))
                 else:
                     set_verbose(False)
-            try:
-                t = compx("".join(buf), names, macros, env.keys())
-            except SrcError as e:
-                if opener.filename:
-                    sys.stderr.write("error in file: %s\n"
-                            % (opener.filename,))
-                    opener.filename = None
-                sys.stderr.write("lexical error: " + e.args[0] + "\n")
-            else:
-                if line.endswith(";;"):
-                    for xt in t:
-                        sys.stdout.write("%%%s" % (xrepr(xt, names),))
-                try:
-                    run_top(t, env, names)
-                except RunError as e:
-                    sys.stderr.write("error: " + e.args[0] + "\n")
-                sys.stdout.flush()  # for evt.display
+            compxrun("".join(buf), names, macros, env, opener.filename)
+            opener.filename = None
             buf = []
     sys.stdout.write("\nfare well.\n")
 

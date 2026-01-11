@@ -195,6 +195,28 @@ EnvEntry f_pluss(span<EnvEntry> args)
     return make_shared<Var>(VarNum{ r });
 }
 
+EnvEntry f_minus(span<EnvEntry> args)
+{
+    valt_or_fail<VarNum>(args, 0, "-");
+    auto r = get<VarNum>(*args[0]).i ;
+    if (args.size() == 1)
+        return make_shared<Var>(VarNum{ -r });
+    int i{};
+    for (auto & a : args) {
+        if (&a == &args[0]) continue;
+        valt_or_fail<VarNum>(args, ++i, "-");
+        r -= get<VarNum>(*a).i;
+    }
+    return make_shared<Var>(VarNum{ r });
+}
+
+EnvEntry f_zerop(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("zero? argc");
+    valt_or_fail<VarNum>(args, 0, "zero?");
+    return make_shared<Var>(VarBool{ get<VarNum>(*args[0]).i == 0 });
+}
+
 //
 // mutation
 //
@@ -202,7 +224,7 @@ EnvEntry f_pluss(span<EnvEntry> args)
 EnvEntry setjj(span<EnvEntry> args)
 {
     if (&*args[0] == &*args[1]) {
-        warn("self-set");
+        warn("self-set", args);
     } else {
         visit([&args](auto && w) { *args[0] = w; }, *args[1]);
     }
@@ -213,7 +235,7 @@ EnvEntry f_setj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set! argc");
     if (args[0]->index() != args[1]->index()) {
-        warn("set! to different type");
+        warn("set! to different type", args);
     }
     return setjj(args);
 }
@@ -254,6 +276,92 @@ EnvEntry f_eqp(span<EnvEntry> args)
         r = (&a == &b);
     }
     return make_shared<Var>(VarBool{r});
+}
+
+EnvEntry f_equalp(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("equal? argc");
+    Var & a = *args[0];
+    Var & b = *args[1];
+    if (not valt_in<VarList, VarNonlist, VarCons>(a)
+            or not valt_in<VarList, VarNonlist, VarCons>(b))
+        return f_eqp(args);
+    // dict shall differ with itself under equal
+    auto r = make_shared<Var>(VarBool{});
+    if ((valt_in<VarList>(a) and valt_in<VarList>(b))
+            or (valt_in<VarNonlist>(a) and valt_in<VarNonlist>(b))) {
+        vector<EnvEntry> * x{};
+        vector<EnvEntry> * y{};
+        if (valt_in<VarList>(a)) {
+            x = &get<VarList>(a).v;
+            y = &get<VarList>(b).v;
+        } else {
+            x = &get<VarNonlist>(a).v;
+            y = &get<VarNonlist>(b).v;
+        }
+        if (x->size() != y->size()) return r;
+        for (size_t i{}; i != x->size(); ++i) {
+            vector<EnvEntry> q{(*x)[i], (*y)[i]};
+            auto e = f_equalp(q);
+            if (not get<VarBool>(*e).b) return e;
+        }
+        get<VarBool>(*r).b = true;
+        return r;
+    }
+    if (valt_in<VarCons>(a) and valt_in<VarCons>(b)) {
+        ConsNext x = get<VarCons>(a).c;
+        ConsNext y = get<VarCons>(b).c;
+        for (;;) {
+            if (not holds_alternative<ConsPtr>(x)) {
+                if (holds_alternative<ConsPtr>(y)) return r;
+                vector<EnvEntry> q{get<EnvEntry>(x), get<EnvEntry>(y)};
+                return f_equalp(q);
+            }
+            if (nullptr == get<ConsPtr>(x)) break;
+            if (not holds_alternative<ConsPtr>(y) or nullptr == get<ConsPtr>(y))
+                return r;
+            vector<EnvEntry> q{get<ConsPtr>(x)->a, get<ConsPtr>(y)->a};
+            auto e = f_equalp(q);
+            if (not get<VarBool>(*e).b) return e;
+            x = get<ConsPtr>(x)->d;
+            y = get<ConsPtr>(y)->d;
+        }
+        get<VarBool>(*r).b = nullptr == get<ConsPtr>(y);
+        return r;
+    }
+    if (valt_in<VarCons>(a) or valt_in<VarCons>(b)) {
+        bool is_nonlist{};
+        vector<EnvEntry> * v;
+        ConsNext c;
+        if (valt_in<VarCons>(b)) {
+            v = (is_nonlist = valt_in<VarNonlist>(a))
+                ? &get<VarNonlist>(a).v : &get<VarList>(a).v;
+            c = get<VarCons>(b).c;
+        } else {
+            v = (is_nonlist = valt_in<VarNonlist>(b))
+                ? &get<VarNonlist>(b).v : &get<VarList>(b).v;
+            c = get<VarCons>(a).c;
+        }
+        size_t n = v->size();
+        size_t i{};
+        for (; nullptr == get<ConsPtr>(c); ++i) {
+            if (i == n) return r;
+            if (not holds_alternative<ConsPtr>(c)) {
+                if (not is_nonlist or i + 1 != n)
+                    return r;
+                vector<EnvEntry> q{get<EnvEntry>(c), (*v)[i]};
+                return f_equalp(q);
+            }
+            vector<EnvEntry> q{get<ConsPtr>(c)->a, (*v)[i]};
+            auto e = f_equalp(q);
+            if (not get<VarBool>(*e).b) return e;
+            c = get<ConsPtr>(c)->d;
+        }
+        get<VarBool>(*r).b = i == n;
+        return r;
+    }
+    // note: must now be NONLIST and LIST -- hence not equal
+    return r;
 }
 
 //
@@ -303,14 +411,13 @@ EnvEntry f_voidp(span<EnvEntry> args)
 //
 
 //
-// prng
-//
-
-//
-// time
+// variable (de)serialization
 //
 
 Names * u_names;
+
+// TODO: read
+// TODO: write
 
 EnvEntry f_display(span<EnvEntry> args)
 {
@@ -323,6 +430,32 @@ EnvEntry f_display(span<EnvEntry> args)
     }
     return make_shared<Var>(VarVoid{});
 }
+
+EnvEntry f_error(span<EnvEntry> args)
+{
+    int i{};
+    cerr << "error invoked,";
+    for (auto & a : args) {
+        cerr << "\nerror-args[" << i++ << "]: ";
+        print(a, *u_names, cerr);
+    }
+    cerr << "\nsorry'bout that" << endl;
+    exit(4);
+}
+
+EnvEntry f_exit(span<EnvEntry> args)
+{
+    valt_or_fail<VarNum>(args, 0, "exit");
+    exit(get<VarNum>(*args[0]).i);
+}
+
+//
+// prng
+//
+
+//
+// time
+//
 
 } // ans
 
@@ -359,24 +492,19 @@ void init_env(Names & n)
     g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
     g.set(n.intern("splice"), make_shared<Var>(VarFunHost{ f_splice }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
+    g.set(n.intern("-"), make_shared<Var>(VarFunHost{ f_minus }));
+    g.set(n.intern("zero?"), make_shared<Var>(VarFunHost{ f_zerop }));
     g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
     g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));
     g.set(n.intern("alias?"), make_shared<Var>(VarFunHost{ f_aliasp }));
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
+    g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
+    g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
     g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
     g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
     g.set(n.intern("display"), make_shared<Var>(VarFunHost{ f_display }));
-}
-
-void print(EnvEntry a, Names & n, std::ostream & os)
-{
-    print(to_lex(a), n, os);
-}
-
-bool warn_off;
-void warn(string m)
-{
-    if (not warn_off) cerr << "warn: " << m << endl;
+    g.set(n.intern("error"), make_shared<Var>(VarFunHost{ f_error }));
+    g.set(n.intern("exit"), make_shared<Var>(VarFunHost{ f_exit }));
 }
 
 } // ns

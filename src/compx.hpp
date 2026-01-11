@@ -31,6 +31,12 @@ void compx_dispose();
 Lex to_lex(EnvEntry a);
 EnvEntry from_lex(Lex & x);
 
+void print(EnvEntry a, Names & n, std::ostream & os);
+
+extern bool warn_off;
+void warn(const std::string & m, std::span<EnvEntry> a);
+void warn(const std::string & m, std::span<Lex> x);
+
 } // ns
 
 #endif

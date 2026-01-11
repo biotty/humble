@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <charconv>
+#include <sstream>
 #include <ostream>
 
 #ifdef DEBUG
@@ -181,6 +182,11 @@ int Names::intern(std::string_view name)
 
 std::string Names::get(int h)
 {
+    if (static_cast<size_t>(h) >= v.size()) {
+        ostringstream oss;
+        oss << "#[" << h << "]";
+        return oss.str();
+    }
     return v.at(h);
 }
 
@@ -306,7 +312,7 @@ void print(const Lex & x, Names & n, std::ostream & os)
                 copy(z.v.begin(), z.v.end(), back_inserter(v));
                 print(LexForm{ v }, n, os);
             } else if constexpr (is_same_v<T, LexBool>) {
-                os << (z.b ? "#true" : "#false");
+                os << (z.b ? "#t" : "#f");
             } else if constexpr (is_same_v<T, LexNum>) {
                 os << z.i;
             } else if constexpr (is_same_v<T, LexString>) {

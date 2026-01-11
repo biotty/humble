@@ -2,6 +2,7 @@
 #include "debug.hpp"
 #include "except.hpp"
 #include "cons.hpp"
+#include <iostream>
 #include <sstream>
 
 using namespace humble;
@@ -130,12 +131,12 @@ void report_unbound(set<int> u, LexForm & t, Names & names)
     for (int y : u) {
         auto x = find_unbound(t.v, y);
         if (holds_alternative<LexVoid>(x)) {
-            a << "(reportedly) " << names.get(y);
+            a << "\n(reportedly) " << names.get(y);
         } else {
-            a << info_unbound(x, names) << "\n";
+            a << "\n" << info_unbound(x, names);
         }
     }
-    throw SrcError("unbound,\n" + a.str());
+    throw SrcError("unbound," + a.str());
 }
 
 void zloc_scopes(span<Lex> t, LexEnv * local_env)
@@ -356,6 +357,39 @@ EnvEntry from_lex(Lex & x)
                 throw CoreError("to lex not handled");
             }
     }, x);
+}
+
+void print(EnvEntry a, Names & n, std::ostream & os)
+{
+    print(to_lex(a), n, os);
+}
+
+bool warn_off;
+
+void warn(const string & m, span<EnvEntry> e)
+{
+    if (warn_off) return;
+    int i{};
+    Names nonames;
+    cerr << "run-warn: " << m << ",";
+    for (auto & a : e) {
+        cerr << "\nwarn-args[" << i++ << "]: " << &*a << " ";
+        print(a, nonames, cerr);
+    }
+    cerr << endl;
+}
+
+void warn(const string & m, span<Lex> & t)
+{
+    if (warn_off) return;
+    int i{};
+    Names nonames;
+    cerr << "src-warn: " << m << ",";
+    for (auto & x : t) {
+        cerr << "\nwarn-args[" << i++ << "]: " << &x << " ";
+        print(x, nonames, cerr);
+    }
+    cerr << endl;
 }
 
 } // ns
