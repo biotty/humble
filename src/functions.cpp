@@ -182,6 +182,18 @@ EnvEntry f_splice(span<EnvEntry> args)
 }
 
 //
+// boolean functions (one, others are macros on cond)
+//
+
+EnvEntry f_not(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("not argc");
+    return make_shared<Var>(VarBool{
+            valt_in<VarBool>(*args[0])
+            and get<VarBool>(*args[0]).b == false});
+}
+
+//
 // numbers
 //
 
@@ -491,6 +503,7 @@ void init_env(Names & n)
     g.set(n.intern("cdr"), make_shared<Var>(VarFunHost{ f_cdr }));
     g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
     g.set(n.intern("splice"), make_shared<Var>(VarFunHost{ f_splice }));
+    g.set(n.intern("not"), make_shared<Var>(VarFunHost{ f_not }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
     g.set(n.intern("-"), make_shared<Var>(VarFunHost{ f_minus }));
     g.set(n.intern("zero?"), make_shared<Var>(VarFunHost{ f_zerop }));

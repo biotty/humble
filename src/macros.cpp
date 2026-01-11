@@ -172,7 +172,8 @@ Lex m_letx(LexForm && s, bool rec = false)
     auto & f = get<LexForm>(s.v[1]);
     if (f.v.empty())
         return m_let(move(s));
-    LexForm block{{s.v.begin() + 2, s.v.end()}};
+    LexForm block;
+    move(s.v.begin() + 2, s.v.end(), back_inserter(block.v));
     if (block.v.empty()) block.v.push_back(LexVoid{});
     LexArgs t;
     for (auto rit = f.v.rbegin(); rit != f.v.rend(); ++rit) {
@@ -230,7 +231,9 @@ Lex m_ref(LexForm && s)
     if (holds_alternative<LexForm>(s.v[1])) {
         auto & f = get<LexForm>(s.v[1]);
         auto n = f.v[0];
-        LexForm a{{LexOp{}, LexForm{{f.v.begin() + 1, f.v.end()}}}};
+        LexForm b;
+        move(f.v.begin() + 1, f.v.end(), back_inserter(b.v));
+        LexForm a{{LexOp{}, move(b)}};
         move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
         s.v[2] = m_lambda(move(a));
         s.v[1] = n;
@@ -417,6 +420,51 @@ struct If : MacroClone<If> {
     }
 };
 
+Lex and_r(LexForm && s)
+{
+    if (s.v.size() == 2) return s.v[1];
+    LexForm a{{LexOp{}}};
+    move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
+    LexForm r{{move(s.v[1]), and_r(move(a))}};
+    return LexForm{{LexOp{OP_COND}, move(r),
+        LexForm{{LexBool{true}, LexBool{false}}}}};
+}
+
+Lex m_and(LexForm && s)
+{
+    if (s.v.size() == 1) return LexBool{true};
+    return and_r(move(s));
+}
+
+Lex m_or(LexForm && s)
+{
+    if (s.v.size() == 1) return LexBool{false};
+    LexForm a{{LexOp{}}};
+    move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
+    LexForm r{{LexBool{true}, m_or(move(a))}};
+    LexForm m{{LexOp{}, LexForm{{LexForm{{nam_then, move(s.v[1])}}}},
+        LexForm{{LexOp{OP_COND}, LexForm{{nam_then, nam_then}}, move(r)}}}};
+    return m_let(move(m));
+    /*
+    return m_let([-99, [[nam_then, s[1]]],
+        [OP_COND, [nam_then, nam_then],
+            [(LEX_BOOL, True), m_or([-99, *s[2:]])]]])
+*/
+}
+
+struct When : MacroClone<When> {
+    Lex operator()(LexForm && s) override
+    {
+        if (s.v.size() < 2)
+            throw SrcError("when argc");
+        LexForm a{{LexOp{}}};
+        move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
+        return LexForm{{LexOp{OP_COND},
+            LexForm{{move(s.v[1]), m_begin(move(a))}},
+            LexForm{{LexBool{true}, LexVoid{}}}}};
+    }
+};
+
 struct Unless : MacroClone<Unless> {
     Lex operator()(LexForm && s) override
     {
@@ -424,10 +472,9 @@ struct Unless : MacroClone<Unless> {
             throw SrcError("unless argc");
         LexForm a{{LexOp{}}};
         move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
-        Lex b = m_begin(move(a));
         return LexForm{{LexOp{OP_COND},
             LexForm{{move(s.v[1]), LexVoid{}}},
-            LexForm{{LexBool{true}, move(b)}}}};
+            LexForm{{LexBool{true}, m_begin(move(a))}}}};
     }
 };
 
@@ -536,6 +583,12 @@ struct Begin : MacroClone<Begin> { Lex operator()(LexForm && s) override {
 struct Cond : MacroClone<Cond> { Lex operator()(LexForm && s) override {
     return m_cond(move(s));
 } };
+struct And : MacroClone<And> { Lex operator()(LexForm && s) override {
+    return m_and(move(s));
+} };
+struct Or : MacroClone<Or> { Lex operator()(LexForm && s) override {
+    return m_or(move(s));
+} };
 
 //
 // assert as expected no name already used at this point
@@ -570,6 +623,9 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "define", make_unique<Define>());
     with_name(names, m, "cond", make_unique<Cond>());
     with_name(names, m, "if", make_unique<If>());
+    with_name(names, m, "when", make_unique<When>());
+    with_name(names, m, "and", make_unique<And>());
+    with_name(names, m, "or", make_unique<Or>());
     with_name(names, m, "unless", make_unique<Unless>());
     with_name(names, m, "export", make_unique<Export>());
     with_name(names, m, "import", make_unique<Import>(names, m, opener));
