@@ -2415,7 +2415,7 @@ def f_numberp(*args):
 def f_procedurep(*args):
     fn = "procedure?"
     return [VAR_BOOL, var_in(args[0][0],
-        VAR_CONS | VAR_FUN_OPS | VAR_FUN_HOST)]
+        VAR_FUN_OPS | VAR_FUN_HOST)]
 
 def f_symbolp(*args):
     return typep(args, "symbol?", LEX_NAM)
@@ -2424,6 +2424,7 @@ def f_nullp(*args):
     r = typep(args, "null?", VAR_LIST)
     if r[1]:
         r[1] = (0 == len(args[0][1]))
+        if r[1]: broken("null as const-list")
     elif args[0][0] == VAR_CONS:
         r[1] = (None == args[0][1])
     return r
@@ -2438,6 +2439,7 @@ def f_listp(*args):
     r = typep(args, "list?", VAR_LIST)
     if r[1]:
         r[1] = (0 != len(args[0][1]))
+        if not r[1]: broken("null as cont-list")
     elif args[0][0] == VAR_CONS:
         r[1] = not (args[0][1] is None
                 or get_last(args[0][1]).d is not None)
@@ -2448,7 +2450,9 @@ def f_pairp(*args):
     if args[0][0] == VAR_NONLIST:
         return [VAR_BOOL, True]
     if args[0][0] == VAR_LIST:
-        return [VAR_BOOL, len(args[0][1]) != 0]
+        r = [VAR_BOOL, len(args[0][1]) != 0]
+        if not r[1]: broken("null as cont-list")
+        return r
     if args[0][0] == VAR_CONS:
         return [VAR_BOOL, args[0][1] is not None]
     return [VAR_BOOL, False]

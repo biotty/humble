@@ -392,6 +392,77 @@ EnvEntry f_equalp(span<EnvEntry> args)
 // type checks
 //
 
+EnvEntry f_booleanp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("boolean? argc");
+    return make_shared<Var>(VarBool{valt_in<VarBool>(*args[0])});
+}
+EnvEntry f_numberp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("number? argc");
+    return make_shared<Var>(VarBool{valt_in<VarNum>(*args[0])});
+}
+
+EnvEntry f_procedurep(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("procedure? argc");
+    return make_shared<Var>(VarBool{
+            valt_in<VarFunHost, VarFunOps>(*args[0])});
+}
+
+EnvEntry f_symbolp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("symbol? argc");
+    return make_shared<Var>(VarBool{valt_in<VarNam>(*args[0])});
+}
+
+EnvEntry f_nullp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("null? argc");
+    auto & a = *args[0];
+    if (valt_in<VarList>(a) and get<VarList>(a).v.size() == 0)
+        throw CoreError("empty cont-list");
+    return make_shared<Var>(VarBool{
+            valt_in<VarCons>(a) and nullptr == get<VarCons>(a).c});
+}
+
+EnvEntry f_listp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("list? argc");
+    auto & a = *args[0];
+    if (valt_in<VarList>(a)) {
+        if (get<VarList>(a).v.size() == 0)
+            throw CoreError("empty cont-list");
+        return make_shared<Var>(VarBool{true});
+    }
+    if (not valt_in<VarCons>(a))
+        return make_shared<Var>(VarBool{false});
+
+    ConsNext x = get<VarCons>(a).c;
+    for (;;) {
+        if (not holds_alternative<ConsPtr>(x)) break;
+        if (nullptr == get<ConsPtr>(x)) break;
+        x = get<ConsPtr>(x)->d;
+    }
+    return make_shared<Var>(VarBool{
+            holds_alternative<ConsPtr>(x)});
+}
+
+EnvEntry f_pairp(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("pair? argc");
+    auto & a = *args[0];
+    if (valt_in<VarNonlist>(a))
+        return make_shared<Var>(VarBool{true});
+    if (valt_in<VarList>(a)) {
+        if (get<VarList>(a).v.size() == 0)
+            throw CoreError("empty cont-list");
+        return make_shared<Var>(VarBool{true});
+    }
+    return make_shared<Var>(VarBool{
+        valt_in<VarCons>(a) and nullptr != get<VarCons>(a).c});
+}
+
 EnvEntry f_contpp(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("cont?? argc");
@@ -513,6 +584,13 @@ void init_env(Names & n)
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
+    g.set(n.intern("boolean?"), make_shared<Var>(VarFunHost{ f_booleanp }));
+    g.set(n.intern("number?"), make_shared<Var>(VarFunHost{ f_numberp }));
+    g.set(n.intern("procedure?"), make_shared<Var>(VarFunHost{ f_procedurep }));
+    g.set(n.intern("symbol?"), make_shared<Var>(VarFunHost{ f_symbolp }));
+    g.set(n.intern("null?"), make_shared<Var>(VarFunHost{ f_nullp }));
+    g.set(n.intern("list?"), make_shared<Var>(VarFunHost{ f_listp }));
+    g.set(n.intern("pair?"), make_shared<Var>(VarFunHost{ f_pairp }));
     g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
     g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
     g.set(n.intern("display"), make_shared<Var>(VarFunHost{ f_display }));
