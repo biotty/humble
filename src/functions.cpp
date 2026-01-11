@@ -222,12 +222,76 @@ EnvEntry f_minus(span<EnvEntry> args)
     return make_shared<Var>(VarNum{ r });
 }
 
-EnvEntry f_zerop(span<EnvEntry> args)
+EnvEntry n1_pred(span<EnvEntry> args, string fn, bool(*p)(long long))
 {
-    if (args.size() != 1) throw RunError("zero? argc");
-    valt_or_fail<VarNum>(args, 0, "zero?");
-    return make_shared<Var>(VarBool{ get<VarNum>(*args[0]).i == 0 });
+    if (args.size() != 1) throw RunError(fn + "argc");
+    valt_or_fail<VarNum>(args, 0, fn);
+    return make_shared<Var>(VarBool{ p(get<VarNum>(*args[0]).i) });
 }
+
+bool is_zero(long long i) { return i == 0; }
+EnvEntry f_zerop(span<EnvEntry> args)
+{ return n1_pred(args, "zero?", is_zero); }
+
+bool is_positive(long long i) { return i > 0; }
+EnvEntry f_positivep(span<EnvEntry> args)
+{ return n1_pred(args, "positive?", is_positive); }
+
+bool is_negative(long long i) { return i < 0; }
+EnvEntry f_negativep(span<EnvEntry> args)
+{ return n1_pred(args, "negative?", is_negative); }
+
+bool is_even(long long i) { return not (i & 1); }
+EnvEntry f_evenp(span<EnvEntry> args)
+{ return n1_pred(args, "even?", is_even); }
+
+bool is_odd(long long i) { return i == 0; }
+EnvEntry f_oddp(span<EnvEntry> args)
+{ return n1_pred(args, "odd?", is_odd); }
+
+EnvEntry n2_pred(span<EnvEntry> args, string fn,
+        bool(*p)(long long, long long))
+{
+    auto r = make_shared<Var>(VarBool{ true });
+    if (args.size() == 0) return r;
+    valt_or_fail<VarNum>(args, 0, fn);
+    if (args.size() == 1) {
+        return r;
+    }
+    size_t i{};
+    auto j = get<VarNum>(*args[0]).i;
+    for (auto & x : args) {
+        if (&x == &args[0]) continue;
+        valt_or_fail<VarNum>(args, ++i, fn);
+        auto k = get<VarNum>(*x).i;
+        if (not p(j, k)) {
+            get<VarBool>(*r).b = false;
+            break;
+        }
+        j = k;
+    }
+    return r;
+}
+
+bool is_eq(long long i, long long j) { return i == j; }
+EnvEntry f_eq(span<EnvEntry> args)
+{ return n2_pred(args, "=", is_eq); }
+
+bool is_lt(long long i, long long j) { return i < j; }
+EnvEntry f_lt(span<EnvEntry> args)
+{ return n2_pred(args, "<", is_lt); }
+
+bool is_gt(long long i, long long j) { return i > j; }
+EnvEntry f_gt(span<EnvEntry> args)
+{ return n2_pred(args, ">", is_gt); }
+
+bool is_lte(long long i, long long j) { return i <= j; }
+EnvEntry f_lte(span<EnvEntry> args)
+{ return n2_pred(args, "<=", is_lte); }
+
+bool is_gte(long long i, long long j) { return i >= j; }
+EnvEntry f_gte(span<EnvEntry> args)
+{ return n2_pred(args, ">=", is_gte); }
 
 //
 // mutation
@@ -578,6 +642,15 @@ void init_env(Names & n)
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
     g.set(n.intern("-"), make_shared<Var>(VarFunHost{ f_minus }));
     g.set(n.intern("zero?"), make_shared<Var>(VarFunHost{ f_zerop }));
+    g.set(n.intern("positive?"), make_shared<Var>(VarFunHost{ f_positivep }));
+    g.set(n.intern("negative?"), make_shared<Var>(VarFunHost{ f_negativep }));
+    g.set(n.intern("even?"), make_shared<Var>(VarFunHost{ f_evenp }));
+    g.set(n.intern("odd?"), make_shared<Var>(VarFunHost{ f_oddp }));
+    g.set(n.intern("="), make_shared<Var>(VarFunHost{ f_eq }));
+    g.set(n.intern("<"), make_shared<Var>(VarFunHost{ f_lt }));
+    g.set(n.intern(">"), make_shared<Var>(VarFunHost{ f_gt }));
+    g.set(n.intern("<="), make_shared<Var>(VarFunHost{ f_lte }));
+    g.set(n.intern(">="), make_shared<Var>(VarFunHost{ f_gte }));
     g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
     g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));
     g.set(n.intern("alias?"), make_shared<Var>(VarFunHost{ f_aliasp }));

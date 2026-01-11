@@ -366,15 +366,13 @@ Lex m_cond(LexForm && s)
     for (; i != n; ++i) {
         auto & d = get<LexForm>(s.v[i]);
         if (nameq(d.v.at(0), NAM_ELSE)) {
-            vector<Lex> r;
-            move(s.v.begin(), s.v.begin() + i, back_inserter(r));
-            r.push_back(LexBool{true});
+            LexForm r;
+            move(s.v.begin(), s.v.begin() + i, back_inserter(r.v));
             LexForm a{{LexOp{}}};
-            move(s.v.begin() + i, s.v.end(), back_inserter(a.v));
-            Lex b = m_begin(move(a));
-            auto & f = get<LexForm>(b);
-            move(f.v.begin(), f.v.end(), back_inserter(r));
-            return LexForm{move(r)};
+            move(d.v.begin() + 1, d.v.end(), back_inserter(a.v));
+            LexForm f{{LexBool{true}, m_begin(move(a))}};
+            r.v.push_back(move(f));
+            return r;
         }
         if (nameq(d.v.at(1), NAM_THEN)) break;
         if (d.v.size() != 2) {
@@ -395,14 +393,11 @@ Lex m_cond(LexForm && s)
     LexForm t{{LexOp{}, LexForm{{
         LexForm{{nam_then, move(g.v.at(0))}}}}, m_cond(move(a))}};
     Lex x = m_let(move(t));
-    auto & f = get<LexForm>(x);
     LexForm m;
     move(s.v.begin(), s.v.begin() + i, back_inserter(m.v));
-    m.v.push_back(LexBool{true});
-    move(f.v.begin(), f.v.end(), back_inserter(m.v));
+    m.v.push_back(LexForm{{LexBool{true}, move(x)}});
     return m;
 }
-
 
 struct If : MacroClone<If> {
     Lex operator()(LexForm && s) override

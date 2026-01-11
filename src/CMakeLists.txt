@@ -27,7 +27,7 @@ add_library(Humble
     except.cpp)
 
 set(LIBS Humble
-    # -lstdc++exp # when DEBUG, to allow backtrace
+    -lstdc++exp # when DEBUG, to allow backtrace
     # -lasan      # when sanitize address enabled.
 )
 

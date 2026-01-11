@@ -2010,7 +2010,9 @@ def f_oddp(*args):
 
 def n2_pred(args, fn, pred):
     r = True
-    if len(args) > 1:
+    if len(args) == 1:
+        fargt_must_eq(fn, args, 0, VAR_NUM)
+    elif len(args) > 1:
         fargt_must_eq(fn, args, 0, VAR_NUM)
         n = args[0][1]
         for i, x in enumerate(args[1:], 1):
