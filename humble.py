@@ -3553,7 +3553,7 @@ def compxrun(src, names, macros, env, fn):
         if type(e) == SrcError: ty = "src-error"
         elif type(e) == RunError: ty = "run-error"
         if fn: sys.stderr.write("%s in %s,\n" % (ty, fn))
-        else: sys.stderr.write("%s,\n", ty)
+        else: sys.stderr.write("%s,\n" % (ty,))
         sys.stderr.write(e.args[0] + "\n")
     else:
         return True

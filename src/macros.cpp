@@ -461,7 +461,7 @@ struct Import : MacroNotClone<Import> {
         if (s.v.size() != 2 and s.v.size() != 3) throw SrcError("import argc");
         malt_or_fail<LexString>(s.v[1], "import.1 expects name");
         auto e_macros = clone_macros(i_macros);
-        e_macros[NAM_MACRO] = {}/*TODO: m_macro*/;
+        e_macros[NAM_MACRO] = make_unique<MacroMacro>(*names, e_macros);
         e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener);
         auto src = (*opener)(get<LexString>(s.v[1]).s);
         auto u_ln = linenumber;

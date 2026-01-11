@@ -17,37 +17,40 @@ struct FunOps {
     bool dot;
     span<Lex> block;
 #ifdef DEBUG
+    FunOps(FunEnv c, LexEnv * e, bool d, span<Lex> b)
+        : captured(c), local_env(e), dot(d), block(b)
+    { cout << "FunOps CONSTRUCT " << this << endl; }
     ~FunOps() { cout << "FunOps DELETE " << this << endl; }
 #endif
 };
 
-EnvEntry tco(FunOps * f, span<EnvEntry> args)
+EnvEntry tco(FunOps f, span<EnvEntry> args)
 {
     // cout << "tco\n";
     EnvEntry v;
     // ^ alt: = make_shared<Var>(VarVoid{}); to avoid nullptr
     bool done = false;
     while (not done) {
-        auto env = f->local_env
-            ->activation(f->captured, f->dot, args);
+        auto env = f.local_env
+            ->activation(f.captured, f.dot, args);
         done = true;
-        for (auto & w : f->block) {
+        for (auto & w : f.block) {
             // cout << "expr " << &w << endl;
             v = xeval(w, env);
             if (holds_alternative<VarApply>(*v)) {
                 auto & a = get<VarApply>(*v).a;
                 args = span<EnvEntry>{a.begin() + 1, a.end()};
                 auto & z = get<VarFunOps>(*a.at(0));
-                if (&w != &f->block.back()) {
+                if (&w != &f.block.back()) {
 #ifdef DEBUG
                     cout << "rec-apply\n";
 #endif
-                    v = tco(&*z.f, args);
+                    v = tco(*z.f, args);
                 } else {
 #ifdef DEBUG
                     cout << "iter-apply\n";
 #endif
-                    f = &*z.f;
+                    f = *z.f;
                     done = false;
                 }
             }
@@ -74,7 +77,7 @@ EnvEntry fun_call(vector<EnvEntry> v)
         args = span<EnvEntry>(b.begin() + 1, b.end());
         z = b.at(0);
     }
-    return tco(&*get<VarFunOps>(*z).f, args);
+    return tco(*get<VarFunOps>(*z).f, args);
 }
 
 VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
@@ -245,7 +248,7 @@ EnvEntry run(Lex & x, Env & env)
     // cout << "apply " << &get<VarFunOps>(*a.at(0)).f->block[0] << endl;
     // cout << "variant " << get<VarFunOps>(*a.at(0)).f->block[0].index() << endl;
     // cout << "expr " << get<VarFunOps>(*a.at(0)).f->block[0] << endl;
-    return tco(&*get<VarFunOps>(*a.at(0)).f, args);
+    return tco(*get<VarFunOps>(*a.at(0)).f, args);
 }
 
 } // ns
