@@ -626,6 +626,7 @@ void init_env(Names & n)
             "dup",
             "error",
             "splice",
+            "import",
     };
 
     auto & g = GlobalEnv::instance();

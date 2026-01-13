@@ -371,7 +371,7 @@ def debug(*args):
         put(sys.stdout, ["debug:"] + list(args))
 
 def result(*args):
-    put(sys.stdout, ["  ==>"] + list(args))
+    put(sys.stdout, ["; ==>"] + list(args))
 
 def warning(*args):
     put(sys.stdout, ["warning:"] + list(args))
@@ -3669,10 +3669,11 @@ if __name__ == "__main__":
             line = input(":")
         except EOFError:
             break
+        line = line.lstrip(":")
         buf.append(line)
         line = line.rstrip()
         if line.endswith(";"):
-            if line == ";;":
+            if line.endswith(";;"):
                 if not verbose:
                     set_verbose(True)
                     debug(list(enumerate(names)))

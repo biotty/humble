@@ -27,7 +27,7 @@ void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
     for (auto & a : ast.v) {
         auto r = run(a, env);
         if (not holds_alternative<VarVoid>(*r)) {
-            os << "  ==> ";
+            os << "; ==> ";
             print(r, names, os);
             os << endl;
         }
@@ -72,12 +72,16 @@ int main(int argc, char ** argv)
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
     list<LexForm> x;
     std::string line, buf;
-    while (cout << ":" << flush
-            and std::getline(cin, line)) {
+    while (cout << ":" << flush and std::getline(cin, line)) {
+        if (size_t i = line.find_first_not_of(":");
+                line.npos != i) line.erase(0, i);
+        if (size_t i = line.find_last_not_of(" \t");
+                line.npos != i) line.erase(i + 1);
         if (line.back() == ';') {
             auto src = buf + line.substr(0, line.size() - 1);
             x.push_back(LexForm{});
             compxrun(x.back(), src, names, macros, env, opener.filename);
+            buf.clear();
         } else {
             buf += line;
         }

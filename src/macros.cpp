@@ -6,6 +6,7 @@
 #include "except.hpp"
 #include "debug.hpp"
 
+#include <sstream>
 #include <iostream>
 
 using namespace humble;
@@ -289,7 +290,9 @@ struct UserMacro : MacroNotClone<UserMacro>
     Names * names;
     UserMacro(string mname, LexArgs parms, bool isdot, LexForm block, Names & names)
         : mname(mname), parms(parms), isdot(isdot), block(block), names(&names)
-    { }
+    {
+        is_user = true;
+    }
 
     Lex operator()(LexForm && s) override
     {
@@ -351,6 +354,32 @@ struct MacroMacro : MacroNotClone<Macro> {
         (*macros)[n.h] = make_unique<UserMacro>(names->get(n.h),
                 parms, isdot, move(block), *names);
         return LexVoid{};
+    }
+};
+
+struct Gensym : MacroClone<Gensym> {
+    Names * names;
+    Gensym(Names & names) : names(&names) { }
+
+    Lex operator()(LexForm && s) override
+    {
+        if (s.v.size() != 1)
+            throw SrcError("gensym argc");
+        auto i = names->size();
+        while (i == names->size()) {
+            ostringstream oss;
+            oss << "&" << i;
+            names->intern(oss.str());
+        }
+        return LexSym{ static_cast<int>(i) };
+    }
+};
+
+struct Seq : MacroClone<Seq> {
+    Lex operator()(LexForm && s) override
+    {
+        s.v[0] = LexOp{OP_SEQ};
+        return s;
     }
 };
 
@@ -608,6 +637,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     (void)env_keys;
 
     m[NAM_MACRO] = make_unique<MacroMacro>(names, m);
+    m[NAM_IMPORT] = make_unique<Import>(names, m, opener);
     with_name(names, m, "lambda", make_unique<Lambda>());
     with_name(names, m, "let", make_unique<Let>());
     with_name(names, m, "let*", make_unique<Letx>());
@@ -623,7 +653,8 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "or", make_unique<Or>());
     with_name(names, m, "unless", make_unique<Unless>());
     with_name(names, m, "export", make_unique<Export>());
-    with_name(names, m, "import", make_unique<Import>(names, m, opener));
+    with_name(names, m, "gensym", make_unique<Gensym>(names));
+    with_name(names, m, "seq", make_unique<Seq>());
 }
 
 void macros_init(Macros & macros)

@@ -35,7 +35,7 @@ size_t spaces(const char * s, size_t n)
             s += 1;
         } else if (s[0] == ';') {
             // comment
-            while (s[0] != '\n') s += 1;
+            while (s != p and s[0] != '\n') s += 1;
         } else if (s[0] == '#') {
             if (s + 1 != p and s[1] == '|') {
                 // multiline-comment
