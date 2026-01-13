@@ -73,8 +73,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
                 if (auto h = get<LexNam>(x).h;
                         not defs.contains(h))
                     r.insert(get<LexNam>(x).h);
-            }
-            if (holds_alternative<LexList>(x)) {
+            } else if (holds_alternative<LexList>(x)) {
                 auto u = unbound(get<LexList>(x).v, defs, false);
                 r.insert(u.begin(), u.end());
             } else if (holds_alternative<LexNonlist>(x)) {
@@ -355,10 +354,12 @@ EnvEntry from_lex(Lex & x)
 
 void print(EnvEntry a, Names & n, std::ostream & os)
 {
-    // TODO: instead of using to_lex, recurse print_r
-    // havig a state object with print-arguments and
-    // outout a #~ representation when non-representable.
-    // same as vrepr in the python implementation.
+    // on-need:  pass to_lex an esh optional param
+    // (default nullptr) with a handler function for
+    // var-types that are not lexically representable,
+    // such as Port "#~port" and Dict "#{#}".  to_lex
+    // will by default throw a RunError for these,
+    // as shall happen on such user-macro output.
     print(to_lex(a), n, os);
 }
 

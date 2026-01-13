@@ -82,9 +82,9 @@
 # Work-in-Progress:  (elaboration)
 #
 # * "handlers" global env entry (like stdout) that also each
-#   builtin has a ref to, will be tried for symbol-key on
+#   host-fun has a ref to, will be tried for symbol-key on
 #   (error).  function will get invoked with error args,
-#   which is for builtin functions the args, and the handler
+#   which is for host-functions the args, and the handler
 #   may mutate these args.  the bultin functions will
 #   call the handler of its name when arg types are
 #   invalid or other situation, and re-try unless yields #f,
@@ -113,13 +113,7 @@
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  There is no conversion
 #   from type y, on which only action is to run.  Names are interned,
-#   and why not add (string->symbol).  The choice done by LISP to
-#   write/output a list as (foo bar) and not something
-#   such as #:(list 'foo 'bar) almost looks unnatural.  But for
-#   this "eval mode" of print, we need the reader to lex into
-#   a separate lexical type.  This lex-type is only accepted by
-#   (read) as it invokes from_lex, and in the arguments to a macro
-#   as it invokes from_lex.  We can have LEX_ESC for this.
+#   and why not add (string->symbol).
 # * Ad previous idea:  One could have a graft-point in the AST,
 #   denoted by an expression, that is globally named and may then
 #   by used as a target p for (compile p), allowing to mutate
@@ -232,10 +226,7 @@ LEX_QT         = 4
 LEX_QQ         = 5
 LEX_UNQ        = 6
 LEX_SPL        = 7
-
-# data-token
-
-LEX_ESC        = 8
+LEX_R          = 8
 
 name_cs = "!$%&*+-./:<=>?@^_~"
 par_beg = "([{"  #| respective to
@@ -250,8 +241,8 @@ LEX_NUM        = 17
 LEX_BOOL       = 18
 LEX_STRING     = 19
 LEX_NAM        = 20
-# no DICT        21
-# no REC         22
+LEX_REC        = 21
+# no DICT      = 22
 LEX_QUOTE      = 23
 LEX_QUASIQUOTE = 24
 LEX_UNQUOTE    = 25
@@ -285,8 +276,8 @@ VAR_NUM        = 17 + BIT_VAR
 VAR_BOOL       = 18 + BIT_VAR
 VAR_STRING     = 19 + BIT_VAR
 VAR_NAM        = 20 + BIT_VAR
-VAR_DICT       = 21 + BIT_VAR
-VAR_REC        = 22 + BIT_VAR
+VAR_REC        = 21 + BIT_VAR
+VAR_DICT       = 22 + BIT_VAR
 VAR_QUOTE      = 23 + BIT_VAR
 # no QUASIQUOTE  24
 VAR_UNQUOTE    = 25 + BIT_VAR
@@ -390,8 +381,7 @@ def error(*args):
     sys.exit(1)
 
 def broken(*args):
-    put(sys.stderr, ["broken:"] + list(args))
-    raise RuntimeError()
+    raise RunError("broken: %r" % (args,))
 
 ##
 # tokenization
@@ -598,8 +588,8 @@ def lex(s, names):
                         raise SrcError("#\\ token")
             elif t == "#void":
                 v = (LEX_VOID,)
-            elif t == "#:":
-                v = (LEX_ESC,)
+            elif t == "#r":
+                v = (LEX_R,)
             else:
                 raise SrcError("# token")
         elif t[0] == "\"":
@@ -647,7 +637,7 @@ def parse_r(z, i, paren_mode, d):
         elif c == LEX_BEG:
             s, i = parse_r(z, i + 1, x[1], d + 1)
             r.append(s)
-        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_SPL, LEX_ESC):
+        elif c in (LEX_QT, LEX_QQ, LEX_UNQ, LEX_SPL, LEX_R):
             x, i = parse_r(z, i + 1, PARSE_MODE_ONE, d)
             assert len(x) == 1
             if c == LEX_QT:
@@ -658,8 +648,8 @@ def parse_r(z, i, paren_mode, d):
                 x = [nam_unquote, *x]
             elif c == LEX_SPL:
                 x = [nam_splice, *x]
-            elif c == LEX_ESC:
-                x = (LEX_ESC, *x)
+            elif c == LEX_R:
+                x = (LEX_REC, *x)
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
@@ -769,8 +759,10 @@ def unbound(t, defs, is_block):
         if type(x) != list:
             if x[0] == LEX_NAM and x[1] not in defs:
                 r.add(x[1])
-            if lex_in(x[0], LEX_LIST | LEX_NONLIST):
+            elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r.update(unbound(x[1], defs, False))
+            elif x[0] == LEX_REC:
+                r.update(unbound(x[1][1:], defs, False))
         elif type(x[0]) != int:
             r.update(unbound(x, defs, False))
         elif x[0] == OP_BIND:
@@ -808,6 +800,10 @@ def find_unbound(t, y):
                     return x
             elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r = find_unbound(x[1], y)
+                if r:
+                    return r
+            elif x[0] == LEX_REC:
+                r = find_unbound(x[1][1:], y)
                 if r:
                     return r
         elif type(x[0]) != int:
@@ -1193,25 +1189,33 @@ def m_unquote(s):
 
 i_macros = {}
 
-def from_lex(s, ef=None):
+def from_lex(s):
     if type(s) == list:
         if is_dotform(s):
             return [VAR_NONLIST,
-                    [from_lex(x, ef) for x in without_dot(s)]]
-        return [VAR_LIST, [from_lex(x, ef) for x in s]]
+                    [from_lex(x) for x in without_dot(s)]]
+        return [VAR_LIST, [from_lex(x) for x in s]]
     if s[0] == LEX_LIST:
-        return from_lex([nam_list, *s[1]], ef)
+        return from_lex([nam_list, *s[1]])
     if s[0] == LEX_NONLIST:
-        return from_lex([nam_nonlist, *s[1]], ef)
+        return from_lex([nam_nonlist, *s[1]])
     if s[0] == LEX_SYM:
-        return from_lex([nam_quote, (LEX_NAM, s[1])], ef)
+        return from_lex([nam_quote, (LEX_NAM, s[1])])
     if s[0] == LEX_VOID:
         return [VAR_VOID,]
-    if s[0] == LEX_ESC:
-        return ef(s[1])
+    if s[0] == LEX_REC:
+        v = [from_lex(y) for y in s[1]]
+        if v[0][0] != VAR_NAM:
+            raise SrcError("record-id not name")
+        return [VAR_REC, Record(v[0][1], v[1:])]
     if s[0] not in (LEX_NAM, LEX_NUM, LEX_BOOL, LEX_STRING,
             LEX_QUOTE, LEX_UNQUOTE):
         raise SrcError("from lex %r" % (s,))
+    if s[0] == LEX_QUOTE:
+        # try to go away from having VAR_QUOTE at all
+        # should not be possible.  leave VAR_UNQUOTE
+        # as macro expand leaves it if bare
+        broken("quote from lex")
     return [s[0] + BIT_VAR, s[1]]
 
 def to_lex(s):
@@ -1220,6 +1224,9 @@ def to_lex(s):
     if s[0] in (VAR_LIST, VAR_NONLIST):
         r = [to_lex(x) for x in s[1]]
         return with_dot(r) if s[0] == VAR_NONLIST else r
+    if s[0] == VAR_REC:
+        r = [to_lex(x) for x in (s[1].values)]
+        return (LEX_REC, [[LEX_NAM, s[1].nam], *r[1:]])
     if s[0] == VAR_VOID:
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
@@ -1693,7 +1700,7 @@ def var_type_name(vt):
         VAR_NONLIST: "nonlist", VAR_SPLICE: "splice", VAR_NUM: "number",
         VAR_BOOL: "boolean", VAR_STRING: "string", VAR_DICT: "dict",
         VAR_NAM: "name", VAR_QUOTE: "quote", VAR_UNQUOTE: "unquote",
-        VAR_FUN_OPS: "fun", VAR_FUN_HOST: "builtin",
+        VAR_FUN_OPS: "fun", VAR_FUN_HOST: "fun-host",
         VAR_APPLY: "apply", VAR_PORT: "port", VAR_EOF: "eof-object" }[vt]
 
 def fargt_repr(vt):
@@ -2629,9 +2636,7 @@ def f_read(names, env):
             return [VAR_VOID]
         if len(t) != 1:
             warning("trailing objects")
-        def esc_f(x):
-            return run(x, env)
-        return from_lex(t[0], esc_f)
+        return from_lex(t[0])
     return rd
 
 def f_write(names):
@@ -3030,6 +3035,11 @@ def xeval(x, env):
             return [VAR_STRING, x[1]]
         if x[0] == LEX_SYM:
             return [VAR_NAM, x[1]]
+        if x[0] == LEX_REC:
+            n = x[1][0]
+            if n[0] != LEX_NAM:
+                broken("record-id not name")
+            return [VAR_REC, Record(n[1], run_each(x[1][1:], env))]
         if x[0] in (LEX_QUOTE, LEX_QUASIQUOTE):
             broken("eval quote")
         if x[0] == LEX_UNQUOTE:
@@ -3445,12 +3455,9 @@ def xrepr(s, names):
         return "#<unquote %s #>" % (xrepr(s[1], names),)
     return "#< %r #>" % (s,)
 
-def vrepr(s, names, q=None, e=False):
+def vrepr(s, names, q=None):
     if var_in(s[0], VAR_LIST | VAR_NONLIST):
-        w  = [vrepr(x, names, q, e) for x in s[1]]
-        if e:
-            return "(%s %s)" % (("list" if s[0] == VAR_LIST
-                                else "nonlist"), " ".join(w))
+        w  = [vrepr(x, names, q) for x in s[1]]
         if s[0] == VAR_NONLIST:
             w.insert(-1, ".")
         return "(%s)" % " ".join(w)
@@ -3459,32 +3466,32 @@ def vrepr(s, names, q=None, e=False):
                 vrepr(x, names, q) for x in s[1])
     if s[0] == VAR_CONS:
         if s[1] is None:
-            return "()" if not e else "'()"
-        return "%s" % vrepr(s[1].to_list_var(), names, q, e)
+            return "()"
+        return "%s" % vrepr(s[1].to_list_var(), names, q)
     if s[0] == VAR_NAM:
         n = names[s[1]]
-        if e:
-            return "(string->symbol \"%s\")" % (n,)
         return n
     if s[0] == VAR_NUM:
         return str(s[1])
     if s[0] == VAR_STRING:
         return '"' + s[1].replace('"', '\\"') + '"'
     if s[0] == VAR_REC:
-        esc = "#:" if not e else ""
-        return "%s(%s %s)" % (esc, names[s[1].nam], " ".join(
-            vrepr(x, names, q, True) for x in s[1].values))
+        return "#r(%s %s)" % (names[s[1].nam], " ".join(
+            vrepr(x, names, q) for x in s[1].values))
     if s[0] == VAR_DICT:
-        esc = "#:" if not e else ""
         if s[1] is None:
-            return esc + "(alist->dict '())"
-        return esc + "(alist->dict (list " + " ".join(
-                ["(%s . %s)" % (vrepr(x, names, q, True),
-                                vrepr(y, names, q, True))
-                    for x, y in s[1].ditems()]) + "))"
+            r = ""
+        elif verbose:
+            r = " # ".join(
+                    ["%s %s" % (vrepr(x, names, q),
+                                vrepr(y, names, q))
+                     for x, y in s[1].ditems()])
+        else:
+            r = "#"
+        return "#{%s}" % (r,)
     if var_in(s[0], VAR_FUN_OPS | VAR_FUN_HOST):
         if s[0] == VAR_FUN_HOST:
-            return "#~builtin"
+            return "#~fun-host"
         if not verbose:
             return "#~fun"
         le = s[2]
