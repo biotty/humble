@@ -277,6 +277,42 @@ Lex m_begin(LexForm && s)
     return m_letx(move(a));
 }
 
+Lex m_if(LexForm && s);
+
+struct Do : MacroClone<Do> {
+    Lex operator()(LexForm && s) override
+    {
+        if (s.v.size() < 3) throw SrcError("do argc");
+        malt_or_fail<LexForm>(s.v[1], "do parameters");
+        vector<Lex> step;
+        for (auto & x : get<LexForm>(s.v[1]).v) {
+            malt_or_fail<LexForm>(x, "do param not form");
+            auto & f = get<LexForm>(x);
+            Lex y;
+            if (f.v.size() == 3) {
+                y = move(f.v[2]);
+                f.v.resize(2); // pop
+            } else if (f.v.size() == 2) {
+                y = f.v[0]; // copy
+            } else throw SrcError("do param length");
+            step.push_back(move(y));
+        }
+        LexForm b{{nam_else}};
+        move(step.begin(), step.end(), back_inserter(b.v));
+        s.v.push_back(move(b));  // growth invalidates any refs
+        malt_or_fail<LexForm>(s.v[2], "do then");
+        auto & ifthen = get<LexForm>(s.v[2]);
+        LexForm then_b{{LexOp{}}};
+        move(ifthen.v.begin() + 1, ifthen.v.end(), back_inserter(then_b.v));
+        LexForm else_b{{LexOp{}}};
+        move(s.v.begin() + 3, s.v.end(), back_inserter(else_b.v));
+        return named_let(LexForm{{LexOp{}, nam_else, move(s.v[1]),
+                m_if(LexForm{{LexOp{}, move(ifthen.v[0]),
+                        m_begin(move(then_b)),
+                        m_begin(move(else_b))}})}});
+    }
+};
+
 //
 // macro-macro
 //
@@ -428,21 +464,19 @@ Lex m_cond(LexForm && s)
     return m;
 }
 
-struct If : MacroClone<If> {
-    Lex operator()(LexForm && s) override
-    {
-        if (s.v.size() == 3) {
-            s.v.push_back(LexVoid{});
-        } else if (s.v.size() != 4) {
-            throw SrcError("if argc");
-        }
-        return LexForm{{
-            LexOp{OP_COND},
-                LexForm{{move(s.v[1]), move(s.v[2])}},
-                LexForm{{LexBool{true}, move(s.v[3])}}
-        }};
+Lex m_if(LexForm && s)
+{
+    if (s.v.size() == 3) {
+        s.v.push_back(LexVoid{});
+    } else if (s.v.size() != 4) {
+        throw SrcError("if argc");
     }
-};
+    return LexForm{{
+        LexOp{OP_COND},
+            LexForm{{move(s.v[1]), move(s.v[2])}},
+            LexForm{{LexBool{true}, move(s.v[3])}}
+    }};
+}
 
 Lex and_r(LexForm && s)
 {
@@ -502,6 +536,80 @@ struct Unless : MacroClone<Unless> {
     }
 };
 
+struct Case : MacroClone<Case> {
+
+private:
+
+    static Lex xcase_test(Lex && t)
+    {
+        if (not holds_alternative<LexForm>(t)) {
+            if (not nameq(t, NAM_ELSE))
+                throw SrcError("case neither form nor else");
+            return LexBool{true};
+        }
+        LexForm m{{LexOp{}}};
+        auto & f = get<LexForm>(t);
+        for (auto & v : f.v)
+            m.v.push_back(LexForm{{nam_eqvp, v, nam_else}});
+        return m_or(move(m));
+    }
+
+    static Lex xcase_target(LexForm && s)
+    {
+        if (not nameq(s.v[0], NAM_THEN)) {
+            if (s.v.size() != 1)
+                throw SrcError("case target length");
+            return s.v[0];
+        }
+        if (s.v.size() != 2)
+            throw SrcError("=> target length");
+        return LexForm{{s.v[1], nam_else}};
+    }
+
+    static Lex xcase(LexForm && s)
+    {
+        if (nameq(s.v.back(), NAM_ELSE))
+            s.v.push_back(LexForm{{nam_else, nam_then, nam_error}});
+        // deviation: from r7rs which states that result is unspecified
+        // when no cases match and no "else".  if not using this result
+        // in such a situation there would be no ill-effect.
+        // rationale: hard to find issues may arise if returning the
+        // VOID value, so early detection saves this problem that is
+        // then addressed by programming a propper else-case.
+        // alt: instead have [nam_else, (LEX_VOID,)] above.
+        LexForm m{{LexOp{}}};
+        for (auto & ce : s.v) {
+            auto & f = get<LexForm>(ce);
+            LexForm a{{LexOp{}, xcase_test(move(f.v[0]))}};
+            if (not nameq(f.v[0], NAM_ELSE) or nameq(f.v[1], NAM_THEN)) {
+                LexForm x;
+                move(f.v.begin() + 1, f.v.end(), back_inserter(x.v));
+                a.v.push_back(xcase_target(move(x)));
+            } else {
+                LexForm x{{LexOp{}}};
+                move(f.v.begin() + 1, f.v.end(), back_inserter(x.v));
+                a.v.push_back(m_begin(move(x)));
+            }
+            m.v.push_back(m_and(move(a)));
+        }
+        return m_or(move(m));
+    }
+
+public:
+
+    Lex operator()(LexForm && s) override
+    {
+        if (s.v.size() < 2)
+            throw SrcError("case argc");
+        LexForm a;
+        move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
+        // note: abuse of "else" as switch variable name
+        return m_letx(LexForm{{LexOp{},
+                LexForm{{LexForm{{nam_else, s.v[1]}}}},
+                xcase(move(a))}});
+    }
+};
+
 //
 // import
 //
@@ -518,12 +626,16 @@ struct Import : MacroNotClone<Import> {
         , opener(&opener)
     { }
 
+private:
+
     static int get_nam_sym(Lex & x, bool & is_sym)
     {
         malt_or_fail<LexNam, LexSym>(x, "expected name or symbol");
         is_sym = holds_alternative<LexSym>(x);
         return is_sym ? get<LexSym>(x).h : get<LexNam>(x).h;
     }
+
+public:
 
     Lex operator()(LexForm && s) override
     {
@@ -607,6 +719,9 @@ struct Begin : MacroClone<Begin> { Lex operator()(LexForm && s) override {
 struct Cond : MacroClone<Cond> { Lex operator()(LexForm && s) override {
     return m_cond(move(s));
 } };
+struct If : MacroClone<If> { Lex operator()(LexForm && s) override {
+    return m_if(move(s));
+} };
 struct And : MacroClone<And> { Lex operator()(LexForm && s) override {
     return m_and(move(s));
 } };
@@ -644,6 +759,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "letrec", make_unique<Letrec>());
     with_name(names, m, "letrec*", make_unique<Letrecx>());
     with_name(names, m, "begin", make_unique<Begin>());
+    with_name(names, m, "do", make_unique<Do>());
     with_name(names, m, "ref", make_unique<Ref>());
     with_name(names, m, "define", make_unique<Define>());
     with_name(names, m, "cond", make_unique<Cond>());
@@ -652,6 +768,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "and", make_unique<And>());
     with_name(names, m, "or", make_unique<Or>());
     with_name(names, m, "unless", make_unique<Unless>());
+    with_name(names, m, "case", make_unique<Case>());
     with_name(names, m, "export", make_unique<Export>());
     with_name(names, m, "gensym", make_unique<Gensym>(names));
     with_name(names, m, "seq", make_unique<Seq>());

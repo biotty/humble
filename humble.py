@@ -733,6 +733,7 @@ def readx(s, names):
     t, i = parse_r(z, 0, PARSE_MODE_TOP, 0)
     if i != len(z):
         broken("not fully consumed; unexpected")
+    # debug("read", t)
     return t
 
 def parse(s, names, macros):
@@ -746,7 +747,7 @@ def parse(s, names, macros):
         raise CoreError("parse internal key error: %d" % (i,))
     except IndexError as e:
         raise SrcError("form syntax error")
-    debug("tree", t)
+    # debug("tree", t)
     return t
 
 def unbound(t, defs, is_block):
@@ -1117,6 +1118,8 @@ def m_do(s):
     margc_must_ge("do", s, 3)
     step = []
     parms = s[1]
+    if type(parms) != list:
+        raise SrcError("do parameters")
     for x in parms:
         if len(x) == 3:
             y = x.pop()
@@ -1390,7 +1393,6 @@ def xcase(s):
     # VOID value, so early detection saves this problem that is
     # then addressed by programming a propper else-case.
     # alt: instead have [nam_else, (LEX_VOID,)] above.
-    m = len(s) - 1
     return m_or([-99, *[
         m_and([-99, xcase_test(ce[0]),
             xcase_target(ce[1:])
@@ -3669,14 +3671,13 @@ if __name__ == "__main__":
             line = input(":")
         except EOFError:
             break
-        line = line.lstrip(":")
-        buf.append(line)
-        line = line.rstrip()
+        line = line.lstrip(":").rstrip()
+        buf.extend([line, "\n"])
         if line.endswith(";"):
             if line.endswith(";;"):
                 if not verbose:
                     set_verbose(True)
-                    debug(list(enumerate(names)))
+                    debug("names", list(enumerate(names)))
                 else:
                     set_verbose(False)
             compxrun("".join(buf), names, macros, env, opener.filename)
