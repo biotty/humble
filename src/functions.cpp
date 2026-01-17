@@ -2,6 +2,7 @@
 #include "except.hpp"
 #include "vars.hpp"
 #include "cons.hpp"
+#include "xeval.hpp"
 #include "compx.hpp"
 #include "debug.hpp"
 #include <iostream>
@@ -503,6 +504,7 @@ EnvEntry f_listp(span<EnvEntry> args)
         return make_shared<Var>(VarBool{false});
 
     ConsNext x = get<VarCons>(a).c;
+    // warning("cons-iter")
     for (;;) {
         if (not holds_alternative<ConsPtr>(x)) break;
         if (nullptr == get<ConsPtr>(x)) break;
@@ -550,8 +552,56 @@ EnvEntry f_voidp(span<EnvEntry> args)
 //   program utilization
 
 //
-// list usage
+// list-based functions
 //
+
+EnvEntry f_length(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("length argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "length");
+    auto & a = *args[0];
+    long long r{};
+    if (holds_alternative<VarCons>(a)) {
+        if (get<VarCons>(a).c)
+            r = get<VarCons>(a).c->length();
+    } else {
+        r = get<VarList>(a).v.size();
+    }
+    return make_shared<Var>(VarNum{r});
+}
+
+EnvEntry f_apply(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("apply argc");
+    valt_or_fail<VarCons, VarList>(args, 1, "apply");
+    vector<EnvEntry> e{args[0]};
+    for (auto & v : normal_list(*args[1]).v)
+        e.push_back(v);
+    return xapply(e);
+}
+
+EnvEntry f_map(span<EnvEntry> args)
+{
+    if (args.size() < 1) throw RunError("map argc");
+    valt_or_fail<VarFunOps, VarFunHost>(args, 0, "map");
+    vector<unique_ptr<ConsOrListIter>> inputs;
+    for (size_t i = 1; i != args.size(); ++i) {
+        valt_or_fail<VarCons, VarList>(args, i, "map");
+        inputs.push_back(make_iter(*args[i]));
+    }
+    vector<EnvEntry> r;
+    for (;;) {
+        vector<EnvEntry> w{args[0]};
+        for (auto & j : inputs) {
+            auto x = j->get();
+            if (x) w.push_back(x);
+            else goto e;
+        }
+        r.push_back(fun_call(w));
+    }
+e:
+    return make_shared<Var>(VarList{move(r)});
+}
 
 //
 // input/output
@@ -668,6 +718,9 @@ void init_env(Names & n)
     g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
     g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
     g.set(n.intern("display"), make_shared<Var>(VarFunHost{ f_display }));
+    g.set(n.intern("length"), make_shared<Var>(VarFunHost{ f_length }));
+    g.set(n.intern("apply"), make_shared<Var>(VarFunHost{ f_apply }));
+    g.set(n.intern("map"), make_shared<Var>(VarFunHost{ f_map }));
     g.set(n.intern("error"), make_shared<Var>(VarFunHost{ f_error }));
     g.set(n.intern("exit"), make_shared<Var>(VarFunHost{ f_exit }));
 }

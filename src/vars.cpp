@@ -55,7 +55,10 @@ FunEnv::FunEnv(size_t n) : v(n) {}
 
 FunEnv::FunEnv(std::initializer_list<EnvEntry> w) : v(w) {}
 
-EnvEntry FunEnv::get(int i) { return v[i]; }
+EnvEntry FunEnv::get(int i)
+{
+    return v[i];
+}
 
 void FunEnv::set(int i, EnvEntry e) { v[i] = e; }
 

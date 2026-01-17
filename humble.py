@@ -112,15 +112,14 @@
 #   This results in two types of files, x: lex not macro-expanded,
 #   and may save either data or code, and y: op-code-lex ready
 #   to be fed to the interpreter and run.  There is no conversion
-#   from type y, on which only action is to run.  Names are interned,
-#   and why not add (string->symbol).
+#   from type y, on which only action is to run.  Remember that
+#   I still don't have string->symbol, which would not trivially
+#   work in a scope, and this problem is not worth resolving.
 # * Ad previous idea:  One could have a graft-point in the AST,
 #   denoted by an expression, that is globally named and may then
 #   by used as a target p for (compile p), allowing to mutate
 #   the code itself.  The graft point may be wrapped as possibly
 #   a lambda or OP_IMPORT (at hand waving level of thought here).
-# * define-record-type that detect r6rs syntax and provides
-#   inheritence as in that case, on the same underlying VAR_REC.
 #
 # Excluded:  (non-features)
 #
@@ -2336,12 +2335,6 @@ def f_symbol_z_string(names):
         return [VAR_STRING, names[args[0][1]]]
     return to_string
 
-def f_string_z_symbol(names):
-    def to_name(*args):
-        fargt_must_eq("string->symbol", args, 0, VAR_STRING)
-        return [VAR_NAM, names.intern(args[0][1])]
-    return to_name
-
 def f_substring(*args):
     fn = "substring"
     fargc_must_ge(fn, args, 2)
@@ -3162,8 +3155,6 @@ def init_env(names):
     with_new_name("display", [VAR_FUN_HOST, f_display(names)], env, names)
     with_new_name("symbol->string",
                   [VAR_FUN_HOST, f_symbol_z_string(names)], env, names)
-    with_new_name("string->symbol",
-                  [VAR_FUN_HOST, f_string_z_symbol(names)], env, names)
     with_new_name("read", [VAR_FUN_HOST, f_read(names, env)], env, names)
     with_new_name("write", [VAR_FUN_HOST, f_write(names)], env, names)
     for a, b in [
@@ -3650,10 +3641,17 @@ if __name__ == "__main__":
             self.filename = path
             return open(path, "r", encoding="utf-8")
     opener = SrcOpener()
-    if len(sys.argv) == 2:
+    if len(sys.argv) >= 2:
+        if len(sys.argv) == 3:
+            if (sys.argv[1]) != "-v":
+                error("unknown option")
+            set_verbose(True)
+            fn = sys.argv[2]
+        else:
+            fn = sys.argv[1]
         efs = efs_nc
         names, env, macros = init_top(opener, efs)
-        with opener(sys.argv[1]) as f:
+        with opener(fn) as f:
             ok = compxrun(f.read(), names, macros, env, opener.filename)
         sys.exit(int(not ok))
 

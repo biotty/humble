@@ -333,6 +333,9 @@ struct UserMacro : MacroNotClone<UserMacro>
     Lex operator()(LexForm && s) override
     {
         vector<EnvEntry> args;
+#ifdef DEBUG
+        cout << "user-macro args: " << s << endl;
+#endif
         for (auto & x : s.v)
             if (&x != &s.v[0])
                 args.push_back(from_lex(x));
@@ -353,7 +356,11 @@ struct UserMacro : MacroNotClone<UserMacro>
         EnvEntry r;
         for (auto & x : block.v)
             r = run(x, env);
-        return to_lex(r);
+        auto x = to_lex(r);
+#ifdef DEBUG
+        cout << "user-macro result: " << x << endl;
+#endif
+        return x;
     }
 };
 
@@ -568,7 +575,7 @@ private:
 
     static Lex xcase(LexForm && s)
     {
-        if (nameq(s.v.back(), NAM_ELSE))
+        if (not nameq(s.v.back(), NAM_ELSE))
             s.v.push_back(LexForm{{nam_else, nam_then, nam_error}});
         // deviation: from r7rs which states that result is unspecified
         // when no cases match and no "else".  if not using this result

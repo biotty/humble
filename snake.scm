@@ -4,8 +4,7 @@
 ; (nc-) has been brought in (example of extension
 ; mechanism onto interpreter) so to provide a
 ; classic snake game at the terminal.  we here exemplify
-; pass-by-reference, the lone "@", a class, use of
-; a dictionary, and the "ref@", the "class" macro,
+; pass-by-reference, the "@", "class" macro , "ref@",
 ; alternative parens, unicode, and the many r7rs forms.
 ; demo of io: the high-score is recorded in a file.
 
@@ -109,11 +108,10 @@
       is-over
       get-frog)))
 
-(ref keys (alist->dict
-               '((#\a . up)
-                 (#\z . down)
-                 (#\o . left)
-                 (#\p . right))))
+(ref keys '((#\a . up)
+           (#\z . down)
+           (#\o . left)
+           (#\p . right)))
 
 (ref (show-score x n)
      (nc-addstr scr 0 x (number->string n) 2))
@@ -158,9 +156,8 @@
            (pause JGOVER)
            (quit)]
           [else
-            (dict-if-get keys ch 'ign
-                         (lambda (d)
-                           (game 'set-dir! d)))
+            (let ((k (assoc ch keys)))
+              (when k (game 'set-dir! (cdr k))))
             (game 'step! up-score)
             (apply grid-snake (game 'get-head))
             (apply grid-unset (game 'get-butt))

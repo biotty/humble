@@ -271,6 +271,7 @@ static EnvEntry to_list_var(const ConsPtr & c)
 
 Lex to_lex(EnvEntry a)
 {
+    if (not a) throw CoreError("mute variable");
     if (holds_alternative<VarCons>(*a)) {
         a = to_list_var(get<VarCons>(*a).c);
     }

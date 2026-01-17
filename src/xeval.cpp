@@ -241,6 +241,7 @@ EnvEntry run(Lex & x, Env & env)
 {
     // cout << x << " *run*\n";
     auto y = xeval(x, env);
+    if (not y) throw CoreError("mute eval");
     if (not holds_alternative<VarApply>(*y))
         return y;
     auto & a = get<VarApply>(*y).a;

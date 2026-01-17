@@ -9,6 +9,7 @@ namespace humble {
 
 EnvEntry run(Lex & x, Env & env);
 EnvEntry xapply(std::vector<EnvEntry> v);
+EnvEntry fun_call(std::vector<EnvEntry> v);
 
 } // ns
 
