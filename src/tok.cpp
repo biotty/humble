@@ -5,7 +5,6 @@
 #include <cstring>
 #include <climits>
 #include <vector>
-#include <algorithm>
 #include <charconv>
 #include <sstream>
 #include <ostream>

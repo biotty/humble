@@ -189,6 +189,127 @@ EnvEntry f_append(span<EnvEntry> args)
     return make_shared<Var>(VarCons{r});
 }
 
+EnvEntry f_set_carj(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("set-car! argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-car!");
+    if (valt_in<VarCons>(*args[0])) {
+        get<VarCons>(*args[0]).c->a = args[1];
+    } else if (valt_in<VarList>(*args[0])) {
+        get<VarList>(*args[0]).v[0] = args[1];
+    } else {
+        get<VarList>(*args[0]).v[0] = args[1];
+    }
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_set_cdrj(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("set-cdr! argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-cdr!");
+    if (valt_in<VarList>(*args[1])) {
+        auto c = to_cons(*args[1]);
+        *args[1] = VarCons{c};
+    } else if (valt_in<VarNonlist>(*args[1])) {
+        auto c = to_cons(*args[1]);
+        *args[1] = VarCons{c};
+    }
+    ConsNext d = valt_in<VarCons>(*args[1])
+            ? ConsNext{get<VarCons>(*args[1]).c}
+            : ConsNext{args[1]};
+    if (valt_in<VarCons>(*args[0])) {
+        get<VarCons>(*args[0]).c->d = d;
+        return make_shared<Var>(VarVoid{});
+    }
+    EnvEntry a;
+    if (valt_in<VarList>(*args[0])) a = get<VarList>(*args[0]).v[0];
+    else if (valt_in<VarNonlist>(*args[0])) a = get<VarNonlist>(*args[0]).v[0];
+    else a = args[0];
+    *args[0] = VarCons{ make_shared<Cons>(a, d) };
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_list_tail(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("list-tail argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "list-tail");
+    valt_or_fail<VarNum>(args, 1, "list-tail");
+    auto n = get<VarNum>(*args[1]).i;
+    ConsNext r = to_cons(*args[0]);
+    *args[0] = VarCons{get<ConsPtr>(r)};
+    for (auto i = 0u; i != n; ++i) {
+        if (not holds_alternative<ConsPtr>(r)) {
+            // warning("list-tail overrun")
+            break;
+        }
+        r = get<ConsPtr>(r)->d;
+    }
+    return make_shared<Var>(VarCons{get<ConsPtr>(r)});
+}
+
+EnvEntry f_list_setj(span<EnvEntry> args)
+{
+    if (args.size() != 3) throw RunError("list-set! argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "list-set!");
+    valt_or_fail<VarNum>(args, 1, "list-set!");
+    auto n = get<VarNum>(*args[1]).i;
+    if (valt_in<VarList>(*args[0])) {
+        get<VarList>(*args[0]).v[n] = args[2];
+    } else {
+        vector<EnvEntry> a{args[0], args[1]};
+        auto k = f_list_tail(a);
+        auto c = get<VarCons>(*k).c;
+        if (c) c->a = args[2];
+    }
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_make_list(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("make-list argc");
+    valt_or_fail<VarNum>(args, 0, "make-list");
+    auto n = get<VarNum>(*args[0]).i;
+    vector<EnvEntry> v;
+    v.reserve(n);
+    auto x = make_shared<Var>(VarVoid{});
+    for (auto i = 0u; i != n; ++i)
+        v.push_back(x);
+    return make_shared<Var>(VarList{move(v)});
+}
+
+EnvEntry f_reverse(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("reverse argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "reverse");
+    auto r = f_list_copy(args);
+    auto & a = get<VarList>(*r);
+    auto n = a.v.size();
+    auto m = n / 2u;
+    for (auto i = 0u; i != m; ++i)
+        swap(a.v[i], a.v[n - i - 1]);
+    return r;
+}
+
+EnvEntry f_take(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("take argc");
+    valt_or_fail<VarNum>(args, 0, "take");
+    valt_or_fail<VarCons, VarList>(args, 1, "take");
+    auto n = get<VarNum>(*args[0]).i;
+    if (valt_in<VarList>(*args[1])) {
+        auto & a = get<VarList>(*args[1]).v;
+        vector<EnvEntry> r;
+        r.reserve(n);
+        for (auto i = 0u; i != n; ++i)
+            r.push_back(a[i]);
+        return make_shared<Var>(VarList{move(r)});
+    }
+    if (n == 0 or get<VarCons>(*args[1]).c == nullptr)
+        return make_shared<Var>(VarCons{});
+    return make_shared<Var>(
+            get<VarCons>(*args[1]).c->xcopy(n));
+}
+
 EnvEntry f_splice(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("splice argc");
@@ -812,6 +933,13 @@ void init_env(Names & n)
     g.set(n.intern("list-ref"), make_shared<Var>(VarFunHost{ f_list_ref }));
     g.set(n.intern("cdr"), make_shared<Var>(VarFunHost{ f_cdr }));
     g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
+    g.set(n.intern("set-car!"), make_shared<Var>(VarFunHost{ f_set_carj }));
+    g.set(n.intern("set-cdr!"), make_shared<Var>(VarFunHost{ f_set_cdrj }));
+    g.set(n.intern("list-tail"), make_shared<Var>(VarFunHost{ f_list_tail }));
+    g.set(n.intern("list-set!"), make_shared<Var>(VarFunHost{ f_list_setj }));
+    g.set(n.intern("make-list"), make_shared<Var>(VarFunHost{ f_make_list }));
+    g.set(n.intern("reverse"), make_shared<Var>(VarFunHost{ f_reverse }));
+    g.set(n.intern("take"), make_shared<Var>(VarFunHost{ f_take }));
     g.set(n.intern("splice"), make_shared<Var>(VarFunHost{ f_splice }));
     g.set(n.intern("not"), make_shared<Var>(VarFunHost{ f_not }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));

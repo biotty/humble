@@ -3,7 +3,7 @@
 # Welcome to "Humble Schemer", copyright Christian Oeien
 #
 # My scheme is more humble than yours!
-# REM: Dijkstra and "The Humble Programmer"
+#
 #
 # Deviations:  (concept)
 #
@@ -1905,7 +1905,6 @@ def f_list_tail(*args):
     return [VAR_CONS, r]
 
 def f_list_setj(*args):
-    fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
     fn = "list-set!"
     fargc_must_eq(fn, args, 3)
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST)
@@ -1922,9 +1921,9 @@ def f_list_setj(*args):
 
 def f_make_list(*args):
     fargt_must_eq("make-list", args, 0, VAR_NUM)
-    v = [VAR_VOID]
+    x = [VAR_VOID]
     n = args[0][1]
-    return [VAR_LIST, [v] * n]
+    return [VAR_LIST, [x] * n]
 
 def f_reverse(*args):
     fargt_must_in("reverse", args, 0, VAR_CONS | VAR_LIST)
