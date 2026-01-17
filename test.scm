@@ -268,14 +268,6 @@ y
 (jget v)
 '(1 . (2 . ())); ==> (1 2)
 '(1 . (2 . 5)); ==> (1 2 . 5)
-(ref d (alist->dict '[(1 . 2)]))
-(chk (dict? d) #true)
-(dict-get-default! d 1 9)
-(dict-get-default! d 2 9)
-(assoc 2 (dict->alist d))
-(chk (assoc 2 (dict->alist d)) '(2 . #o11))
-(dict-set! d 7 8)
-(chk 8 (dict-if-get d 7 0 (lambda (x) x)))
 '((6 1 3) (-5 -2))
 (chk '((6 1 3) (-5 -2))
   (let loop ((numbers '(3 -2 1 6 -5))
@@ -389,4 +381,12 @@ y
 (chk #t (cont?? '(@(list))))  ; quoted splice
 (chk (list 3) (list @(list (+ 1 2))));
 (chk 3 @(list (+ 1 2)));
+(ref d (alist->dict '[(1 . 2)]))
+(chk (dict? d) #true)
+(dict-get-default! d 1 9)
+(dict-get-default! d 2 9)
+(assoc 2 (dict->alist d))
+(chk (assoc 2 (dict->alist d)) '(2 . #o11))
+(dict-set! d 7 8)
+(chk 8 (dict-if-get d 7 0 (lambda (x) x)))
 

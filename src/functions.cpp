@@ -131,7 +131,7 @@ EnvEntry f_cdr(span<EnvEntry> args)
         if (valt_in<VarNonlist>(a)) {
             auto & u = get<VarNonlist>(a);
             if (u.v.size() <= 1)
-                throw CoreError("short nonlist");
+                throw CoreError("cdr short nonlist");
             if (u.v.size() == 2)
                 return u.v[1];
         }
@@ -518,16 +518,52 @@ EnvEntry f_equalp(span<EnvEntry> args)
 }
 
 //
-// DICT
-//
-
-//
 // REC
 //
 
 //
 // string
 //
+
+//f_string_ref(*args)
+
+EnvEntry f_string_z_list(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("string->list argc");
+    valt_or_fail<VarString>(args, 0, "string->list");
+    auto s = get<VarString>(*args[0]).s;
+    vector<EnvEntry> v;
+    for (int i = 0 ;; ++i) {
+        auto w = utf_ref(s, i);
+        if (w.u.empty()) break;
+        auto c = utf_value(w);
+        v.push_back(make_shared<Var>(VarNum{c}));
+    }
+    return make_shared<Var>(VarList{move(v)});
+}
+
+//f_list_z_string(*args)
+
+Names * u_names;
+
+EnvEntry f_symbol_z_string(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("symbol->string argc");
+    valt_or_fail<VarNam>(args, 0, "symbol->string");
+    int h = get<VarNam>(*args[0]).h;
+    return make_shared<Var>(VarString{u_names->get(h)});
+}
+
+//f_substring(*args)
+//f_substring_index(*args)
+//f_string_length(*args)
+//f_string_append(*args)
+//stringpred(args, fn, pred)
+//f_stringeqp(*args)
+//f_stringltp(*args)
+//f_stringgtp(*args)
+//f_string_z_number(*args)
+//f_number_z_string(*args)
 
 //
 // type checks
@@ -687,8 +723,6 @@ e:
 // variable (de)serialization
 //
 
-Names * u_names;
-
 // TODO: read
 // TODO: write
 
@@ -790,6 +824,8 @@ void init_env(Names & n)
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
+    g.set(n.intern("string->list"), make_shared<Var>(VarFunHost{ f_string_z_list }));
+    g.set(n.intern("symbol->string"), make_shared<Var>(VarFunHost{ f_symbol_z_string }));
     g.set(n.intern("boolean?"), make_shared<Var>(VarFunHost{ f_booleanp }));
     g.set(n.intern("number?"), make_shared<Var>(VarFunHost{ f_numberp }));
     g.set(n.intern("procedure?"), make_shared<Var>(VarFunHost{ f_procedurep }));

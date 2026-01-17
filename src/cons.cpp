@@ -74,7 +74,7 @@ VarCons Cons::from_list(span<EnvEntry> x)
 
 VarCons Cons::from_nonlist(span<EnvEntry> x)
 {
-    if (x.size() <= 2)
+    if (x.size() < 2)
         throw CoreError("short nonlist");
     last = nullptr;
     ConsNext r = x.back();
