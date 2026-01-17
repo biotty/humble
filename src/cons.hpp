@@ -18,7 +18,7 @@ struct Cons {
     size_t length();
     static VarCons from_list(std::span<EnvEntry> x);
     static VarCons from_nonlist(std::span<EnvEntry> x);
-    static Cons * last;
+    static ConsPtr last;
 };
 
 ConsPtr to_cons(Var & x);

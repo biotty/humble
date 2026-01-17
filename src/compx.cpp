@@ -2,6 +2,7 @@
 #include "debug.hpp"
 #include "except.hpp"
 #include "cons.hpp"
+#include "debug.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -263,18 +264,21 @@ static EnvEntry to_list_var(const ConsPtr & c)
     } else {
         auto b = c->to_list_var();
         if (holds_alternative<VarList>(b))
-            return make_shared<Var>(get<VarList>(b));
+            return make_shared<Var>(get<VarList>(move(b)));
         else
-            return make_shared<Var>(get<VarNonlist>(b));
+            return make_shared<Var>(get<VarNonlist>(move(b)));
     }
 }
 
 Lex to_lex(EnvEntry a)
 {
+    // cerr << "to_lex\n";
     if (not a) throw CoreError("mute variable");
     if (holds_alternative<VarCons>(*a)) {
+        // cerr << "holds cons\n";
         a = to_list_var(get<VarCons>(*a).c);
     }
+    // cerr << "to_lex visit\n";
     return visit([](auto && q) -> Lex {
             using T = decay_t<decltype(q)>;
             if constexpr (is_same_v<T, VarList>) {

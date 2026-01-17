@@ -1574,6 +1574,13 @@ class Cons:
     # improvement: opt.loop detect by mark of cons,
     #              w (i-e incr.gen) unique mark per loop-run
 
+    # todo: pass last-holder option where used,
+    #       instead of static last member.  in either
+    #       implementation it may keep big memory,
+    #       and the work around would be to clear it in
+    #       various call-sites.  the suggested more explicit
+    #       approach will be more manageable.
+
     class Iter:
 
         def __init__(self, c):
@@ -1824,6 +1831,8 @@ def f_append(*args):
         last[1] = to_cons(last)
         last[0] = VAR_CONS
     r = p = to_cons_copy(args[0])
+    # print("arg[0]: ", args[0][0] - BIT_VAR, type(args[0][1]), id(args[0][1]))
+    # print("r: ", type(r), id(r))
     q = None
     for i, c in enumerate(args):
         if i == 0:
@@ -1840,6 +1849,11 @@ def f_append(*args):
             p = to_cons_copy(c)
         if q is not None:
             q.d = p
+    # print("R", id(r))
+    # print("Q", id(q))
+    # print("P type", type(p))
+    # print("P", id(p))
+    # print("D", id(r.d))
     return [VAR_CONS, r]
 
 def f_set_carj(*args):

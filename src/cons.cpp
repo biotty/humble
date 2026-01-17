@@ -1,5 +1,6 @@
 #include "cons.hpp"
 #include "except.hpp"
+#include "debug.hpp"
 
 using namespace humble;
 using namespace std;
@@ -12,6 +13,7 @@ bool cons_iter_next(Cons *& cur)
         throw CoreError("list cdr not cons");
     if (not get<ConsPtr>(cur->d))
         return false;
+    // cerr << "cons_iter_next " << cur << " d " << &*get<ConsPtr>(cur->d) << endl;
     cur = &*get<ConsPtr>(cur->d);
     return true;
 }
@@ -24,17 +26,19 @@ Cons::Cons(EnvEntry a, ConsNext d) : a(a), d(d) { }
 
 VarCons Cons::xcopy(size_t n)
 {
+    if (n == 0) --n;
+    // cerr << "xcopy\n";
     auto cur = this;
     auto r = make_shared<Cons>(cur->a, ConsPtr{});
-    auto cpy = r;
+    auto c = r;
     while (cons_iter_next(cur)) {
-        cpy->d = make_shared<Cons>(cur->a, ConsPtr{});
-        cpy = get<ConsPtr>(cpy->d);
+        c->d = make_shared<Cons>(cur->a, ConsPtr{});
+        c = get<ConsPtr>(c->d);
         if (--n == 0)
             break;
     }
     if (n)
-        last = &*cpy;
+        last = c;
     return { r };
 }
 
@@ -51,6 +55,7 @@ variant<VarList, VarNonlist> Cons::to_list_var()
     vector<EnvEntry> r;
     auto cur = this;
     do {
+        // cerr << cur << endl;
         r.push_back(cur->a);
         if (not holds_alternative<ConsPtr>(cur->d)) {
             r.push_back(get<EnvEntry>(cur->d));
@@ -65,7 +70,7 @@ VarCons Cons::from_list(span<EnvEntry> x)
     if (x.empty())
         return { nullptr };
     auto r = make_shared<Cons>(Cons{x.back(), ConsPtr{}});
-    last = &*r;
+    last = r;
     auto it = x.rbegin();
     for (++it; it != x.rend(); ++it)
         r = make_shared<Cons>(Cons{*it, r});
@@ -84,10 +89,11 @@ VarCons Cons::from_nonlist(span<EnvEntry> x)
     return { get<ConsPtr>(r) };
 }
 
-Cons * Cons::last;
+ConsPtr Cons::last;
 
 ConsPtr to_cons(Var & x)
 {
+    // cerr << "to_cons\n";
     if (holds_alternative<VarCons>(x)) {
         return get<VarCons>(x).c;
     } else if (holds_alternative<VarList>(x)) {
@@ -101,7 +107,8 @@ ConsPtr to_cons(Var & x)
 ConsPtr to_cons_copy(Var & x)
 {
     if (holds_alternative<VarCons>(x)) {
-        get<VarCons>(x).c->xcopy(0);
+        auto w = get<VarCons>(x).c->xcopy(0);
+        return w.c;
     }
     return to_cons(x);
 }

@@ -157,10 +157,10 @@ EnvEntry f_append(span<EnvEntry> args)
     }
     ConsNext p = to_cons_copy(*args[0]);
     ConsPtr r = get<ConsPtr>(p);
-    Cons * q{};
+    ConsPtr q;
     for (size_t i = 1; i != args.size(); ++i) {
-        if (holds_alternative<ConsPtr>(p)
-                and get<ConsPtr>(p) != nullptr)
+        if (holds_alternative<EnvEntry>(p)
+                or get<ConsPtr>(p) != nullptr)
             q = Cons::last;
         if (i == i_last) {
             if (holds_alternative<VarCons>(*last))
@@ -172,6 +172,20 @@ EnvEntry f_append(span<EnvEntry> args)
         }
         if (q) q->d = p;
     }
+    /* debug:
+    cerr << "R " << r.get() << endl;
+    cerr << "Q " << q.get() << endl;
+    if (holds_alternative<ConsPtr>(p)) {
+        cerr << "P (c) " << get<ConsPtr>(p).get() << endl;
+        auto & w = get<ConsPtr>(p);
+        if (holds_alternative<ConsPtr>(w->d))
+            cerr << "D (c) " << get<ConsPtr>(w->d).get() << endl;
+        else
+            cerr << "D (v) " << get<EnvEntry>(w->d).get() << endl;
+    } else {
+        cerr << "P (v) " << get<EnvEntry>(p).get() << endl;
+    }
+    */
     return make_shared<Var>(VarCons{r});
 }
 

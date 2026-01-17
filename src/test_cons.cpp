@@ -20,7 +20,7 @@ TEST_F(ConsTest, from_list)
     vector<EnvEntry> x = { s, t };
     auto r = Cons::from_list(x);
     ASSERT_EQ(1, get<VarNum>(*r.c->a).i);
-    ASSERT_EQ(Cons::last, &*get<ConsPtr>(r.c->d));
+    ASSERT_EQ(Cons::last, get<ConsPtr>(r.c->d));
     ASSERT_EQ(nullptr, get<ConsPtr>(Cons::last->d));
 }
 
@@ -30,7 +30,7 @@ TEST_F(ConsTest, xcopy)
     auto b = c->xcopy(0);
     ASSERT_EQ(c->a, b.c->a);
     ASSERT_NE(c->d, b.c->d);
-    ASSERT_EQ(Cons::last, &*get<ConsPtr>(b.c->d));
+    ASSERT_EQ(Cons::last, get<ConsPtr>(b.c->d));
 }
 
 TEST_F(ConsTest, length)
