@@ -223,6 +223,80 @@ EnvEntry f_minus(span<EnvEntry> args)
     return make_shared<Var>(VarNum{ r });
 }
 
+EnvEntry f_multiply(span<EnvEntry> args)
+{
+    long long r{1};
+    int i{};
+    for (auto & x : args) {
+        valt_or_fail<VarNum>(args, i++, "*");
+        r *= get<VarNum>(*x).i;
+    }
+    return make_shared<Var>(VarNum{ r });
+}
+
+pair<long long, long long> rdiv(span<EnvEntry> args, const string & fn)
+{
+    valt_or_fail<VarNum>(args, 0, fn);
+    auto n = get<VarNum>(*args[0]).i;
+    long long d{1};
+    int i{};
+    for (auto & x : args) {
+        if (&x == &args[0]) continue;
+        valt_or_fail<VarNum>(args, ++i, fn);
+        d *= get<VarNum>(*x).i;
+        if (d > n * 2) break;
+    }
+    return {n, d};
+}
+
+EnvEntry f_divide(span<EnvEntry> args)
+{
+    auto [n, d] = rdiv(args, "/");
+    return make_shared<Var>(VarNum{ n / d });
+}
+
+EnvEntry f_div(span<EnvEntry> args)
+{
+    auto [n, d] = rdiv(args, "div");
+    return make_shared<Var>(VarNonlist{{
+            make_shared<Var>(VarNum{ n / d }),
+            make_shared<Var>(VarNum{ n % d })}});
+}
+
+typedef void (*isubj_t)(long long & i, long long j);
+void isubj_max(long long & i, long long j) { if (j > i) i = j; }
+void isubj_min(long long & i, long long j) { if (j < i) i = j; }
+
+EnvEntry fold_isubj(span<EnvEntry> args, const string & fn, isubj_t f)
+{
+    valt_or_fail<VarNum>(args, 0, fn);
+    auto r = get<VarNum>(*args[0]).i;
+    int i{};
+    for (auto & x : args) {
+        if (&x == &args[0]) continue;
+        valt_or_fail<VarNum>(args, ++i, fn);
+        f(r, get<VarNum>(*x).i);
+    }
+    return make_shared<Var>(VarNum{ r });
+}
+
+EnvEntry f_max(span<EnvEntry> args)
+{
+    return fold_isubj(args, "max", isubj_max);
+}
+
+EnvEntry f_min(span<EnvEntry> args)
+{
+    return fold_isubj(args, "min", isubj_min);
+}
+
+EnvEntry f_abs(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("abs argc");
+    valt_or_fail<VarNum>(args, 0, "abs");
+    return make_shared<Var>(VarNum{abs(get<VarNum>(*args[0]).i)});
+}
+
 EnvEntry n1_pred(span<EnvEntry> args, string fn, bool(*p)(long long))
 {
     if (args.size() != 1) throw RunError(fn + "argc");
@@ -349,6 +423,8 @@ EnvEntry f_eqp(span<EnvEntry> args)
         r = (get<VarBool>(a).b == get<VarBool>(b).b);
     } else if (valt_in<VarNam>(a)) {
         r = (get<VarNam>(a).h == get<VarNam>(b).h);
+    } else if (valt_in<VarCons>(a)) {
+        r = (get<VarCons>(a).c == get<VarCons>(b).c);
     } else {
         r = (&a == &b);
     }
@@ -692,6 +768,12 @@ void init_env(Names & n)
     g.set(n.intern("not"), make_shared<Var>(VarFunHost{ f_not }));
     g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
     g.set(n.intern("-"), make_shared<Var>(VarFunHost{ f_minus }));
+    g.set(n.intern("*"), make_shared<Var>(VarFunHost{ f_multiply }));
+    g.set(n.intern("/"), make_shared<Var>(VarFunHost{ f_divide }));
+    g.set(n.intern("div"), make_shared<Var>(VarFunHost{ f_div }));
+    g.set(n.intern("max"), make_shared<Var>(VarFunHost{ f_max }));
+    g.set(n.intern("min"), make_shared<Var>(VarFunHost{ f_min }));
+    g.set(n.intern("abs"), make_shared<Var>(VarFunHost{ f_abs }));
     g.set(n.intern("zero?"), make_shared<Var>(VarFunHost{ f_zerop }));
     g.set(n.intern("positive?"), make_shared<Var>(VarFunHost{ f_positivep }));
     g.set(n.intern("negative?"), make_shared<Var>(VarFunHost{ f_negativep }));

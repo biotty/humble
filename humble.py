@@ -2444,7 +2444,7 @@ def f_procedurep(*args):
         VAR_FUN_OPS | VAR_FUN_HOST)]
 
 def f_symbolp(*args):
-    return typep(args, "symbol?", LEX_NAM)
+    return typep(args, "symbol?", VAR_NAM)
 
 def f_nullp(*args):
     r = typep(args, "null?", VAR_LIST)
