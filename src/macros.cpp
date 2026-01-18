@@ -621,6 +621,37 @@ public:
 // import
 //
 
+struct Scope : MacroClone<Scope> {
+    Names * names;
+    std::set<int> env_keys;
+    Scope(Names & names)
+        : names(&names)
+        , env_keys(GlobalEnv::instance().keys())
+    { }
+
+    Lex operator()(LexForm && s) override
+    {
+        auto & f = get<LexForm>(s.v[1]);
+        LexImport set_up;
+        if (get<LexOp>(f.v[0]).code != OP_EXPORT)
+            throw SrcError("missing export");
+        for (auto & n : f.v) {
+            if (&n == &f.v[0]) continue;
+            auto y = get<LexNam>(n).h;
+            set_up.a.push_back(y);
+            set_up.b.push_back(y);
+        }
+        LexForm t;
+        move(s.v.begin() + 2, s.v.end(), back_inserter(t.v));
+        auto u = unbound(t.v, env_keys, true);
+        if (not u.empty()) report_unbound(u, t, *names);
+        zloc_scopes(t.v, nullptr);
+        LexForm r{{LexOp{OP_IMPORT}, set_up}};
+        move(t.v.begin(), t.v.end(), back_inserter(r.v));
+        return r;
+    }
+};
+
 Macros i_macros;
 
 struct Import : MacroNotClone<Import> {
@@ -646,7 +677,6 @@ public:
 
     Lex operator()(LexForm && s) override
     {
-
         auto u_fn = opener->filename;
         if (s.v.size() != 2 and s.v.size() != 3) throw SrcError("import argc");
         malt_or_fail<LexString>(s.v[1], "import.1 expects name");
@@ -754,10 +784,6 @@ namespace humble {
 void init_macros(Macros & m, Names & names, SrcOpener & opener)
 {
     m = qt_macros();
-
-    auto env_keys = GlobalEnv::instance().keys();
-    (void)env_keys;
-
     m[NAM_MACRO] = make_unique<MacroMacro>(names, m);
     m[NAM_IMPORT] = make_unique<Import>(names, m, opener);
     with_name(names, m, "lambda", make_unique<Lambda>());
@@ -779,6 +805,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "export", make_unique<Export>());
     with_name(names, m, "gensym", make_unique<Gensym>(names));
     with_name(names, m, "seq", make_unique<Seq>());
+    with_name(names, m, "scope", make_unique<Scope>(names));
 }
 
 void macros_init(Macros & macros)
