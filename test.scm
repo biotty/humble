@@ -383,6 +383,8 @@ y
 (chk 3 @(list (+ 1 2)));
 (ref d (alist->dict '[(1 . 2)]))
 (chk (dict? d) #true)
+; explicit dict (idea obsoleted by implicit optimized
+; assoc in cons/list - which will be very involved)
 (dict-get-default! d 1 9)
 (dict-get-default! d 2 9)
 (assoc 2 (dict->alist d))

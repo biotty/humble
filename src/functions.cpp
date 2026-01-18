@@ -8,6 +8,7 @@
 #include "debug.hpp"
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 
 using namespace humble;
 using namespace std;
@@ -632,7 +633,7 @@ EnvEntry f_equalp(span<EnvEntry> args)
         }
         size_t n = v->size();
         size_t i{};
-        for (; nullptr == get<ConsPtr>(c); ++i) {
+        for (; nullptr != get<ConsPtr>(c); ++i) {
             if (i == n) return r;
             if (not holds_alternative<ConsPtr>(c)) {
                 if (not is_nonlist or i + 1 != n)
@@ -698,8 +699,9 @@ EnvEntry f_list_z_string(span<EnvEntry> args)
     for (;;) {
         auto x = j->get();
         if (not x) break;
-        auto i = get<VarNum>(*x).i;
-        s += utf_make(i);
+        if (not valt_in<VarNum>(*x))
+            throw RunError("list->string not number");
+        s += utf_make(get<VarNum>(*x).i);
     }
     return make_shared<Var>(VarString{move(s)});
 }
@@ -714,16 +716,111 @@ EnvEntry f_symbol_z_string(span<EnvEntry> args)
     return make_shared<Var>(VarString{u_names->get(h)});
 }
 
-//f_substring(*args)
-//f_substring_index(*args)
-//f_string_length(*args)
-//f_string_append(*args)
-//stringpred(args, fn, pred)
-//f_stringeqp(*args)
-//f_stringltp(*args)
-//f_stringgtp(*args)
-//f_string_z_number(*args)
-//f_number_z_string(*args)
+EnvEntry f_substring(span<EnvEntry> args)
+{
+    if (args.size() < 2) throw RunError("substring argc");
+    valt_or_fail<VarString>(args, 0, "substring");
+    valt_or_fail<VarNum>(args, 1, "substring");
+    auto & s = get<VarString>(*args[0]).s;
+    size_t i = get<VarNum>(*args[1]).i;
+    auto j = s.npos;
+    if (args.size() >= 3) {
+        valt_or_fail<VarNum>(args, 2, "substring");
+        j = get<VarNum>(*args[2]).i;
+        if (j < i) j = i;
+    }
+    return make_shared<Var>(VarString{s.substr(i, j - i)});
+}
+
+EnvEntry f_substring_index(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("substring-index argc");
+    valt_or_fail<VarString>(args, 0, "substring-index");
+    valt_or_fail<VarString>(args, 1, "substring-index");
+    auto s = get<VarString>(*args[0]).s;
+    auto t = get<VarString>(*args[1]).s;
+    auto i = s.find(t);
+    long long r = i == s.npos ? -1 : i;
+    return make_shared<Var>(VarNum{r});
+}
+
+EnvEntry f_string_length(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("string-length argc");
+    valt_or_fail<VarString>(args, 0, "string-length");
+    auto s = get<VarString>(*args[0]).s;
+    return make_shared<Var>(VarNum{static_cast<long long>(s.length())});
+}
+
+EnvEntry f_string_append(span<EnvEntry> args)
+{
+    string r;
+    for (auto & a : args) {
+        valt_or_fail<VarString>(args, 0, "string-length");
+        r += get<VarString>(*a).s;
+    }
+    return make_shared<Var>(VarString{r});
+}
+
+typedef bool (*spred_t)(const string &, const string &);
+EnvEntry spred(span<EnvEntry> args, const string & fn, spred_t f)
+{
+    if (args.size() != 2) throw RunError(fn);
+    valt_or_fail<VarString>(args, 0, fn);
+    valt_or_fail<VarString>(args, 1, fn);
+    auto s = get<VarString>(*args[0]).s;
+    auto t = get<VarString>(*args[1]).s;
+    return make_shared<Var>(VarBool{f(s, t)});
+}
+
+bool spred_eqp(const string & s, const string & t) { return s == t; }
+EnvEntry f_stringeqp(span<EnvEntry> args)
+{
+    return spred(args, "string=?", spred_eqp);
+}
+
+bool spred_ltp(const string & s, const string & t) { return s < t; }
+EnvEntry f_stringltp(span<EnvEntry> args)
+{
+    return spred(args, "string<?", spred_ltp);
+}
+
+bool spred_gtp(const string & s, const string & t) { return s > t; }
+EnvEntry f_stringgtp(span<EnvEntry> args)
+{
+    return spred(args, "string>?", spred_gtp);
+}
+
+EnvEntry f_string_z_number(span<EnvEntry> args)
+{
+    if (args.size() < 1) throw RunError("string->number argc");
+    valt_or_fail<VarString>(args, 0, "string->number");
+    auto s = get<VarString>(*args[0]).s;
+    int radix = 10;
+    if (args.size() >= 2) {
+        radix = get<VarNum>(*args[2]).i;
+        if (radix < 2 or radix > 36)
+            throw RunError("string->number radix");
+    }
+    auto r = strtoll(s.data(), nullptr, radix);
+    return make_shared<Var>(VarNum{r});
+}
+
+EnvEntry f_number_z_string(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("number->string argc");
+    valt_or_fail<VarNum>(args, 0, "number->string");
+    auto n = get<VarNum>(*args[0]).i;
+    ostringstream oss;
+    if (args.size() >= 2) {
+        int radix = get<VarNum>(*args[2]).i;
+        if (radix < 2 or radix > 36)
+            throw RunError("number->string radix");
+        oss << setbase(radix);
+    }
+    oss << n;
+    return make_shared<Var>(VarString{oss.str()});
+}
 
 //
 // type checks
@@ -995,6 +1092,15 @@ void init_env(Names & n)
     g.set(n.intern("string->list"), make_shared<Var>(VarFunHost{ f_string_z_list }));
     g.set(n.intern("list->string"), make_shared<Var>(VarFunHost{ f_list_z_string }));
     g.set(n.intern("symbol->string"), make_shared<Var>(VarFunHost{ f_symbol_z_string }));
+    g.set(n.intern("substring"), make_shared<Var>(VarFunHost{ f_substring }));
+    g.set(n.intern("substring-index"), make_shared<Var>(VarFunHost{  f_substring_index }));
+    g.set(n.intern("string-length"), make_shared<Var>(VarFunHost{ f_string_length }));
+    g.set(n.intern("string-append"), make_shared<Var>(VarFunHost{ f_string_append }));
+    g.set(n.intern("string=?"), make_shared<Var>(VarFunHost{ f_stringeqp }));
+    g.set(n.intern("string<?"), make_shared<Var>(VarFunHost{ f_stringltp }));
+    g.set(n.intern("string>?"), make_shared<Var>(VarFunHost{ f_stringgtp }));
+    g.set(n.intern("string->number"), make_shared<Var>(VarFunHost{ f_string_z_number }));
+    g.set(n.intern("number->string"), make_shared<Var>(VarFunHost{ f_number_z_string }));
     g.set(n.intern("boolean?"), make_shared<Var>(VarFunHost{ f_booleanp }));
     g.set(n.intern("number?"), make_shared<Var>(VarFunHost{ f_numberp }));
     g.set(n.intern("procedure?"), make_shared<Var>(VarFunHost{ f_procedurep }));
