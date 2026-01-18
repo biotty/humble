@@ -13,6 +13,7 @@ struct Glyph { std::string_view u; };
 
 Glyph utf_ref(std::string_view s, size_t i);
 long long utf_value(Glyph u);
+std::string utf_make(long long i);
 
 } // ns
 

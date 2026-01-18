@@ -4,6 +4,7 @@
 #include "cons.hpp"
 #include "xeval.hpp"
 #include "compx.hpp"
+#include "utf.hpp"
 #include "debug.hpp"
 #include <iostream>
 #include <sstream>
@@ -574,7 +575,6 @@ EnvEntry f_equalp(span<EnvEntry> args)
     if (not valt_in<VarList, VarNonlist, VarCons>(a)
             or not valt_in<VarList, VarNonlist, VarCons>(b))
         return f_eqp(args);
-    // dict shall differ with itself under equal
     auto r = make_shared<Var>(VarBool{});
     if ((valt_in<VarList>(a) and valt_in<VarList>(b))
             or (valt_in<VarNonlist>(a) and valt_in<VarNonlist>(b))) {
@@ -660,7 +660,19 @@ EnvEntry f_equalp(span<EnvEntry> args)
 // string
 //
 
-//f_string_ref(*args)
+EnvEntry f_string_ref(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("string->ref argc");
+    valt_or_fail<VarString>(args, 0, "string->ref");
+    valt_or_fail<VarNum>(args, 1, "string->ref");
+    auto s = get<VarString>(*args[0]).s;
+    auto i = get<VarNum>(*args[1]).i;
+    auto w = utf_ref(s, i);
+    long long r{};
+    if (not w.u.empty())
+        r = utf_value(w);
+    return make_shared<Var>(VarNum{r});
+}
 
 EnvEntry f_string_z_list(span<EnvEntry> args)
 {
@@ -677,7 +689,20 @@ EnvEntry f_string_z_list(span<EnvEntry> args)
     return make_shared<Var>(VarList{move(v)});
 }
 
-//f_list_z_string(*args)
+EnvEntry f_list_z_string(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("list->string argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "list->string");
+    auto j = make_iter(*args[0]);
+    string s;
+    for (;;) {
+        auto x = j->get();
+        if (not x) break;
+        auto i = get<VarNum>(*x).i;
+        s += utf_make(i);
+    }
+    return make_shared<Var>(VarString{move(s)});
+}
 
 Names * u_names;
 
@@ -966,7 +991,9 @@ void init_env(Names & n)
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
+    g.set(n.intern("string-ref"), make_shared<Var>(VarFunHost{ f_string_ref }));
     g.set(n.intern("string->list"), make_shared<Var>(VarFunHost{ f_string_z_list }));
+    g.set(n.intern("list->string"), make_shared<Var>(VarFunHost{ f_list_z_string }));
     g.set(n.intern("symbol->string"), make_shared<Var>(VarFunHost{ f_symbol_z_string }));
     g.set(n.intern("boolean?"), make_shared<Var>(VarFunHost{ f_booleanp }));
     g.set(n.intern("number?"), make_shared<Var>(VarFunHost{ f_numberp }));

@@ -55,6 +55,30 @@ long long utf_value(Glyph s)
     throw CoreError("not utf8");
 }
 
+string utf_make(long long i)
+{
+    char r[5] = {};
+    unsigned long long u = i;
+    if (u == 0u) {
+        // pass
+    } else if (u <= 0x7f) {
+        r[0] = i;
+    } else if (u <= 0x7ff) {
+        r[0] = (u >> 6) | 0b11000000;
+        r[1] = (u & 0b111111) | 0b10000000;
+    } else if (u <= 0xffff) {
+        r[0] = (u >> 12) | 0b11100000;
+        r[1] = ((u >> 6) & 0b111111) | 0b10000000;
+        r[2] = (u & 0b111111) | 0b10000000;
+    } else if (u <= 0x1fffff) {
+        r[0] = (u >> 18) | 0b11110000;
+        r[1] = ((u >> 12) & 0b111111) | 0b10000000;
+        r[2] = ((u >> 6) & 0b111111) | 0b10000000;
+        r[3] = (u & 0b111111) | 0b10000000;
+    }
+    return string{r};
+}
+
 Glyph utf_ref(std::string_view s, size_t i)
 {
     Glyph t;
