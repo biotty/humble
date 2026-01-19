@@ -45,6 +45,7 @@ struct LexQt { };
 struct LexQqt { };
 struct LexUnq { };
 struct LexSpl { };
+struct LexR { };
 
 struct LexVoid { };
 struct LexNum { long long i; };
@@ -69,15 +70,16 @@ struct LexEnv;  // from compx for efficient activation records
 struct LexForm;
 struct LexList;
 struct LexNonlist;
+struct LexRec;
 struct LexQuote;
 struct LexQuasiquote;
 struct LexUnquote;
 using LexArgs = std::vector<int>;  // for fun parms and (sorted) capture
 using Lex = std::variant<
-    LexBeg/*0*/, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSpl/*6*/,
-    LexVoid/*7*/, LexSym, LexNum, LexBool, LexNam, LexString/*12*/,
-    LexList/*13*/, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote/*18*/,
-    LexArgs/*19*/, LexEnv *, LexOp, LexImport/*22*/>;
+    LexBeg/*0*/, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSpl, LexR,
+    LexVoid/*8*/, LexSym, LexNum, LexBool, LexNam, LexString,
+    LexList/*14*/, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote,
+    LexArgs/*20*/, LexEnv *, LexOp, LexImport, LexRec/*24*/>;
 struct LexForm { std::vector<Lex> v;
     /* cannot do the following because i use aggregate construct syntax at callers
      * (doing the following collapses one level)
@@ -91,6 +93,7 @@ struct LexForm { std::vector<Lex> v;
 };
 struct LexList { std::vector<Lex> v; };
 struct LexNonlist { std::vector<Lex> v; };
+struct LexRec { std::vector<Lex> v; };
 struct LexQuote { std::vector<Lex> y; };
 struct LexQuasiquote { std::vector<Lex> y; };
 struct LexUnquote { std::vector<Lex> y; };

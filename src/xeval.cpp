@@ -165,6 +165,14 @@ EnvEntry xeval(Lex & x, Env & env)
                 return make_shared<Var>(VarBool{z.b});
             if constexpr (is_same_v<T, LexString>)
                 return make_shared<Var>(VarString{z.s});
+            if constexpr (is_same_v<T, LexRec>) {
+                // instead, the record implicitly quoted on parse
+                auto h = get<LexNam>(z.v.at(0)).h;
+                vector<EnvEntry> v{ make_shared<Var>(VarNam{h}) };
+                auto r = run_each({z.v.begin() + 1, z.v.end()}, env);
+                move(r.begin(), r.end(), back_inserter(v));
+                return make_shared<Var>(VarRec{v});
+            }
             if constexpr (is_same_v<T, LexSym>)
                 return make_shared<Var>(VarNam{z.h});
             if constexpr (is_same_v<T, LexVoid>)

@@ -60,6 +60,14 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
             r.push_back(LexForm{{nam_unquote, parse1()}});
         } else if (std::holds_alternative<LexSpl>(x)) {
             r.push_back(LexForm{{nam_splice, parse1()}});
+        } else if (std::holds_alternative<LexR>(x)) {
+            auto w = parse1();
+            if (not holds_alternative<LexForm>(w))
+                throw SrcError("#r takes form");
+            auto & f = get<LexForm>(w);
+            if (f.v.size() == 0 or not holds_alternative<LexNam>(f.v[0]))
+                throw SrcError("#r takes name");
+            r.push_back(LexRec{f.v});
         } else {
             i += 1;
             r.push_back(x);

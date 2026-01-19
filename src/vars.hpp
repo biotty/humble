@@ -28,6 +28,7 @@ struct LexUnquote;
 struct VarUnquote{ LexUnquote * u; };
 struct VarList;
 struct VarNonlist;
+struct VarRec;
 struct VarSplice;
 struct FunOps;
 struct VarFunOps { std::shared_ptr<FunOps> f; };
@@ -38,11 +39,12 @@ struct VarCons { std::shared_ptr<Cons> c; };
 
 using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString/*4*/,
       VarList, VarNonlist, VarSplice, VarUnquote/*8*/,
-      VarFunOps, VarFunHost, VarApply, VarCons/*12*/>;
+      VarFunOps, VarFunHost, VarApply, VarCons/*12*/, VarRec>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };
 struct VarNonlist { std::vector<EnvEntry> v; };
+struct VarRec { std::vector<EnvEntry> v; };
 struct VarSplice { std::vector<EnvEntry> v; };
 typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
 struct VarFunHost { FunHost p; };

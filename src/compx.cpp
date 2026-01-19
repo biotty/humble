@@ -295,6 +295,11 @@ Lex to_lex(EnvEntry a)
                 return LexNum{ q.i };
             } else if constexpr (is_same_v<T, VarString>) {
                 return LexString{ q.s };
+            } else if constexpr (is_same_v<T, VarRec>) {
+                vector<Lex> v;
+                for (auto & y : q.v)
+                    v.push_back(to_lex(y));
+                return LexRec{ v };
             } else if constexpr (is_same_v<T, VarNam>) {
                 return LexNam{ q.h, 0 };
             } else if constexpr (is_same_v<T, VarUnquote>) {
@@ -347,6 +352,11 @@ EnvEntry from_lex(Lex & x)
                 return make_shared<Var>(VarNum{ q.i });
             } else if constexpr (is_same_v<T, LexString>) {
                 return make_shared<Var>(VarString{ q.s });
+            } else if constexpr (is_same_v<T, LexRec>) {
+                vector<EnvEntry> v;
+                for (auto & w : q.v)
+                    v.push_back(from_lex(w));
+                return make_shared<Var>(VarRec{ v });
             } else if constexpr (is_same_v<T, LexNam>) {
                 return make_shared<Var>(VarNam{ q.h });
             } else if constexpr (is_same_v<T, LexVoid>) {

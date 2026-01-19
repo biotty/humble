@@ -253,6 +253,8 @@ vector<Lex> lex(const string & s, Names & names)
                 }
             } else if (t == "#void") {
                 v = LexVoid{};
+            } else if (t == "#r") {
+                v = LexR{};
             } else throw SrcError("# token");
         } else if (t[0] == '"') {
             v = LexString{ unescape_string(t.substr(1, t.size() - 2)) };
@@ -316,6 +318,9 @@ void print(const Lex & x, Names & n, std::ostream & os)
                 os << z.i;
             } else if constexpr (is_same_v<T, LexString>) {
                 os << '"' << escape(z.s) << '"';
+            } else if constexpr (is_same_v<T, LexRec>) {
+                os << "#r";
+                print(LexForm{ z.v }, n, os);
             } else if constexpr (is_same_v<T, LexNam>) {
                 os << n.get(z.h);
             } else if constexpr (is_same_v<T, LexVoid>) {

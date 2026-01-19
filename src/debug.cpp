@@ -15,7 +15,8 @@ void out(ostream & os, const LexBool & x) { os << boolalpha << x.b; }
 void out(ostream &, const LexVoid &) { }
 void out(ostream & os, const LexString & x) { os << '"' << x.s << '"'; }
 void out(ostream &, const LexDot &) { }
-void out(ostream &, const LexSpl &) { };
+void out(ostream &, const LexSpl &) { }
+void out(ostream &, const LexR &) { }
 void out(ostream &, const LexQt &) { }
 void out(ostream &, const LexQqt &) { }
 void out(ostream &, const LexUnq &) { }
@@ -24,6 +25,7 @@ void out(ostream & os, const LexSym & x) { os << x.h; }
 void out(ostream & os, const LexForm & x);
 void out(ostream & os, const LexList & x);
 void out(ostream & os, const LexNonlist & x);
+void out(ostream & os, const LexRec & x);
 void out(ostream & os, const LexQuote & x);
 void out(ostream & os, const LexQuasiquote & x);
 void out(ostream & os, const LexUnquote & x);
@@ -43,11 +45,11 @@ ostream & operator<<(ostream & os, const Glyph & g)
 
 ostream & operator<<(ostream & os, const Lex & x)
 {
-    array<string, 23> tn = {
-    "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Spl",
+    array<string, 25> tn = {
+    "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Spl", "R",
     "Void", "Sym", "Num", "Bool", "Nam", "String",
     "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
-    "Args", "Env~", "Op", "Import" };
+    "Args", "Env~", "Op", "Import", "Rec" };
     os << "Lex" << tn.at(x.index()) << "{";
     visit([&os](auto && arg) { out(os, arg); }, x);
     return os << "}";
@@ -72,6 +74,7 @@ using namespace humble;
 void out(ostream & os, const LexForm & x) { os << x.v; }
 void out(ostream & os, const LexList & x) { os << x.v; }
 void out(ostream & os, const LexNonlist & x) { os << x.v; }
+void out(ostream & os, const LexRec & x) { os << x.v; }
 void out(ostream & os, const LexQuote & x) { os << x.y; }
 void out(ostream & os, const LexQuasiquote & x) { os << x.y; }
 void out(ostream & os, const LexUnquote & x) { os << x.y; }

@@ -3041,6 +3041,7 @@ def xeval(x, env):
         if x[0] == LEX_SYM:
             return [VAR_NAM, x[1]]
         if x[0] == LEX_REC:
+            # instead, the record implicitly quoted on parse
             n = x[1][0]
             if n[0] != LEX_NAM:
                 broken("record-id not name")
