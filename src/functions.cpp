@@ -49,7 +49,7 @@ void valt_or_fail(span<EnvEntry> args, size_t i, string s)
 }
 
 //
-// cons, non(list)
+// cons, (non)list
 //
 
 EnvEntry f_list(span<EnvEntry> args)
@@ -241,7 +241,7 @@ EnvEntry f_list_tail(span<EnvEntry> args)
     *args[0] = VarCons{get<ConsPtr>(r)};
     for (auto i = 0u; i != n; ++i) {
         if (not holds_alternative<ConsPtr>(r)) {
-            // warning("list-tail overrun")
+            warn("list-tail overrun", args);
             break;
         }
         r = get<ConsPtr>(r)->d;
@@ -532,6 +532,24 @@ EnvEntry f_setjj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set!! argc");
     return setjj(args);
+}
+
+EnvEntry f_dup(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("dup argc");
+    auto r = make_shared<Var>(VarVoid{});
+    if (valt_in<VarVoid>(*args[0])) {
+        warn("dup of void", args);
+        return args[0];
+    }
+    auto i = args[0].use_count();
+    if (i == 0)
+        throw CoreError("assumption on refs to an arg");
+    if (i == 1)
+        return args[0];
+    vector<EnvEntry> w{r, args[0]};
+    setjj(w);
+    return r;
 }
 
 //
@@ -873,7 +891,7 @@ EnvEntry f_listp(span<EnvEntry> args)
         return make_shared<Var>(VarBool{false});
 
     ConsNext x = get<VarCons>(a).c;
-    // warning("cons-iter")
+    warn("cons-iter", args);
     for (;;) {
         if (not holds_alternative<ConsPtr>(x)) break;
         if (nullptr == get<ConsPtr>(x)) break;
@@ -910,15 +928,6 @@ EnvEntry f_voidp(span<EnvEntry> args)
     if (args.size() != 1) throw RunError("void? argc");
     return make_shared<Var>(VarBool{valt_in<VarVoid>(*args[0])});
 }
-
-//
-// boolean functions (one, others are macros on cond)
-//
-
-// display functions (see I/O functions)
-//
-//   for development purposes and as of r7rs, not suggested for
-//   program utilization
 
 //
 // list-based functions
@@ -972,16 +981,113 @@ e:
     return make_shared<Var>(VarList{move(r)});
 }
 
-//
-// input/output
-//
+struct SearchPred {
+    EnvEntry a;
+    SearchPred(EnvEntry a) : a(a) { }
+    virtual bool operator()(EnvEntry x) = 0;
+    virtual ~SearchPred() { };
+};
 
-//
-// variable (de)serialization
-//
+struct SearchEqual : SearchPred {
+    using SearchPred::SearchPred;
+    bool operator()(EnvEntry x) override final {
+        vector<EnvEntry> w{a, x};
+        auto v = f_equalp(w);
+        return not valt_in<VarBool>(*v)
+            or get<VarBool>(*v).b;
+    }
+};
 
-// TODO: read
-// TODO: write
+struct SearchWithFun : SearchPred {
+    using SearchPred::SearchPred;
+    bool operator()(EnvEntry x) override final {
+        vector<EnvEntry> w{a, x};
+        auto v = fun_call(w);
+        return not valt_in<VarBool>(*v)
+            or get<VarBool>(*v).b;
+    }
+};
+
+EnvEntry f_member(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("member argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 1, "member");
+    EnvEntry f = make_shared<Var>(VarBool{false});
+    unique_ptr<SearchPred> t;
+    if (valt_in<VarFunOps, VarFunHost>(*args[0]))
+        t = make_unique<SearchWithFun>(args[0]);
+    else t = make_unique<SearchEqual>(args[0]);
+    if (valt_in<VarCons>(*args[1])) {
+        auto & c = get<VarCons>(*args[1]).c;
+        if (not c) return f;
+        if ((*t)(c->a)) return args[1];
+    } else {
+        vector<EnvEntry> * v{};
+        if (valt_in<VarList>(*args[1])) v = &get<VarList>(*args[1]).v;
+        else v = &get<VarNonlist>(*args[1]).v;
+        if ((*v).size() == 0) return f;
+        if ((*t)((*v)[0])) return args[1];
+        // note: in this case list need not be converted to cons
+        //       -- yield another ref to this list as-is
+    }
+    auto q = f_cdr({args.begin() + 1, args.end()});
+    ConsNext r = get<VarCons>(*q).c;
+    for (;;) {
+        if (not holds_alternative<ConsPtr>(r)) {
+            warn("member hit non-cons cdr", args);
+            auto & w = get<EnvEntry>(r);
+            if ((*t)(w))
+                return w;
+            break;
+        }
+        auto & c = get<ConsPtr>(r);
+        if (not c) break;
+        if ((*t)(c->a))
+            return make_shared<Var>(VarCons{c});
+        r = c->d;
+    }
+    return f;
+}
+
+EnvEntry f_assoc(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("assoc argc");
+    valt_or_fail<VarCons, VarList, VarNonlist>(args, 1, "assoc");
+    EnvEntry f = make_shared<Var>(VarBool{false});
+    unique_ptr<SearchPred> t;
+    if (valt_in<VarFunOps, VarFunHost>(*args[0]))
+        t = make_unique<SearchWithFun>(args[0]);
+    else t = make_unique<SearchEqual>(args[0]);
+    if (valt_in<VarCons>(*args[1])) {
+        ConsNext r = get<VarCons>(*args[1]).c;
+        for (;;) {
+            if (not holds_alternative<ConsPtr>(r)) {
+                warn("assoc hit non-cons cdr", args);
+                break;
+            }
+            auto p = get<ConsPtr>(r);
+            if (not p) break;
+            vector<EnvEntry> w{p->a};
+            if ((*t)(f_car(w)))
+                return make_shared<Var>(VarCons{p});
+            r = p->d;
+        }
+    } else {
+        vector<EnvEntry> * v{};
+        if (valt_in<VarList>(*args[1])) v = &get<VarList>(*args[1]).v;
+        else v = &get<VarNonlist>(*args[1]).v;
+        for (auto & x : *v) {
+            vector<EnvEntry> w{x};
+            if ((*t)(f_car(w))) return x;
+        }
+    }
+    return f;
+}
+
+// display functions (see also, I/O functions)
+//
+//   for development purposes and as of r7rs, not suggested for
+//   program utilization
 
 EnvEntry f_display(span<EnvEntry> args)
 {
@@ -994,6 +1100,17 @@ EnvEntry f_display(span<EnvEntry> args)
     }
     return make_shared<Var>(VarVoid{});
 }
+
+//
+// variable (de)serialization
+//
+
+// TODO: read
+// TODO: write
+
+//
+// input/output
+//
 
 EnvEntry f_error(span<EnvEntry> args)
 {
@@ -1084,6 +1201,7 @@ void init_env(Names & n)
     g.set(n.intern(">="), make_shared<Var>(VarFunHost{ f_gte }));
     g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
     g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));
+    g.set(n.intern("dup"), make_shared<Var>(VarFunHost{ f_dup }));
     g.set(n.intern("alias?"), make_shared<Var>(VarFunHost{ f_aliasp }));
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
@@ -1114,6 +1232,8 @@ void init_env(Names & n)
     g.set(n.intern("length"), make_shared<Var>(VarFunHost{ f_length }));
     g.set(n.intern("apply"), make_shared<Var>(VarFunHost{ f_apply }));
     g.set(n.intern("map"), make_shared<Var>(VarFunHost{ f_map }));
+    g.set(n.intern("member"), make_shared<Var>(VarFunHost{ f_member }));
+    g.set(n.intern("assoc"), make_shared<Var>(VarFunHost{ f_assoc }));
     g.set(n.intern("error"), make_shared<Var>(VarFunHost{ f_error }));
     g.set(n.intern("exit"), make_shared<Var>(VarFunHost{ f_exit }));
 }

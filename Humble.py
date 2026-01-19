@@ -2594,12 +2594,9 @@ def f_assoc(*args):
             if not is_cons(r):
                 warning("assoc hit non-cons cdr")
                 break
-            c = r.a
-            if not is_cons(c):
-                warning("assoc traversed non-cons car")
-                continue
-            if t(c.a):
-                return [VAR_CONS, c]
+            x = r.a
+            if t(f_car(x)):
+                return x
             r = r.d
     else:
         for x in args[1][1]:
