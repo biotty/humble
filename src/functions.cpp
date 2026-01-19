@@ -514,6 +514,10 @@ EnvEntry setjj(span<EnvEntry> args)
     if (&*args[0] == &*args[1]) {
         warn("self-set", args);
     } else {
+        if (valt_in<VarList, VarNonlist>(*args[1])) {
+            auto c = to_cons(*args[1]);
+            *args[1] = VarCons{c};
+        }
         visit([&args](auto && w) { *args[0] = w; }, *args[1]);
     }
     return make_shared<Var>(VarVoid{});
@@ -651,7 +655,7 @@ EnvEntry f_equalp(span<EnvEntry> args)
         }
         size_t n = v->size();
         size_t i{};
-        for (; nullptr != get<ConsPtr>(c); ++i) {
+        while (not holds_alternative<ConsPtr>(c) or get<ConsPtr>(c)) {
             if (i == n) return r;
             if (not holds_alternative<ConsPtr>(c)) {
                 if (not is_nonlist or i + 1 != n)
@@ -659,10 +663,12 @@ EnvEntry f_equalp(span<EnvEntry> args)
                 vector<EnvEntry> q{get<EnvEntry>(c), (*v)[i]};
                 return f_equalp(q);
             }
-            vector<EnvEntry> q{get<ConsPtr>(c)->a, (*v)[i]};
+            auto k = get<ConsPtr>(c);
+            vector<EnvEntry> q{k->a, (*v)[i]};
             auto e = f_equalp(q);
             if (not get<VarBool>(*e).b) return e;
-            c = get<ConsPtr>(c)->d;
+            c = k->d;
+            ++i;
         }
         get<VarBool>(*r).b = i == n;
         return r;
@@ -674,6 +680,42 @@ EnvEntry f_equalp(span<EnvEntry> args)
 //
 // REC
 //
+
+EnvEntry f_make_record(span<EnvEntry> args)
+{
+    if (args.size() < 1) throw RunError("make-record argc");
+    valt_or_fail<VarNam>(args, 0, "make-record");
+    vector<EnvEntry> v{args.begin(), args.end()};
+    return make_shared<Var>(VarRec{v});
+}
+
+EnvEntry f_record_get(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("record-get argc");
+    valt_or_fail<VarRec>(args, 0, "record-get");
+    valt_or_fail<VarNum>(args, 1, "record-get");
+    auto & r = get<VarRec>(*args[0]);
+    return r.v.at(get<VarNum>(*args[1]).i + 1);
+}
+
+EnvEntry f_record_setj(span<EnvEntry> args)
+{
+    if (args.size() != 3) throw RunError("record-set! argc");
+    valt_or_fail<VarRec>(args, 0, "record-set!");
+    valt_or_fail<VarNum>(args, 1, "record-set!");
+    auto & r = get<VarRec>(*args[0]);
+    r.v[get<VarNum>(*args[1]).i + 1] = args[2];
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_recordp(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("record? argc");
+    valt_or_fail<VarRec>(args, 0, "record?");
+    valt_or_fail<VarNam>(args, 1, "record?");
+    auto h = get<VarNam>(*get<VarRec>(*args[0]).v[0]).h;
+    return make_shared<Var>(VarBool{get<VarNam>(*args[1]).h == h});
+}
 
 //
 // string
@@ -1206,6 +1248,10 @@ void init_env(Names & n)
     g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
     g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
+    g.set(n.intern("make-record"), make_shared<Var>(VarFunHost{ f_make_record }));
+    g.set(n.intern("record-get"), make_shared<Var>(VarFunHost{ f_record_get }));
+    g.set(n.intern("record-set!"), make_shared<Var>(VarFunHost{ f_record_setj }));
+    g.set(n.intern("record?"), make_shared<Var>(VarFunHost{ f_recordp }));
     g.set(n.intern("string-ref"), make_shared<Var>(VarFunHost{ f_string_ref }));
     g.set(n.intern("string->list"), make_shared<Var>(VarFunHost{ f_string_z_list }));
     g.set(n.intern("list->string"), make_shared<Var>(VarFunHost{ f_list_z_string }));

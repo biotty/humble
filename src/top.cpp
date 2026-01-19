@@ -9,9 +9,11 @@ using namespace std;
 
 namespace {
 
-void inc_macros(Names & names, Macros & macros)
+void included(Names & names, Macros & macros)
 {
     string s = R"(
+(ref (cadr x) (car (cdr x))) ; TODO: COMPILETIME GENERATE ALL, AND
+(ref (caddr x) (car (cdr (cdr x)))) ; USING LIST-REF WHEN POSSIBLE
 (macro case-lambda args
 `(lambda =>
    (apply (case (length =>)
@@ -82,10 +84,9 @@ GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
     init_env(names);
     auto & g = GlobalEnv::instance();
     // TODO:  add extra from arg
-
     init_macros(macros, names, opener);
-    // TODO:  add more macros if desired
-    inc_macros(names, macros);
+    // placeholder: more macros if desired here.
+    included(names, macros);
     macros_init(macros);
     return g.init();
 }

@@ -314,13 +314,6 @@ y
 (chk '(2 3 4) (cdr '(1 2 3 4)))
 (chk (cdr '(1 2 3 4)) (cdr '(1 2 3 4)))
 (let tco ((a 789)) (if (zero? a) 0 (apply tco (list (- a 1)))))
-(let ((f (out-string))) (write-string "HEY\n" f)
-  (list (out-string-get f)
-        (out-string-get-bytes f)));
-(let ((f (in-string "foo"))) (read-line f));
-(let ((f (in-string-bytes '(120 120 10 120))))
-  (list (read-line f)
-         (read-byte f)));
 (ref (cls foo)
   (ref (get-foo) foo)
   (ref (set-foo! v) (set! foo v))
@@ -366,6 +359,14 @@ y
 (chk #f (equal? (cdr '(0 1 2 . 3)) '(1 . 2)))
 (chk '((1 3) (2 4) (3 5))
   (map list (cdr '(0 1 2 3)) '(3 4 5 6)))
+; string-io
+(let ((f (out-string))) (write-string "HEY\n" f)
+  (list (out-string-get f)
+        (out-string-get-bytes f)));
+(let ((f (in-string "foo"))) (read-line f));
+(let ((f (in-string-bytes '(120 120 10 120))))
+  (list (read-line f)
+         (read-byte f)));
 ; strings are utf8
 (chk '(945     231     64) (string->list "αç@"))
 (chk '(206 177 195 167 64)
