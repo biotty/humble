@@ -18,6 +18,9 @@ EnvEntry GlobalEnv::get(int i)
     if (auto it = m.find(i); it != m.end())
         return it->second;
     return {};
+    // ^ TODO: instead throw LookupError having i,
+    // so that in top one may inform on name or
+    // re-throw as CoreError using name[i]
 }
 
 void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }

@@ -61,6 +61,9 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
         } else if (std::holds_alternative<LexSpl>(x)) {
             r.push_back(LexForm{{nam_splice, parse1()}});
         } else if (std::holds_alternative<LexR>(x)) {
+            // TODO: instead delegate with nam_record
+            // and have that language-macro quote appropriately
+            // so to allow nested records.
             auto w = parse1();
             if (not holds_alternative<LexForm>(w))
                 throw SrcError("#r takes form");

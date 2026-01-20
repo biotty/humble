@@ -321,7 +321,7 @@ y
 (ref obj (cls 123))
 (obj 'set-foo! 321)
 (chk (obj 'get-foo) 321)
-(list->string '(#\Ø 0x69 #\e 0o156))
+(list->string '(#\Ø #x69 #\e #o156))
 (let ((li '(1 2 3)))
   (chk (list @(list 1 2 3)) li)
   (chk (list @li) li)

@@ -83,9 +83,11 @@ GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
 {
     init_env(names);
     auto & g = GlobalEnv::instance();
-    // TODO:  add extra from arg
+    // TODO: instead provide init_names, init_functions, after which
+    //       the user may add more own host functions to gloval-env
+    //       and finally invoke this init_top, with just the below.
     init_macros(macros, names, opener);
-    // placeholder: more macros if desired here.
+    // evt: insert here more language-macros
     included(names, macros);
     macros_init(macros);
     return g.init();
