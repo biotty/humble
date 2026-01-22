@@ -48,6 +48,8 @@ bool is_dotform(const LexForm & x);
 LexForm without_dot(const LexForm & x);
 LexForm with_dot(const LexForm & x);
 
+Lex quote(Lex && t);
+
 } // ns
 
 #endif

@@ -12,6 +12,57 @@ using namespace humble;
 
 namespace {
 
+    template <typename T>
+Lex join_nonlist(LexForm & w)
+{
+    auto z = get<T>(w.v.back());
+    w.v.pop_back();
+    for (Lex & x : z.v) {
+        w.v.push_back(move(x));
+    }
+    z.v = move(w.v);
+    return z;
+}
+
+Lex quote(Lex && t, bool quasi)
+{
+    if (holds_alternative<LexForm>(t)) {
+        auto & f = get<LexForm>(t);
+        if (is_dotform(f)) {
+            LexForm w = without_dot(f);
+            for (Lex & x : w.v) {
+                x = quote(move(x), quasi);
+            }
+            if (holds_alternative<LexList>(w.v.back()))
+                return join_nonlist<LexList>(w);
+            if (holds_alternative<LexNonlist>(w.v.back()))
+                return join_nonlist<LexNonlist>(w);
+            return LexNonlist{w.v};
+        }
+        LexList r;
+        for (Lex & x : f.v) {
+            r.v.push_back(quote(move(x), quasi));
+        }
+        return r;
+    }
+    if (holds_alternative<LexNam>(t)) {
+        return LexSym{get<LexNam>(t).h};
+    }
+    if (holds_alternative<LexSym>(t)
+            || holds_alternative<LexList>(t)
+            || holds_alternative<LexNonlist>(t)
+            || holds_alternative<LexQuote>(t)) {
+        if (quasi) return LexQuasiquote{{move(t)}};
+        else return LexQuote{{move(t)}};
+    }
+    if (quasi) {
+        if (holds_alternative<LexUnquote>(t)) {
+            return move(get<LexUnquote>(t).y.at(0));
+        }
+    }
+    return move(t);
+}
+
 enum {
     PARSE_MODE_TOP = -2,  // inside no form paren
     PARSE_MODE_ONE = -1,  // yield single element
@@ -61,16 +112,14 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
         } else if (std::holds_alternative<LexSpl>(x)) {
             r.push_back(LexForm{{nam_splice, parse1()}});
         } else if (std::holds_alternative<LexR>(x)) {
-            // TODO: instead delegate with nam_record
-            // and have that language-macro quote appropriately
-            // so to allow nested records.
             auto w = parse1();
             if (not holds_alternative<LexForm>(w))
                 throw SrcError("#r takes form");
             auto & f = get<LexForm>(w);
-            if (f.v.size() == 0 or not holds_alternative<LexNam>(f.v[0]))
-                throw SrcError("#r takes name");
-            r.push_back(LexRec{f.v});
+            vector<Lex> a;
+            for (auto & x : f.v)
+                a.push_back(quote(move(x), false));
+            r.push_back(LexRec{a});
         } else {
             i += 1;
             r.push_back(x);
@@ -250,57 +299,6 @@ LexForm with_dot(const LexForm & x)
     return r;
 }
 
-    template <typename T>
-Lex join_nonlist(LexForm & w)
-{
-    auto z = get<T>(w.v.back());
-    w.v.pop_back();
-    for (Lex & x : z.v) {
-        w.v.push_back(move(x));
-    }
-    z.v = move(w.v);
-    return z;
-}
-
-Lex quote(Lex & t, bool quasi)
-{
-    if (holds_alternative<LexForm>(t)) {
-        auto & f = get<LexForm>(t);
-        if (is_dotform(f)) {
-            LexForm w = without_dot(f);
-            for (Lex & x : w.v) {
-                x = quote(x, quasi);
-            }
-            if (holds_alternative<LexList>(w.v.back()))
-                return join_nonlist<LexList>(w);
-            if (holds_alternative<LexNonlist>(w.v.back()))
-                return join_nonlist<LexNonlist>(w);
-            return LexNonlist{w.v};
-        }
-        LexList r;
-        for (Lex & x : f.v) {
-            r.v.push_back(quote(x, quasi));
-        }
-        return r;
-    }
-    if (holds_alternative<LexNam>(t)) {
-        return LexSym{get<LexNam>(t).h};
-    }
-    if (holds_alternative<LexSym>(t)
-            || holds_alternative<LexList>(t)
-            || holds_alternative<LexNonlist>(t)
-            || holds_alternative<LexQuote>(t)) {
-        if (quasi) return LexQuasiquote{{move(t)}};
-        else return LexQuote{{move(t)}};
-    }
-    if (quasi) {
-        if (holds_alternative<LexUnquote>(t)) {
-            return move(get<LexUnquote>(t).y.at(0));
-        }
-    }
-    return move(t);
-}
-
 void QtArgCheck(string name, const LexForm & t)
 {
     if (t.v.size() != 2) throw SrcError(name);
@@ -309,13 +307,13 @@ void QtArgCheck(string name, const LexForm & t)
 Lex Quote::operator()(LexForm && t)
 {
     QtArgCheck("quote", t);
-    return quote(t.v[1], false);
+    return ::quote(move(t.v[1]), false);
 }
 
 Lex Quasiquote::operator()(LexForm && t)
 {
     QtArgCheck("quasiquote", t);
-    return quote(t.v[1], true);
+    return ::quote(move(t.v[1]), true);
 }
 
 Lex Unquote::operator()(LexForm && t)
@@ -333,6 +331,11 @@ Lex Unquote::operator()(LexForm && t)
     if (holds_alternative<LexSym>(w))
         return LexNam{get<LexSym>(w).h, 0};
     return move(w);
+}
+
+Lex quote(Lex && t)
+{
+    return ::quote(move(t), false);
 }
 
 } // ns

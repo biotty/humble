@@ -2,6 +2,8 @@
 #include "debug.hpp"
 #include "except.hpp"
 #include "cons.hpp"
+#include "parse.hpp"
+#include "xeval.hpp"
 #include "debug.hpp"
 #include <iostream>
 #include <sstream>
@@ -298,7 +300,7 @@ Lex to_lex(EnvEntry a)
             } else if constexpr (is_same_v<T, VarRec>) {
                 vector<Lex> v;
                 for (auto & y : q.v)
-                    v.push_back(to_lex(y));
+                    v.push_back(quote(to_lex(y)));
                 return LexRec{ v };
             } else if constexpr (is_same_v<T, VarNam>) {
                 return LexNam{ q.h, 0 };
@@ -319,6 +321,14 @@ Lex to_lex(EnvEntry a)
             }
     }, *a);
 }
+
+struct NullEnv : Env {
+    EnvEntry get(int) override
+    { throw CoreError("nullenv lookup"); }
+    void set(int, EnvEntry) { }
+};
+
+static NullEnv nullenv;
 
 EnvEntry from_lex(Lex & x)
 {
@@ -355,7 +365,7 @@ EnvEntry from_lex(Lex & x)
             } else if constexpr (is_same_v<T, LexRec>) {
                 vector<EnvEntry> v;
                 for (auto & w : q.v)
-                    v.push_back(from_lex(w));
+                    v.push_back(run(w, nullenv));
                 return make_shared<Var>(VarRec{ v });
             } else if constexpr (is_same_v<T, LexNam>) {
                 return make_shared<Var>(VarNam{ q.h });
@@ -375,6 +385,23 @@ void print(EnvEntry a, Names & n, std::ostream & os)
     // such as Port "#~port" and Dict "#{#}".  to_lex
     // will by default throw a RunError for these,
     // as shall happen on such user-macro output.
+
+    if (holds_alternative<VarRec>(*a)) {
+        // discrepancy:  this will work for one level of #r
+        // but for more levels to print correctly the print
+        // for vars must be separate and cannot merely pass
+        // to lex print using to_lex.
+        os << "#r";
+        auto ch = '(';
+        for (auto & w : get<VarRec>(*a).v) {
+            os << ch;
+            print(to_lex(w), n, os);
+            ch = ' ';
+        }
+        os << ")";
+        return;
+    }
+
     print(to_lex(a), n, os);
 }
 

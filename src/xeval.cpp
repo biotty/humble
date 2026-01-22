@@ -165,19 +165,8 @@ EnvEntry xeval(Lex & x, Env & env)
                 return make_shared<Var>(VarBool{z.b});
             if constexpr (is_same_v<T, LexString>)
                 return make_shared<Var>(VarString{z.s});
-            // if constexpr (is_same_v<T, LexRec>)
-            //  return make_shared<Var>(VarRec{run_each(z.v, env)});
-            if constexpr (is_same_v<T, LexRec>) {  // TODO ^v
-                // instead, the record implicitly quoted on parse
-                // by having a language-macro that recurses the
-                // quoting appropriately to allow nested records.
-                // the eval will then be trivial as above commented
-                auto h = get<LexNam>(z.v.at(0)).h;
-                vector<EnvEntry> v{ make_shared<Var>(VarNam{h}) };
-                auto r = run_each({z.v.begin() + 1, z.v.end()}, env);
-                move(r.begin(), r.end(), back_inserter(v));
-                return make_shared<Var>(VarRec{v});
-            }
+            if constexpr (is_same_v<T, LexRec>)
+                return make_shared<Var>(VarRec{run_each(z.v, env)});
             if constexpr (is_same_v<T, LexSym>)
                 return make_shared<Var>(VarNam{z.h});
             if constexpr (is_same_v<T, LexVoid>)

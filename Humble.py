@@ -648,7 +648,9 @@ def parse_r(z, i, paren_mode, d):
             elif c == LEX_SPL:
                 x = [nam_splice, *x]
             elif c == LEX_R:
-                x = (LEX_REC, *x)
+                if type(x) != list:
+                    raise SrcError("#r takes form")
+                x = (LEX_REC, [quote(y, False) for y in x[0]])
             else:
                 broken("%d unexpected" % (c,))
             r.append(x)
@@ -761,8 +763,6 @@ def unbound(t, defs, is_block):
                 r.add(x[1])
             elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r.update(unbound(x[1], defs, False))
-            elif x[0] == LEX_REC:
-                r.update(unbound(x[1][1:], defs, False))
         elif type(x[0]) != int:
             r.update(unbound(x, defs, False))
         elif x[0] == OP_BIND:
@@ -800,10 +800,6 @@ def find_unbound(t, y):
                     return x
             elif lex_in(x[0], LEX_LIST | LEX_NONLIST):
                 r = find_unbound(x[1], y)
-                if r:
-                    return r
-            elif x[0] == LEX_REC:
-                r = find_unbound(x[1][1:], y)
                 if r:
                     return r
         elif type(x[0]) != int:
@@ -1206,7 +1202,7 @@ def from_lex(s):
     if s[0] == LEX_VOID:
         return [VAR_VOID,]
     if s[0] == LEX_REC:
-        v = [from_lex(y) for y in s[1]]
+        v = [xeval(y, None) for y in s[1]]
         if v[0][0] != VAR_NAM:
             raise SrcError("record-id not name")
         return [VAR_REC, Record(v[0][1], v[1:])]
@@ -1227,8 +1223,8 @@ def to_lex(s):
         r = [to_lex(x) for x in s[1]]
         return with_dot(r) if s[0] == VAR_NONLIST else r
     if s[0] == VAR_REC:
-        r = [to_lex(x) for x in (s[1].values)]
-        return (LEX_REC, [[LEX_NAM, s[1].nam], *r[1:]])
+        r = [quote(to_lex(x), False) for x in (s[1].values)]
+        return (LEX_REC, [(LEX_SYM, s[1].nam), *r])
     if s[0] == VAR_VOID:
         return (LEX_VOID,)
     if s[0] not in (VAR_NAM, VAR_NUM, VAR_BOOL, VAR_STRING,
@@ -3041,10 +3037,9 @@ def xeval(x, env):
         if x[0] == LEX_SYM:
             return [VAR_NAM, x[1]]
         if x[0] == LEX_REC:
-            # instead, the record implicitly quoted on parse
             n = x[1][0]
-            if n[0] != LEX_NAM:
-                broken("record-id not name")
+            if n[0] != LEX_SYM:
+                broken("record-id not symbol")
             return [VAR_REC, Record(n[1], run_each(x[1][1:], env))]
         if x[0] in (LEX_QUOTE, LEX_QUASIQUOTE):
             broken("eval quote")

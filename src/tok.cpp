@@ -321,6 +321,8 @@ void print(const Lex & x, Names & n, std::ostream & os)
             } else if constexpr (is_same_v<T, LexRec>) {
                 os << "#r";
                 print(LexForm{ z.v }, n, os);
+            } else if constexpr (is_same_v<T, LexSym>) {
+                os << "'" << n.get(z.h);
             } else if constexpr (is_same_v<T, LexNam>) {
                 os << n.get(z.h);
             } else if constexpr (is_same_v<T, LexVoid>) {
