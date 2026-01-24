@@ -49,9 +49,9 @@ Lex quote(Lex && t, bool quasi)
         return LexSym{get<LexNam>(t).h};
     }
     if (holds_alternative<LexSym>(t)
-            || holds_alternative<LexList>(t)
-            || holds_alternative<LexNonlist>(t)
-            || holds_alternative<LexQuote>(t)) {
+            or holds_alternative<LexList>(t)
+            or holds_alternative<LexNonlist>(t)
+            or holds_alternative<LexQuote>(t)) {
         if (quasi) return LexQuasiquote{{move(t)}};
         else return LexQuote{{move(t)}};
     }
@@ -326,7 +326,7 @@ Lex Unquote::operator()(LexForm && t)
         return LexForm{move(get<LexList>(w).v)};
     if (holds_alternative<LexNonlist>(w))
         return with_dot(LexForm{move(get<LexNonlist>(w).v)});
-    if (holds_alternative<LexNam>(w) || holds_alternative<LexUnquote>(w))
+    if (holds_alternative<LexNam>(w) or holds_alternative<LexUnquote>(w))
         return LexUnquote{{move(w)}};
     if (holds_alternative<LexSym>(w))
         return LexNam{get<LexSym>(w).h, 0};

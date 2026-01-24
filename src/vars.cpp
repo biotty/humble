@@ -65,5 +65,34 @@ EnvEntry FunEnv::get(int i)
 
 void FunEnv::set(int i, EnvEntry e) { v[i] = e; }
 
+EnvEntry NullEnv::get(int)
+{
+    throw CoreError("nullenv lookup");
+}
+
+void NullEnv::set(int, EnvEntry) { };
+
+static const char * var_type_name_a[] {
+    "void",                     // note:  ordered as
+    "number",                   // Var variant index
+    "bool",
+    "name",
+    "string",
+    "list",
+    "nonlist",
+    "splice",
+    "unquote",
+    "fun-ops",
+    "fun-host",
+    "lz-apply",
+    "cons",
+    "rec",
+};
+
+const char * var_type_name(const Var & v)
+{
+    return var_type_name_a[v.index()];
+}
+
 } // ns
 

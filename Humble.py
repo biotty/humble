@@ -2714,8 +2714,8 @@ class SystemFile(File):
     def __del__(self):
         pass
 
-def f_input_file(*args):
-    fn = "input-file"
+def f_open_input_file(*args):
+    fn = "open-input-file"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     try:
@@ -2723,8 +2723,8 @@ def f_input_file(*args):
     except:
         return [VAR_BOOL, False]
 
-def f_output_file(*args):
-    fn = "output-file"
+def f_open_output_file(*args):
+    fn = "open-output-file"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     try:
@@ -2773,8 +2773,8 @@ def f_write_string(*args):
 
 import subprocess
 
-def f_input_command(*args):
-    fn = "input-command"
+def f_open_input_command(*args):
+    fn = "open-input-command"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -2791,8 +2791,8 @@ def f_input_command(*args):
     c = u.wait()
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
-def f_output_command(*args):
-    fn = "output-command"
+def f_open_output_command(*args):
+    fn = "open-output-command"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -2825,15 +2825,15 @@ class InStringFile:
     def read_line(self):
         return read_line_(self.read_byte)
 
-def f_in_string(*args):
-    fn = "in-string"
+def f_open_input_string(*args):
+    fn = "open-input-string"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_STRING)
     b = args[0][1].encode("utf-8")
     return [VAR_PORT, InStringFile(b)]
 
-def f_in_string_bytes(*args):
-    fn = "in-string-bytes"
+def f_input_string_bytes(*args):
+    fn = "input-string-bytes"
     fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     b = []
@@ -2854,20 +2854,20 @@ class OutStringFile:
     def write_string(self, s):
         self.b.extend(s.encode("utf-8"))
 
-def f_out_string(*args):
-    fargc_must_eq("out-string", args, 0)
+def f_open_output_string(*args):
+    fargc_must_eq("open-output-string", args, 0)
     return [VAR_PORT, OutStringFile()]
 
-def f_out_string_get(*args):
-    fn = "out-string-get"
+def f_output_string_get(*args):
+    fn = "output-string-get"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_PORT)
     fchk_or_fail(isinstance(args[0][1], OutStringFile),
             "%s got output-port")
     return [VAR_STRING, bytes(args[0][1].b).decode("utf-8")]
 
-def f_out_string_get_bytes(*args):
-    fn = "out-string-get-bytes"
+def f_output_string_get_bytes(*args):
+    fn = "output-string-get-bytes"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_PORT)
     fchk_or_fail(isinstance(args[0][1], OutStringFile),
@@ -3235,19 +3235,19 @@ def init_env(names):
             ("number->string", f_number_z_string),
             ("exit", f_exit),
             ("eof-object?", f_eof_objectp),
-            ("input-file", f_input_file),
-            ("output-file", f_output_file),
+            ("open-input-file", f_open_input_file),
+            ("open-output-file", f_open_output_file),
             ("read-byte", f_read_byte),
             ("read-line", f_read_line),
             ("write-byte", f_write_byte),
             ("write-string", f_write_string),
-            ("input-command", f_input_command),
-            ("output-command", f_output_command),
-            ("out-string", f_out_string),
-            ("out-string-get", f_out_string_get),
-            ("out-string-get-bytes", f_out_string_get_bytes),
-            ("in-string", f_in_string),
-            ("in-string-bytes", f_in_string_bytes),
+            ("open-input-command", f_open_input_command),
+            ("open-output-command", f_open_output_command),
+            ("open-output-string", f_open_output_string),
+            ("output-string-get", f_output_string_get),
+            ("output-string-get-bytes", f_output_string_get_bytes),
+            ("open-input-string", f_open_input_string),
+            ("input-string-bytes", f_input_string_bytes),
             ("prng", f_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),

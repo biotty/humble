@@ -360,17 +360,17 @@ y
 (chk '((1 3) (2 4) (3 5))
   (map list (cdr '(0 1 2 3)) '(3 4 5 6)))
 ; string-io
-(let ((f (out-string))) (write-string "HEY\n" f)
-  (list (out-string-get f)
-        (out-string-get-bytes f)));
-(let ((f (in-string "foo"))) (read-line f));
-(let ((f (in-string-bytes '(120 120 10 120))))
+(let ((f (open-output-string))) (write-string "HEY\n" f)
+  (list (output-string-get f)
+        (output-string-get-bytes f)));
+(let ((f (open-input-string "foo"))) (read-line f));
+(let ((f (input-string-bytes '(120 120 10 120))))
   (list (read-line f)
          (read-byte f)));
 ; strings are utf8
 (chk '(945     231     64) (string->list "αç@"))
 (chk '(206 177 195 167 64)
-  (reverse (let loop ((p (in-string "αç@")) (r '()))
+  (reverse (let loop ((p (open-input-string "αç@")) (r '()))
     (let ((s (read-byte p)))
       (if (eof-object? s)
         r (loop p (cons s r)))))))

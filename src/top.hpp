@@ -10,7 +10,8 @@
 
 namespace humble {
 
-GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener);
+GlobalEnv init_top(Macros & macros);
+void top_included(Names & names, Macros & macros);
 void print(EnvEntry a, Names & n, std::ostream & os);
 
 } // ns

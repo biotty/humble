@@ -7,7 +7,7 @@
 
 namespace humble {
 
-void init_env(Names & names);
+void init_functions(Names & names);
 
 } // ns
 

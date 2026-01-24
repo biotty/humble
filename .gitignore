@@ -1,0 +1,11 @@
+/.[^g]*
+/C*
+/*.cmake
+/out.*
+/test_*
+/__pycache__
+/Makefile
+/build.ninja
+/Testing
+/libHumble.a
+/humble

@@ -166,7 +166,7 @@ EnvEntry xeval(Lex & x, Env & env)
             if constexpr (is_same_v<T, LexString>)
                 return make_shared<Var>(VarString{z.s});
             if constexpr (is_same_v<T, LexRec>)
-                return make_shared<Var>(VarRec{run_each(z.v, env)});
+                return make_shared<Var>(VarRec{run_each(z.v, nullenv)});
             if constexpr (is_same_v<T, LexSym>)
                 return make_shared<Var>(VarNam{z.h});
             if constexpr (is_same_v<T, LexVoid>)
@@ -175,9 +175,9 @@ EnvEntry xeval(Lex & x, Env & env)
                 return make_shared<Var>(VarUnquote{&z});
             if constexpr (is_same_v<T, LexQuote>
                     or is_same_v<T, LexQuasiquote>)
-                CoreError("eval quote");
+                throw CoreError("eval quote");
             if constexpr (is_same_v<T, LexDot>)
-                RunError("invalid use of dot");
+                throw RunError("eval dot");
             if constexpr (is_same_v<T, LexForm>) {
                 // cout << &z.v.back() << " xeval form back\n";
                 if (z.v.empty()) throw CoreError("empty form");

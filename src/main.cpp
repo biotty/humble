@@ -1,6 +1,7 @@
 #include "compx.hpp"
 #include "xeval.hpp"
 #include "top.hpp"
+#include "functions.hpp"
 #include "except.hpp"
 #include <fstream>
 #include <iostream>
@@ -58,10 +59,15 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
-    Names names;
+    Names names = init_names();
+    init_functions(names);
+    // placeholder: reg more functions
     Macros macros;
     Opener opener;
-    auto env = init_top(names, macros, opener);
+    init_macros(macros, names, opener);
+    // evt: insert here more language-macros
+    top_included(names, macros);
+    auto env = init_top(macros);
     if (argc == 2) {
         auto src = opener(argv[1]);
         LexForm ast;

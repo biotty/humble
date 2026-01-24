@@ -4,16 +4,25 @@
 #include "functions.hpp"
 #include <iostream>
 
-using namespace humble;
 using namespace std;
 
-namespace {
+namespace humble {
 
-void included(Names & names, Macros & macros)
+void top_included(Names & names, Macros & macros)
 {
     string s = R"(
-(ref (cadr x) (car (cdr x))) ; TODO: COMPILETIME GENERATE ALL, AND
-(ref (caddr x) (car (cdr (cdr x)))) ; USING LIST-REF WHEN POSSIBLE
+(ref (caar x) (car (car x)))
+(ref (cadr x) (list-ref x 1))
+(ref (cdar x) (cdr (car x)))
+(ref (cddr x) (cdr (list-ref x 1)))
+(ref (caaar x) (car (car (car x))))
+(ref (caadr x) (car (list-ref x 1)))
+(ref (cadar x) (list-ref (car x) 1))
+(ref (caddr x) (list-ref x 2))
+(ref (cdaar x) (cdr (car (car x))))
+(ref (cdadr x) (cdr (list-ref x 1)))
+(ref (cddar x) (cdr (cdr (car x))))
+(ref (cdddr x) (cdr (cdr (cdr x))))  ; left-out: 4th level
 (macro case-lambda args
 `(lambda =>
    (apply (case (length =>)
@@ -75,21 +84,10 @@ void included(Names & names, Macros & macros)
     for (auto & a : t.v) run(a, env);
 }
 
-} // ans
-
-namespace humble {
-
-GlobalEnv init_top(Names & names, Macros & macros, SrcOpener & opener)
+GlobalEnv init_top(Macros & macros)
 {
-    init_env(names);
-    auto & g = GlobalEnv::instance();
-    // TODO: instead provide init_names, init_functions, after which
-    //       the user may add more own host functions to gloval-env
-    //       and finally invoke this init_top, with just the below.
-    init_macros(macros, names, opener);
-    // evt: insert here more language-macros
-    included(names, macros);
     macros_init(macros);
+    auto & g = GlobalEnv::instance();
     return g.init();
 }
 

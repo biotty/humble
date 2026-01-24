@@ -50,6 +50,8 @@ typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
 struct VarFunHost { FunHost p; };
 struct VarApply { std::vector<EnvEntry> a; };
 
+const char * var_type_name(const Var & v);
+
 struct Env {
     virtual EnvEntry get(int i) = 0;
     virtual void set(int i, EnvEntry e) = 0;
@@ -94,6 +96,13 @@ struct FunEnv : Env {
 private:
     std::vector<EnvEntry> v;
 };
+
+struct NullEnv : Env {
+    EnvEntry get(int) override;
+    void set(int, EnvEntry);
+};
+
+inline NullEnv nullenv;
 
 } // ns
 

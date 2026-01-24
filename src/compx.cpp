@@ -322,14 +322,6 @@ Lex to_lex(EnvEntry a)
     }, *a);
 }
 
-struct NullEnv : Env {
-    EnvEntry get(int) override
-    { throw CoreError("nullenv lookup"); }
-    void set(int, EnvEntry) { }
-};
-
-static NullEnv nullenv;
-
 EnvEntry from_lex(Lex & x)
 {
     return visit([](auto & q) -> EnvEntry {
@@ -379,30 +371,59 @@ EnvEntry from_lex(Lex & x)
 
 void print(EnvEntry a, Names & n, std::ostream & os)
 {
-    // on-need:  pass to_lex an esh optional param
-    // (default nullptr) with a handler function for
-    // var-types that are not lexically representable,
-    // such as Port "#~port" and Dict "#{#}".  to_lex
-    // will by default throw a RunError for these,
-    // as shall happen on such user-macro output.
-
-    if (holds_alternative<VarRec>(*a)) {
-        // discrepancy:  this will work for one level of #r
-        // but for more levels to print correctly the print
-        // for vars must be separate and cannot merely pass
-        // to lex print using to_lex.
-        os << "#r";
-        auto ch = '(';
-        for (auto & w : get<VarRec>(*a).v) {
-            os << ch;
-            print(to_lex(w), n, os);
-            ch = ' ';
+    if (holds_alternative<VarCons>(*a)) {
+        auto & c = get<VarCons>(*a).c;
+        if (not c) {
+            a = make_shared<Var>(VarList{});
+        } else {
+            std::visit([&a](auto && w) {
+                a = make_shared<Var>(w);
+            }, c->to_list_var());
         }
-        os << ")";
-        return;
     }
-
-    print(to_lex(a), n, os);
+    visit([&n, &os, &a](auto && z) {
+            using T = decay_t<decltype(z)>;
+            if constexpr (is_same_v<T, VarList>) {
+                if (z.v.empty()) {
+                    os << "'()";
+                    return;
+                }
+                char c = '(';
+                for (auto & w : z.v) {
+                    os << c;
+                    print(w, n, os);
+                    c = ' ';
+                }
+                os << ')';
+            } else if constexpr (is_same_v<T, VarNonlist>) {
+                auto j = z.v.size();
+                if (j < 2) throw CoreError("short nonlist");
+                char c = '(';
+                for (auto & w : z.v) {
+                    if (0 == --j) os << " .";
+                    os << c;
+                    print(w, n, os);
+                    c = ' ';
+                }
+                os << ')';
+            } else if constexpr (is_same_v<T, VarBool>) {
+                os << (z.b ? "#t" : "#f");
+            } else if constexpr (is_same_v<T, VarNum>) {
+                os << z.i;
+            } else if constexpr (is_same_v<T, VarString>) {
+                os << '"' << escape(z.s) << '"';
+            } else if constexpr (is_same_v<T, VarRec>) {
+                os << "#r";
+                print(make_shared<Var>(VarList{ z.v }), n, os);
+            } else if constexpr (is_same_v<T, VarNam>) {
+                os << n.get(z.h);
+            } else if constexpr (is_same_v<T, VarVoid>) {
+                os << "#void";
+            } else {
+                throw CoreError("unexpected var for print, "
+                        + string{var_type_name(*a)});
+            }
+    }, *a);
 }
 
 bool warn_off;
@@ -428,7 +449,7 @@ void warn(const string & m, span<Lex> & t)
     cerr << "src-warn: " << m << ",";
     for (auto & x : t) {
         cerr << "\nwarn-args[" << i++ << "]: " << &x << " ";
-        print(x, nonames, cerr);
+        cerr << "lex#" << x.index();
     }
     cerr << endl;
 }

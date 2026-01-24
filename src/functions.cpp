@@ -15,22 +15,6 @@ using namespace std;
 
 namespace {
 
-const char * var_type_name[] {
-    "void",                     // note:  ordered as
-    "number",                   // Var variant index
-    "bool",
-    "name",
-    "string",
-    "list",
-    "nonlist",
-    "splice",
-    "unquote",
-    "fun-ops",
-    "fun-host",
-    "lz-apply",
-    "const",
-};
-
 template <typename T, typename... Ts>
 bool valt_in(Var & v)
 {
@@ -44,7 +28,7 @@ void valt_or_fail(span<EnvEntry> args, size_t i, string s)
 {
     if (valt_in<Ts...>(*args[i])) return;
     ostringstream ost;
-    ost << s << " args[" << i << "] " << var_type_name[args[i]->index()];
+    ost << s << " args[" << i << "] " << var_type_name(*args[i]);
     throw RunError(ost.str());
 }
 
@@ -1184,104 +1168,90 @@ EnvEntry f_exit(span<EnvEntry> args)
 
 namespace humble {
 
-void init_env(Names & n)
+void init_functions(Names & n)
 {
     u_names = &n;
-    n = Names{            // note:  known names ordered
-            "=>",         //        as in tok.hpp
-            "else",
-            "quote",
-            "quasiquote",
-            "unquote",
-            "macro",
-            "car",
-            "eqv?",
-            "list",
-            "nonlist",
-            "set!!",
-            "dup",
-            "error",
-            "splice",
-            "import",
-    };
-
     auto & g = GlobalEnv::instance();
-    g.set(n.intern("list"), make_shared<Var>(VarFunHost{ f_list }));
-    g.set(n.intern("nonlist"), make_shared<Var>(VarFunHost{ f_nonlist }));
-    g.set(n.intern("list-copy"), make_shared<Var>(VarFunHost{ f_list_copy }));
-    g.set(n.intern("cons"), make_shared<Var>(VarFunHost{ f_cons }));
-    g.set(n.intern("car"), make_shared<Var>(VarFunHost{ f_car }));
-    g.set(n.intern("list-ref"), make_shared<Var>(VarFunHost{ f_list_ref }));
-    g.set(n.intern("cdr"), make_shared<Var>(VarFunHost{ f_cdr }));
-    g.set(n.intern("append"), make_shared<Var>(VarFunHost{ f_append }));
-    g.set(n.intern("set-car!"), make_shared<Var>(VarFunHost{ f_set_carj }));
-    g.set(n.intern("set-cdr!"), make_shared<Var>(VarFunHost{ f_set_cdrj }));
-    g.set(n.intern("list-tail"), make_shared<Var>(VarFunHost{ f_list_tail }));
-    g.set(n.intern("list-set!"), make_shared<Var>(VarFunHost{ f_list_setj }));
-    g.set(n.intern("make-list"), make_shared<Var>(VarFunHost{ f_make_list }));
-    g.set(n.intern("reverse"), make_shared<Var>(VarFunHost{ f_reverse }));
-    g.set(n.intern("take"), make_shared<Var>(VarFunHost{ f_take }));
-    g.set(n.intern("splice"), make_shared<Var>(VarFunHost{ f_splice }));
-    g.set(n.intern("not"), make_shared<Var>(VarFunHost{ f_not }));
-    g.set(n.intern("+"), make_shared<Var>(VarFunHost{ f_pluss }));
-    g.set(n.intern("-"), make_shared<Var>(VarFunHost{ f_minus }));
-    g.set(n.intern("*"), make_shared<Var>(VarFunHost{ f_multiply }));
-    g.set(n.intern("/"), make_shared<Var>(VarFunHost{ f_divide }));
-    g.set(n.intern("div"), make_shared<Var>(VarFunHost{ f_div }));
-    g.set(n.intern("max"), make_shared<Var>(VarFunHost{ f_max }));
-    g.set(n.intern("min"), make_shared<Var>(VarFunHost{ f_min }));
-    g.set(n.intern("abs"), make_shared<Var>(VarFunHost{ f_abs }));
-    g.set(n.intern("zero?"), make_shared<Var>(VarFunHost{ f_zerop }));
-    g.set(n.intern("positive?"), make_shared<Var>(VarFunHost{ f_positivep }));
-    g.set(n.intern("negative?"), make_shared<Var>(VarFunHost{ f_negativep }));
-    g.set(n.intern("even?"), make_shared<Var>(VarFunHost{ f_evenp }));
-    g.set(n.intern("odd?"), make_shared<Var>(VarFunHost{ f_oddp }));
-    g.set(n.intern("="), make_shared<Var>(VarFunHost{ f_eq }));
-    g.set(n.intern("<"), make_shared<Var>(VarFunHost{ f_lt }));
-    g.set(n.intern(">"), make_shared<Var>(VarFunHost{ f_gt }));
-    g.set(n.intern("<="), make_shared<Var>(VarFunHost{ f_lte }));
-    g.set(n.intern(">="), make_shared<Var>(VarFunHost{ f_gte }));
-    g.set(n.intern("set!"), make_shared<Var>(VarFunHost{ f_setj }));
-    g.set(n.intern("set!!"), make_shared<Var>(VarFunHost{ f_setjj }));
-    g.set(n.intern("dup"), make_shared<Var>(VarFunHost{ f_dup }));
-    g.set(n.intern("alias?"), make_shared<Var>(VarFunHost{ f_aliasp }));
-    g.set(n.intern("eq?"), make_shared<Var>(VarFunHost{ f_eqp }));
-    g.set(n.intern("eqv?"), make_shared<Var>(VarFunHost{ f_eqp }));
-    g.set(n.intern("equal?"), make_shared<Var>(VarFunHost{ f_equalp }));
-    g.set(n.intern("make-record"), make_shared<Var>(VarFunHost{ f_make_record }));
-    g.set(n.intern("record-get"), make_shared<Var>(VarFunHost{ f_record_get }));
-    g.set(n.intern("record-set!"), make_shared<Var>(VarFunHost{ f_record_setj }));
-    g.set(n.intern("record?"), make_shared<Var>(VarFunHost{ f_recordp }));
-    g.set(n.intern("string-ref"), make_shared<Var>(VarFunHost{ f_string_ref }));
-    g.set(n.intern("string->list"), make_shared<Var>(VarFunHost{ f_string_z_list }));
-    g.set(n.intern("list->string"), make_shared<Var>(VarFunHost{ f_list_z_string }));
-    g.set(n.intern("symbol->string"), make_shared<Var>(VarFunHost{ f_symbol_z_string }));
-    g.set(n.intern("substring"), make_shared<Var>(VarFunHost{ f_substring }));
-    g.set(n.intern("substring-index"), make_shared<Var>(VarFunHost{  f_substring_index }));
-    g.set(n.intern("string-length"), make_shared<Var>(VarFunHost{ f_string_length }));
-    g.set(n.intern("string-append"), make_shared<Var>(VarFunHost{ f_string_append }));
-    g.set(n.intern("string=?"), make_shared<Var>(VarFunHost{ f_stringeqp }));
-    g.set(n.intern("string<?"), make_shared<Var>(VarFunHost{ f_stringltp }));
-    g.set(n.intern("string>?"), make_shared<Var>(VarFunHost{ f_stringgtp }));
-    g.set(n.intern("string->number"), make_shared<Var>(VarFunHost{ f_string_z_number }));
-    g.set(n.intern("number->string"), make_shared<Var>(VarFunHost{ f_number_z_string }));
-    g.set(n.intern("boolean?"), make_shared<Var>(VarFunHost{ f_booleanp }));
-    g.set(n.intern("number?"), make_shared<Var>(VarFunHost{ f_numberp }));
-    g.set(n.intern("procedure?"), make_shared<Var>(VarFunHost{ f_procedurep }));
-    g.set(n.intern("symbol?"), make_shared<Var>(VarFunHost{ f_symbolp }));
-    g.set(n.intern("null?"), make_shared<Var>(VarFunHost{ f_nullp }));
-    g.set(n.intern("list?"), make_shared<Var>(VarFunHost{ f_listp }));
-    g.set(n.intern("pair?"), make_shared<Var>(VarFunHost{ f_pairp }));
-    g.set(n.intern("cont??"), make_shared<Var>(VarFunHost{ f_contpp }));
-    g.set(n.intern("void?"), make_shared<Var>(VarFunHost{ f_voidp }));
-    g.set(n.intern("display"), make_shared<Var>(VarFunHost{ f_display }));
-    g.set(n.intern("length"), make_shared<Var>(VarFunHost{ f_length }));
-    g.set(n.intern("apply"), make_shared<Var>(VarFunHost{ f_apply }));
-    g.set(n.intern("map"), make_shared<Var>(VarFunHost{ f_map }));
-    g.set(n.intern("member"), make_shared<Var>(VarFunHost{ f_member }));
-    g.set(n.intern("assoc"), make_shared<Var>(VarFunHost{ f_assoc }));
-    g.set(n.intern("error"), make_shared<Var>(VarFunHost{ f_error }));
-    g.set(n.intern("exit"), make_shared<Var>(VarFunHost{ f_exit }));
+    typedef EnvEntry (*hp)(span<EnvEntry> args);
+    if (n.size() != NAM__KNOWN) throw CoreError("init names expected");
+    for (auto & p : initializer_list<pair<string, hp>>{
+            { "list", f_list },
+            { "nonlist", f_nonlist },
+            { "list-copy", f_list_copy },
+            { "cons", f_cons },
+            { "car", f_car },
+            { "list-ref", f_list_ref },
+            { "cdr", f_cdr },
+            { "append", f_append },
+            { "set-car!", f_set_carj },
+            { "set-cdr!", f_set_cdrj },
+            { "list-tail", f_list_tail },
+            { "list-set!", f_list_setj },
+            { "make-list", f_make_list },
+            { "reverse", f_reverse },
+            { "take", f_take },
+            { "splice", f_splice },
+            { "not", f_not },
+            { "+", f_pluss },
+            { "-", f_minus },
+            { "*", f_multiply },
+            { "/", f_divide },
+            { "div", f_div },
+            { "max", f_max },
+            { "min", f_min },
+            { "abs", f_abs },
+            { "zero?", f_zerop },
+            { "positive?", f_positivep },
+            { "negative?", f_negativep },
+            { "even?", f_evenp },
+            { "odd?", f_oddp },
+            { "=", f_eq },
+            { "<", f_lt },
+            { ">", f_gt },
+            { "<=", f_lte },
+            { ">=", f_gte },
+            { "set!", f_setj },
+            { "set!!", f_setjj },
+            { "dup", f_dup },
+            { "alias?", f_aliasp },
+            { "eq?", f_eqp },
+            { "eqv?", f_eqp },
+            { "equal?", f_equalp },
+            { "make-record", f_make_record },
+            { "record-get", f_record_get },
+            { "record-set!", f_record_setj },
+            { "record?", f_recordp },
+            { "string-ref", f_string_ref },
+            { "string->list", f_string_z_list },
+            { "list->string", f_list_z_string },
+            { "symbol->string", f_symbol_z_string },
+            { "substring", f_substring },
+            { "substring-index", f_substring_index },
+            { "string-length", f_string_length },
+            { "string-append", f_string_append },
+            { "string=?", f_stringeqp },
+            { "string<?", f_stringltp },
+            { "string>?", f_stringgtp },
+            { "string->number", f_string_z_number },
+            { "number->string", f_number_z_string },
+            { "boolean?", f_booleanp },
+            { "number?", f_numberp },
+            { "procedure?", f_procedurep },
+            { "symbol?", f_symbolp },
+            { "null?", f_nullp },
+            { "list?", f_listp },
+            { "pair?", f_pairp },
+            { "cont??", f_contpp },
+            { "void?", f_voidp },
+            { "display", f_display },
+            { "length", f_length },
+            { "apply", f_apply },
+            { "map", f_map },
+            { "member", f_member },
+            { "assoc", f_assoc },
+            { "error", f_error },
+            { "exit", f_exit }
+    }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 
 } // ns

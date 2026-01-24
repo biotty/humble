@@ -32,6 +32,8 @@ class Names {
     int add(std::string_view name, size_t h);
 public:
     Names();
+    Names(const Names &) = delete;
+    Names& operator=(const Names &) = delete;
     Names(std::initializer_list<std::string> w);
     size_t size();
     int intern(std::string_view name);
@@ -99,7 +101,7 @@ struct LexQuasiquote { std::vector<Lex> y; };
 struct LexUnquote { std::vector<Lex> y; };
 
 std::vector<Lex> lex(const std::string & s, Names & names);
-void print(const Lex & x, Names & n, std::ostream & os);
+std::string escape(std::string s);
 
 std::span<Lex> span1(std::span<Lex> x, size_t i);
 
@@ -119,6 +121,7 @@ enum {
     NAM_ERROR,
     NAM_SPLICE,
     NAM_IMPORT,
+    NAM__KNOWN,
 };
 
 inline auto nam_then = LexNam{ NAM_THEN, 0 };

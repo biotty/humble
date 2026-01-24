@@ -45,7 +45,7 @@ ostream & operator<<(ostream & os, const Glyph & g)
 
 ostream & operator<<(ostream & os, const Lex & x)
 {
-    array<string, 25> tn = {
+    array<string, 25> tn = {  // note: ordered as Lex variants
     "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Spl", "R",
     "Void", "Sym", "Num", "Bool", "Nam", "String",
     "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
