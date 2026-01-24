@@ -281,7 +281,7 @@ Lex to_lex(EnvEntry a)
         a = to_list_var(get<VarCons>(*a).c);
     }
     // cerr << "to_lex visit\n";
-    return visit([](auto && q) -> Lex {
+    return visit([&a](auto && q) -> Lex {
             using T = decay_t<decltype(q)>;
             if constexpr (is_same_v<T, VarList>) {
                 vector<Lex> v;
@@ -317,14 +317,15 @@ Lex to_lex(EnvEntry a)
             } else if constexpr (is_same_v<T, VarVoid>) {
                 return LexVoid{};
             } else {
-                throw CoreError("to lex not handled");
+                throw CoreError("to lex not handled, "
+                        + string{var_type_name(*a)});
             }
     }, *a);
 }
 
 EnvEntry from_lex(Lex & x)
 {
-    return visit([](auto & q) -> EnvEntry {
+    return visit([&x](auto & q) -> EnvEntry {
             using T = decay_t<decltype(q)>;
             if constexpr (is_same_v<T, LexForm>) {
                 bool isd = is_dotform(q);
@@ -364,7 +365,10 @@ EnvEntry from_lex(Lex & x)
             } else if constexpr (is_same_v<T, LexVoid>) {
                 return make_shared<Var>(VarVoid{});
             } else {
-                throw CoreError("to lex not handled");
+                ostringstream oss;
+                oss << "lex#" << x.index();
+                throw CoreError("from lex not handled, "
+                        + oss.str());
             }
     }, x);
 }
@@ -419,6 +423,8 @@ void print(EnvEntry a, Names & n, std::ostream & os)
                 os << n.get(z.h);
             } else if constexpr (is_same_v<T, VarVoid>) {
                 os << "#void";
+            } else if constexpr (is_same_v<T, VarExt>) {
+                os << "#~" << n.get(z.t);
             } else {
                 throw CoreError("unexpected var for print, "
                         + string{var_type_name(*a)});

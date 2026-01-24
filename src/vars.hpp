@@ -36,17 +36,28 @@ struct VarFunHost;
 struct VarApply;
 struct Cons;
 struct VarCons { std::shared_ptr<Cons> c; };
+struct VarExt {
+    typedef void (* Deleter)(void *);
+    int t;
+    void * u;
+    Deleter f;
+    explicit VarExt(int t);
+    VarExt(const VarExt &);
+    VarExt(VarExt &&);
+    VarExt & operator=(VarExt &&);
+    ~VarExt();
+};
 
 using Var = std::variant<VarVoid, VarNum, VarBool, VarNam, VarString/*4*/,
       VarList, VarNonlist, VarSplice, VarUnquote/*8*/,
-      VarFunOps, VarFunHost, VarApply, VarCons/*12*/, VarRec>;
+      VarFunOps, VarFunHost, VarApply, VarCons/*12*/, VarRec, VarExt>;
 using EnvEntry = std::shared_ptr<Var>;
 
 struct VarList { std::vector<EnvEntry> v; };
 struct VarNonlist { std::vector<EnvEntry> v; };
 struct VarRec { std::vector<EnvEntry> v; };
 struct VarSplice { std::vector<EnvEntry> v; };
-typedef EnvEntry (*FunHost)(std::span<EnvEntry> a);
+typedef EnvEntry (* FunHost)(std::span<EnvEntry> a);
 struct VarFunHost { FunHost p; };
 struct VarApply { std::vector<EnvEntry> a; };
 

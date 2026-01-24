@@ -2832,8 +2832,8 @@ def f_open_input_string(*args):
     b = args[0][1].encode("utf-8")
     return [VAR_PORT, InStringFile(b)]
 
-def f_input_string_bytes(*args):
-    fn = "input-string-bytes"
+def f_open_input_string_bytes(*args):
+    fn = "open-input-string-bytes"
     fargc_must_eq(fn, args, 1)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     b = []
@@ -3249,7 +3249,7 @@ def init_env(names):
             ("output-string-get", f_output_string_get),
             ("output-string-get-bytes", f_output_string_get_bytes),
             ("open-input-string", f_open_input_string),
-            ("input-string-bytes", f_input_string_bytes),
+            ("open-input-string-bytes", f_open_input_string_bytes),
             ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),

@@ -2,8 +2,6 @@
 #define HUMBLE_FUNCTIONS
 
 #include "tok.hpp"
-#include "vars.hpp"
-#include <iosfwd>
 
 namespace humble {
 

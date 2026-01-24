@@ -364,7 +364,7 @@ y
   (list (output-string-get f)
         (output-string-get-bytes f)));
 (let ((f (open-input-string "foo"))) (read-line f));
-(let ((f (input-string-bytes '(120 120 10 120))))
+(let ((f (open-input-string-bytes '(120 120 10 120))))
   (list (read-line f)
          (read-byte f)));
 ; strings are utf8

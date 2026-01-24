@@ -13,6 +13,7 @@ add_compile_options(-ggdb -O0)
 find_package(GTest REQUIRED)
 
 add_library(Humble
+    io_functions.cpp
     functions.cpp
     top.cpp
     xeval.cpp

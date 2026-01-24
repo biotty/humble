@@ -75,9 +75,46 @@ EnvEntry NullEnv::get(int)
 
 void NullEnv::set(int, EnvEntry) { };
 
+VarExt::VarExt(int t)
+    : t(t)
+    , u()
+    , f()
+{ }
+
+VarExt::VarExt(const VarExt & other)
+{
+    if (other.f) throw RunError("non-copyable ext");
+    // improve: ExtError with h, so that in run() may
+    // lookup name and re-throw just like LookupError
+    t = other.t;
+    u = other.u;
+    f = nullptr;
+}
+
+VarExt::VarExt(VarExt && other)
+{
+    *this = move(other);
+}
+
+VarExt & VarExt::operator=(VarExt && other)
+{
+    t = other.t;
+    u = other.u;
+    f = other.f;
+    other.t = 0;
+    other.u = nullptr;
+    other.f = nullptr;
+    return *this;
+}
+
+VarExt::~VarExt()
+{
+    if (f) f(u);
+}
+
 static const char * var_type_name_a[] {
-    "void",                     // note:  ordered as
-    "number",                   // Var variant index
+    "void",        // note:  ordered as
+    "number",      // Var variant index
     "bool",
     "name",
     "string",
@@ -90,6 +127,7 @@ static const char * var_type_name_a[] {
     "lz-apply",
     "cons",
     "rec",
+    "ext",
 };
 
 const char * var_type_name(const Var & v)

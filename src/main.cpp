@@ -2,6 +2,7 @@
 #include "xeval.hpp"
 #include "top.hpp"
 #include "functions.hpp"
+#include "io_functions.hpp"
 #include "except.hpp"
 #include <fstream>
 #include <iostream>
@@ -61,6 +62,7 @@ int main(int argc, char ** argv)
     atexit(compx_dispose);
     Names names = init_names();
     init_functions(names);
+    io_functions(names);
     // placeholder: reg more functions
     Macros macros;
     Opener opener;

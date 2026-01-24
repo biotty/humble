@@ -183,7 +183,9 @@ std::string Names::get(int h)
 {
     if (static_cast<size_t>(h) >= v.size()) {
         ostringstream oss;
-        oss << "#[" << h << "]";
+        oss << '[';
+        if (v.size() != 0) oss << v.size() << "<=";
+        oss << h << ']';
         return oss.str();
     }
     return v.at(h);
