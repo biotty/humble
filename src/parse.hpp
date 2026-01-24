@@ -37,7 +37,8 @@ Names init_names();  // known names by code-point
 Macros qt_macros();  // macros needed as part of "parsing"
 Macros clone_macros(Macros & macros);
 
-LexForm parse(const std::string & s, Names & m, Macros & macros);
+LexForm readx(const std::string & s, Names & n);
+LexForm parse(const std::string & s, Names & n, Macros & macros);
 void expand_macros(Lex & t, Macros & macros, int qq);
 
 struct Quote : MacroClone<Quote> { Lex operator()(LexForm && t); };

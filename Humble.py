@@ -2881,14 +2881,14 @@ def f_output_string_get_bytes(*args):
 
 from random import Random
 
-def f_prng(*args):
-    fn = "prng"
+def f_make_prng(*args):
+    fn = "make-prng"
     fargc_must_eq(fn, args, 1)
     fargt_must_eq(fn, args, 0, VAR_NUM)
     seed = args[0][1]
     prng = Random(seed)
     def r(*args):
-        fn = "prng.r"
+        fn = "prng"
         fargc_must_ge(fn, args, 1)
         fargt_must_eq(fn, args, 0, VAR_NUM)
         b = args[0][1]
@@ -3169,6 +3169,8 @@ def init_env(names):
             ("*", f_multiply),
             ("/", f_divide),
             ("div", f_div),
+            ("max", f_max),
+            ("min", f_min),
             ("zero?", f_zerop),
             ("negative?", f_negativep),
             ("positive?", f_positivep),
@@ -3248,7 +3250,7 @@ def init_env(names):
             ("output-string-get-bytes", f_output_string_get_bytes),
             ("open-input-string", f_open_input_string),
             ("input-string-bytes", f_input_string_bytes),
-            ("prng", f_prng),
+            ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:

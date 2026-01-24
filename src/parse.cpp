@@ -187,12 +187,12 @@ Macros clone_macros(Macros & macros)
     return r;
 }
 
-LexForm parse(const std::string & s, Names & names, Macros & macros)
+LexForm readx(const std::string & s, Names & n)
 {
     vector<Lex> z;
     linenumber = 1;
     try {
-        z = lex(s, names);
+        z = lex(s, n);
     } catch (const SrcError & e) {
         ostringstream oss;
         oss << "line " << linenumber << ": " << e.what();
@@ -202,6 +202,12 @@ LexForm parse(const std::string & s, Names & names, Macros & macros)
     if (i != z.size()) {
         throw CoreError("not fully consumed; unexpected");
     }
+    return w;
+}
+
+LexForm parse(const std::string & s, Names & n, Macros & macros)
+{
+    auto w = readx(s, n);
     for (auto & x : w.v) {
         expand_macros(x, macros, 0);
     }

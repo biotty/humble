@@ -12,7 +12,7 @@
 (ref (dec! v) (set! v (- v 1)))
 ; demonstrates that we pass by reference
 
-(ref random (prng (clock)))
+(ref random (make-prng (clock)))
 ; initialize a pseudo random sequence
 
 (ref JPFR 100)

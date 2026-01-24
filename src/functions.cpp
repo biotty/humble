@@ -8,6 +8,7 @@
 #include "debug.hpp"
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <iomanip>
 
 using namespace humble;
@@ -1131,8 +1132,36 @@ EnvEntry f_display(span<EnvEntry> args)
 // variable (de)serialization
 //
 
-// TODO: read
-// TODO: write
+EnvEntry f_read(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("read argc");
+    valt_or_fail<VarString>(args, 0, "read");
+    auto & name = get<VarString>(*args[0]).s;
+    ifstream f(name, std::ios_base::binary);
+    if (not f.is_open())
+        throw RunError("Failed to read file at path '" + name + "'");
+    string s{(istreambuf_iterator<char>(f)), istreambuf_iterator<char>()};
+    auto t = readx(s, *u_names);
+    if (t.v.size() == 0) {
+        warn("empty file", args);
+        return make_shared<Var>(VarVoid{});
+    }
+    if (t.v.size() != 1)
+        warn("trailing objects", args);
+    return from_lex(t.v[0]);
+}
+
+EnvEntry f_write(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("write argc");
+    valt_or_fail<VarString>(args, 0, "write");
+    auto & name = get<VarString>(*args[0]).s;
+    ofstream f(name, std::ios_base::binary);
+    if (not f.is_open())
+        throw RunError("Failed to write file at path '" + name + "'");
+    print(args[1], *u_names, f);
+    return make_shared<Var>(VarVoid{});
+}
 
 //
 // input/output
@@ -1244,6 +1273,8 @@ void init_functions(Names & n)
             { "cont??", f_contpp },
             { "void?", f_voidp },
             { "display", f_display },
+            { "read", f_read },
+            { "write", f_write },
             { "length", f_length },
             { "apply", f_apply },
             { "map", f_map },

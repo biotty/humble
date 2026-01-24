@@ -21,6 +21,9 @@ EnvEntry GlobalEnv::get(int i)
     // ^ TODO: instead throw LookupError having i,
     // so that in top one may inform on name or
     // re-throw as CoreError using name[i]
+    // in run, as that will adapt both for expand_macros
+    // and in i-e run_top.  consolidate thus in the
+    // python implementation as well.
 }
 
 void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
