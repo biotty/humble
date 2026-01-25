@@ -60,6 +60,8 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
+    // todo: ^ mechanism such as hold by global unique_ptr
+    // there instead. can still dispose explicitly in tests.
     Names names = init_names();
     init_functions(names);
     io_functions(names);

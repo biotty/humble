@@ -2565,9 +2565,7 @@ def f_member(*args):
         if len(args[1][1]) == 0:
             return f
         if t(args[1][1][0]):
-            # note: in this case list need not be converted to cons
-            #       -- yield another ref to this list as-is
-            return args[1]
+            return f_dup(args[1])
     r = f_cdr(args[1])[1]
     while r:
         if not is_cons(r):

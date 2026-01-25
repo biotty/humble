@@ -28,9 +28,9 @@ template <typename... Ts>
 void valt_or_fail(span<EnvEntry> args, size_t i, string s)
 {
     if (valt_in<Ts...>(*args[i])) return;
-    ostringstream ost;
-    ost << s << " args[" << i << "] " << var_type_name(*args[i]);
-    throw RunError(ost.str());
+    ostringstream oss;
+    oss << s << " args[" << i << "] " << var_type_name(*args[i]);
+    throw RunError(oss.str());
 }
 
 //
@@ -1053,9 +1053,10 @@ EnvEntry f_member(span<EnvEntry> args)
         if (valt_in<VarList>(*args[1])) v = &get<VarList>(*args[1]).v;
         else v = &get<VarNonlist>(*args[1]).v;
         if ((*v).size() == 0) return f;
-        if ((*t)((*v)[0])) return args[1];
-        // note: in this case list need not be converted to cons
-        //       -- yield another ref to this list as-is
+        if ((*t)((*v)[0])) {
+            vector<EnvEntry> a{args[1]};
+            return f_dup(a);
+        }
     }
     auto q = f_cdr({args.begin() + 1, args.end()});
     ConsNext r = get<VarCons>(*q).c;
@@ -1281,7 +1282,7 @@ void init_functions(Names & n)
             { "member", f_member },
             { "assoc", f_assoc },
             { "error", f_error },
-            { "exit", f_exit }
+            { "exit", f_exit },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 
