@@ -34,6 +34,7 @@ EnvEntry from_lex(Lex & x);
 void print(EnvEntry a, Names & n, std::ostream & os);
 
 extern bool warn_off;
+void warn(const std::string & m);
 void warn(const std::string & m, std::span<EnvEntry> a);
 void warn(const std::string & m, std::span<Lex> x);
 

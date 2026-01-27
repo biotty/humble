@@ -70,7 +70,7 @@
 # * Functions and special forms as specified in r7rs
 #     but limited for math and a very basic IO:
 #     input/output-file, r/w-byte, read-line, write-string
-#     eof-object? input-command output-command exit
+#     eof-object? input-pipe output-pipe exit
 # * IO is utf-8 and there is no "file-mode".
 # * For byte access there are byte-io functions.
 # * char- and string-literals with a few escapes
@@ -135,7 +135,7 @@
 # * No |n a m e s| and no fold-case mode.  Recommended restriction
 #   to ascii names.  But utf8 accepted in char- or string-literal.
 #   Names cannot start in a '.' or a '@' but may contain them.
-# * FS/System ops, as there is i.e input-command
+# * FS/System ops, as there is i.e input-pipe
 # * define-syntax; instead powerful "unhygienic" lisp macro
 # * Char, but number parsed for #\ and with utf-8 support.
 # * Only octal escape for bytes in string.
@@ -143,7 +143,6 @@
 #
 # Note:  (beware)
 #
-# * a command port will hang if lambda gives away a ref to it.
 # * The datums in a case are evaluated, when they are as of
 #     r7rs implicitly to be quoted.
 # * cont?? and #void shall be considered non-existent and
@@ -2771,8 +2770,8 @@ def f_write_string(*args):
 
 import subprocess
 
-def f_open_input_command(*args):
-    fn = "open-input-command"
+def f_with_input_pipe(*args):
+    fn = "with-input-pipe"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -2789,8 +2788,8 @@ def f_open_input_command(*args):
     c = u.wait()
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
-def f_open_output_command(*args):
-    fn = "open-output-command"
+def f_with_output_pipe(*args):
+    fn = "with-output-pipe"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
     fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
@@ -3241,8 +3240,8 @@ def init_env(names):
             ("read-line", f_read_line),
             ("write-byte", f_write_byte),
             ("write-string", f_write_string),
-            ("open-input-command", f_open_input_command),
-            ("open-output-command", f_open_output_command),
+            ("with-input-pipe", f_with_input_pipe),
+            ("with-output-pipe", f_with_output_pipe),
             ("open-output-string", f_open_output_string),
             ("output-string-get", f_output_string_get),
             ("output-string-get-bytes", f_output_string_get_bytes),

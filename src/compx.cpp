@@ -434,6 +434,12 @@ void print(EnvEntry a, Names & n, std::ostream & os)
 
 bool warn_off;
 
+void warn(const std::string & m)
+{
+    if (warn_off) return;
+    cerr << "warn: " << m << endl;
+}
+
 void warn(const string & m, span<EnvEntry> e)
 {
     if (warn_off) return;

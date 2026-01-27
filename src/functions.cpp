@@ -511,7 +511,9 @@ EnvEntry setjj(span<EnvEntry> args)
 EnvEntry f_setj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set! argc");
-    if (args[0]->index() != args[1]->index()) {
+    if (not ((valt_in<VarCons, VarList, VarNonlist>(*args[0])
+                    and valt_in<VarCons, VarList, VarNonlist>(*args[1]))
+                or args[0]->index() == args[1]->index())) {
         warn("set! to different type", args);
     }
     return setjj(args);
