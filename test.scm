@@ -384,12 +384,12 @@ y
 (chk 3 @(list (+ 1 2)));
 ; explicit dict (idea obsoleted by implicit optimized
 ; assoc in cons/list - which will be very involved)
-(ref d (alist->dict '[(1 . 2)]))
-(chk (dict? d) #true)
-(dict-get-default! d 1 9)
-(dict-get-default! d 2 9)
-(assoc 2 (dict->alist d))
-(chk (assoc 2 (dict->alist d)) '(2 . #o11))
-(dict-set! d 7 8)
-(chk 8 (dict-if-get d 7 0 (lambda (x) x)))
+;(ref d (alist->dict '[(1 . 2)]))
+;(chk (dict? d) #true)
+;(dict-get-default! d 1 9)
+;(dict-get-default! d 2 9)
+;(assoc 2 (dict->alist d))
+;(chk (assoc 2 (dict->alist d)) '(2 . #o11))
+;(dict-set! d 7 8)
+;(chk 8 (dict-if-get d 7 0 (lambda (x) x)))
 

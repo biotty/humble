@@ -135,6 +135,24 @@ void delete_input_pipe(void * u)
     delete static_cast<InputPipe *>(u);
 }
 
+struct OutputString {
+    string s;
+    OutputString() { }
+    void put(int i)
+    {
+        s.push_back(static_cast<unsigned char>(i));
+    }
+    void put(string t)
+    {
+        s += t;
+    }
+};
+
+void delete_output_string(void * u)
+{
+    delete static_cast<OutputString *>(u);
+}
+
 Names * u_names;
 
 VarExt & vext_or_fail(const vector<int> & ts, span<EnvEntry> args, size_t i, string s)
@@ -156,6 +174,7 @@ int t_eof_object;
 int t_input_string;
 int t_input_file;
 int t_input_pipe;
+int t_output_string;
 
 EnvEntry make_eof()
 {
@@ -180,7 +199,8 @@ EnvEntry f_portp(span<EnvEntry> args)
             t == t_eof_object
             or t == t_input_string
             or t == t_input_file
-            or t == t_input_pipe});
+            or t == t_input_pipe
+            or t == t_output_string});
 }
 
 string get_line(int k, function<int()> get)
@@ -298,6 +318,66 @@ EnvEntry f_read_line(span<EnvEntry> args)
     return make_shared<Var>(VarString{r});
 }
 
+EnvEntry f_open_output_string(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("open-output-string argc");
+    auto r = VarExt{t_output_string};
+    r.u = new OutputString{};
+    r.f = delete_output_string;
+    return make_shared<Var>(move(r));
+}
+
+EnvEntry f_output_string_get(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("output-string-get argc");
+    auto & e = vext_or_fail({t_output_string}, args, 0, "output-string-get");
+    auto p = static_cast<OutputString *>(e.u);
+    return make_shared<Var>(VarString{p->s});
+}
+
+EnvEntry f_output_string_get_bytes(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("o-s-g-b argc");
+    auto & e = vext_or_fail({t_output_string}, args, 0, "o-s-g-b");
+    auto p = static_cast<OutputString *>(e.u);
+    vector<EnvEntry> r;
+    for (auto i : p->s) {
+        int u = static_cast<unsigned char>(i);
+        r.push_back(make_shared<Var>(VarNum{u}));
+    }
+    return make_shared<Var>(VarList{move(r)});
+}
+
+EnvEntry f_write_byte(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("write-byte argc");
+    if (not holds_alternative<VarNum>(*args[0]))
+        throw RunError("write-byte args[0] takes number");
+    auto & e = vext_or_fail(
+            {t_output_string},
+            args, 1, "write-byte");
+    int i = get<VarNum>(*args[0]).i;
+    if (e.t == t_output_string)
+        static_cast<OutputString *>(e.u)->put(i);
+    else abort();
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_write_string(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("write-string argc");
+    if (not holds_alternative<VarString>(*args[0]))
+        throw RunError("write-string args[0] takes string");
+    auto & e = vext_or_fail(
+            {t_output_string},
+            args, 1, "write-string");
+    string s = get<VarString>(*args[0]).s;
+    if (e.t == t_output_string)
+        static_cast<OutputString *>(e.u)->put(s);
+    else abort();
+    return make_shared<Var>(VarVoid{});
+}
+
 } // ans
 
 namespace humble {
@@ -308,6 +388,7 @@ void io_functions(Names & n)
     t_input_string = n.intern("input-string");
     t_input_file = n.intern("input-file");
     t_input_pipe = n.intern("input-pipe");
+    t_output_string = n.intern("output-string");
     auto & g = GlobalEnv::instance();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
     for (auto & p : initializer_list<pair<string, hp>>{
@@ -319,6 +400,11 @@ void io_functions(Names & n)
             { "with-input-pipe", f_with_input_pipe },
             { "read-byte", f_read_byte },
             { "read-line", f_read_line },
+            { "open-output-string", f_open_output_string },
+            { "output-string-get", f_output_string_get },
+            { "output-string-get-bytes", f_output_string_get_bytes },
+            { "write-byte", f_write_byte },
+            { "write-string", f_write_string },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 

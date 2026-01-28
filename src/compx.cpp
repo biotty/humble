@@ -388,11 +388,9 @@ void print(EnvEntry a, Names & n, std::ostream & os)
     visit([&n, &os, &a](auto && z) {
             using T = decay_t<decltype(z)>;
             if constexpr (is_same_v<T, VarList>) {
-                if (z.v.empty()) {
-                    os << "'()";
-                    return;
-                }
                 char c = '(';
+                if (z.v.empty())
+                    os << c;
                 for (auto & w : z.v) {
                     os << c;
                     print(w, n, os);
