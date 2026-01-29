@@ -356,6 +356,7 @@ class RunError(Exception):
 
 def put(f, a):
     f.write(" ".join([str(x) for x in a]) + "\n")
+    f.flush()
 
 verbose = False
 def set_verbose(v):

@@ -12,7 +12,6 @@
 // for pipe
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -71,7 +70,7 @@ struct InputPipe {
             auto x = j->get();
             if (not x) break;
             if (not holds_alternative<VarString>(*x))
-                throw RunError("command element not string");
+                throw RunError("input-command element not string");
             auto s = ::get<VarString>(*x).s;
             argv[i] = strdup(s.c_str());
         }
@@ -86,8 +85,6 @@ struct InputPipe {
             perror("fork");
         } else if (pid == 0) {
             close(fd);
-            int null = open("/dev/null", 0);
-            dup2(null, 0);
             dup2(pfd[1], 1);
             execvp(argv[0], argv);
             _Exit(1);
@@ -153,6 +150,128 @@ void delete_output_string(void * u)
     delete static_cast<OutputString *>(u);
 }
 
+struct OutputFile {
+    ofstream ofs;
+    OutputFile(string s) : ofs(s, std::ios_base::binary)
+    {
+        if (not ofs.is_open()) throw std::runtime_error(
+                "Failed to open output-file by name '" + s + "'");
+    }
+    void put(int i)
+    {
+        unsigned char r = i;
+        if (ofs.write(reinterpret_cast<char *>(&r), 1)) return;
+        if (not ofs.eof()) warn("file-write error");
+        ofs.close();
+    }
+    void put(string s)
+    {
+        ofs << s;
+        if (not ofs) {
+            warn("file-write error");
+            ofs.close();
+        }
+    }
+};
+
+void delete_output_file(void * u)
+{
+    delete static_cast<OutputFile *>(u);
+}
+
+struct OutputPipe {
+    int fd;
+    int pid;
+    OutputPipe(unique_ptr<ConsOrListIter> j)
+    {
+        char * argv[MAX_ARGV + 1] = {};
+        for (int i = 0; i < MAX_ARGV; ++i) {
+            auto x = j->get();
+            if (not x) break;
+            if (not holds_alternative<VarString>(*x))
+                throw RunError("output-command element not string");
+            auto s = ::get<VarString>(*x).s;
+            argv[i] = strdup(s.c_str());
+        }
+        int pfd[2];
+        if (pipe(pfd) == -1) {
+            perror("pipe");
+            exit(1);
+        }
+        fd = pfd[1];
+        pid = fork();
+        if (pid == -1) {
+            perror("fork");
+        } else if (pid == 0) {
+            close(fd);
+            dup2(pfd[0], 0);
+            execvp(argv[0], argv);
+            _Exit(1);
+        } else {
+            close(pfd[0]);
+        }
+        for (int i = 0; argv[i]; ++i) free(argv[i]);
+    }
+    bool complete_write(const char * s, size_t n)
+    {
+        size_t i{};
+        while (i != n) {
+            int r = write(fd, s, n);
+            if (r < 0) {
+                if (errno == EAGAIN) continue;
+                if (errno == EINTR) continue;
+                return false;
+            }
+            s += r;
+            n -= r;
+        }
+        return true;
+    }
+    void put(int i)
+    {
+        if (fd < 0) return;
+        unsigned char c = i;
+        if (complete_write(reinterpret_cast<char *>(&c), 1))
+            return;
+        perror("write");
+        close(fd);
+        fd = -1;
+    }
+    void put(string s)
+    {
+        if (fd < 0) return;
+        if (complete_write(s.c_str(), s.size()))
+            return;
+        perror("write");
+        close(fd);
+        fd = -1;
+    }
+    [[nodiscard]] int done()
+    {
+        if (fd >= 0) {
+            close(fd);
+            fd = -1;
+        }
+        int status = -1;
+        if (pid > 0) {
+            if (waitpid(pid, &status, 0) == -1) perror("waitpid");
+            pid = -1;
+        }
+        return status;
+    }
+    ~OutputPipe()
+    {
+        int i;
+        if (fd >= 0) close(fd);
+        if (pid > 0) waitpid(pid, &i, 0);
+    }
+};
+
+void delete_output_pipe(void * u)
+{
+    delete static_cast<OutputPipe *>(u);
+}
+
 Names * u_names;
 
 VarExt & vext_or_fail(const vector<int> & ts, span<EnvEntry> args, size_t i, string s)
@@ -175,6 +294,8 @@ int t_input_string;
 int t_input_file;
 int t_input_pipe;
 int t_output_string;
+int t_output_file;
+int t_output_pipe;
 
 EnvEntry make_eof()
 {
@@ -200,7 +321,9 @@ EnvEntry f_portp(span<EnvEntry> args)
             or t == t_input_string
             or t == t_input_file
             or t == t_input_pipe
-            or t == t_output_string});
+            or t == t_output_string
+            or t == t_output_file
+            or t == t_output_pipe});
 }
 
 string get_line(int k, function<int()> get)
@@ -348,17 +471,52 @@ EnvEntry f_output_string_get_bytes(span<EnvEntry> args)
     return make_shared<Var>(VarList{move(r)});
 }
 
+EnvEntry f_open_output_file(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("open-output-file argc");
+    if (not holds_alternative<VarString>(*args[0]))
+        throw RunError("open-output-file args[0] takes string");
+    auto r = VarExt{t_output_file};
+    r.u = new OutputFile{get<VarString>(*args[0]).s};
+    r.f = delete_output_file;
+    return make_shared<Var>(move(r));
+}
+
+EnvEntry f_with_output_pipe(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("with-output-pipe argc");
+    if (not holds_alternative<VarList>(*args[0])
+            and not holds_alternative<VarCons>(*args[0]))
+        throw RunError("with-output-pipe args[0] takes list");
+    if (not holds_alternative<VarFunHost>(*args[1])
+            and not holds_alternative<VarFunOps>(*args[1]))
+        throw RunError("with-output-pipe args[1] takes procedure");
+    auto p = new OutputPipe{make_iter(*args[0])};
+    auto k = make_shared<Var>(VarExt{t_output_pipe});
+    get<VarExt>(*k).u = p;
+    get<VarExt>(*k).f = delete_output_pipe;
+    vector<EnvEntry> x{args[1], k};
+    auto y = fun_call(x);
+    int status = p->done();
+    vector<EnvEntry> v{make_shared<Var>(VarNum{status}), y};
+    return make_shared<Var>(VarNonlist{move(v)});
+}
+
 EnvEntry f_write_byte(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("write-byte argc");
     if (not holds_alternative<VarNum>(*args[0]))
         throw RunError("write-byte args[0] takes number");
     auto & e = vext_or_fail(
-            {t_output_string},
+            {t_output_string, t_output_file, t_output_pipe},
             args, 1, "write-byte");
     int i = get<VarNum>(*args[0]).i;
     if (e.t == t_output_string)
         static_cast<OutputString *>(e.u)->put(i);
+    else if (e.t == t_output_file)
+        static_cast<OutputFile *>(e.u)->put(i);
+    else if (e.t == t_output_pipe)
+        static_cast<OutputPipe *>(e.u)->put(i);
     else abort();
     return make_shared<Var>(VarVoid{});
 }
@@ -369,11 +527,15 @@ EnvEntry f_write_string(span<EnvEntry> args)
     if (not holds_alternative<VarString>(*args[0]))
         throw RunError("write-string args[0] takes string");
     auto & e = vext_or_fail(
-            {t_output_string},
+            {t_output_string, t_output_file, t_output_pipe},
             args, 1, "write-string");
     string s = get<VarString>(*args[0]).s;
     if (e.t == t_output_string)
         static_cast<OutputString *>(e.u)->put(s);
+    else if (e.t == t_output_file)
+        static_cast<OutputFile *>(e.u)->put(s);
+    else if (e.t == t_output_pipe)
+        static_cast<OutputPipe *>(e.u)->put(s);
     else abort();
     return make_shared<Var>(VarVoid{});
 }
@@ -384,11 +546,14 @@ namespace humble {
 
 void io_functions(Names & n)
 {
+    u_names = &n;
     t_eof_object = n.intern("eof-object");
     t_input_string = n.intern("input-string");
     t_input_file = n.intern("input-file");
     t_input_pipe = n.intern("input-pipe");
     t_output_string = n.intern("output-string");
+    t_output_file = n.intern("output-file");
+    t_output_pipe = n.intern("output-pipe");
     auto & g = GlobalEnv::instance();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
     for (auto & p : initializer_list<pair<string, hp>>{
@@ -401,6 +566,8 @@ void io_functions(Names & n)
             { "read-byte", f_read_byte },
             { "read-line", f_read_line },
             { "open-output-string", f_open_output_string },
+            { "open-output-file", f_open_output_file },
+            { "with-output-pipe", f_with_output_pipe },
             { "output-string-get", f_output_string_get },
             { "output-string-get-bytes", f_output_string_get_bytes },
             { "write-byte", f_write_byte },
