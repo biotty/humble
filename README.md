@@ -23,7 +23,7 @@ instead of on environment.  Also, these lvalues are
 passed as lambda-parameters without copying them
 (as can be done by the "dup" or the "local" macro).
 Lists are contiguous till cdr-used (or a reference to
-it shared):  This is significant efficiency-gain
+it shared):  This is a significant efficiency-gain
 that would not have effect if we implicitly "dup"
 at each parameter-pass as done in traditional scheme.
 "define" will "dup" (of-course no copy if sole ref),
@@ -34,13 +34,14 @@ The implementation in C++ is found under "src" where
 "manifest.txt" describes layout.  There are no
 dependencies for the interpreter itself, but you may
 embed it and thus extend with your own functions.
-Not even the C++ standard "<algorithm>" is used, and it
+Not even the C++ standard "algorithm" is used, and it
 should be trivial to build without exceptions, if that
 is desired.
 
-For the curses extension in C++ add dep ncurses-dev and
-uncomment building it in the src/CMakeLists.txt and
-then you may run the snake game on the interpreter.
+The curses extension is added as an example, and if
+not desired, that so-module target as well as -fPIC
+may be dropped from the build.  But then there is
+no snake game.
 
 # Compiling the Interpreter
 
@@ -53,8 +54,8 @@ sh all.sh
 
 ## C++ environment help
 ```
-sudo apt install build-essential cmake libgtest-dev
-#                ncurses-dev  # for nc-example
+sudo apt install build-essential cmake libgtest-dev \
+                 curses-dev  # for snake-game example
 ( cd /usr/src/googletest
   ; sudo cmake .
   ; sudo cmake --build . --target install

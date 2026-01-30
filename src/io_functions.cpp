@@ -4,6 +4,7 @@
 #include "cons.hpp"
 #include "compx.hpp"
 #include "xeval.hpp"
+#include "dl.hpp"
 #include "debug.hpp"
 #include <functional>
 #include <sstream>
@@ -14,8 +15,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-
-constexpr int MAX_ARGV = 30;
 
 using namespace humble;
 using namespace std;
@@ -59,6 +58,8 @@ void delete_input_file(void * u)
 {
     delete static_cast<InputFile *>(u);
 }
+
+constexpr int MAX_ARGV = 30;
 
 struct InputPipe {
     int fd;

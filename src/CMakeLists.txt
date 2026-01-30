@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.14)
 project(humble CXX)
 set(CMAKE_CXX_STANDARD 23)
 enable_testing()
+set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+# ^ only needed to support extension modules
 add_compile_options(-Wall -Wextra -Werror
     # -Wshadow     # for potential tidyup
 )
@@ -27,14 +29,13 @@ add_library(Humble
     debug.cpp
     except.cpp)
 
-# add_library(nc.so nc.cpp)  # TODO: dlopen reg(env)
-# uncomment:
-#   for the nc extension
-
 set(LIBS Humble
     # -lstdc++exp # when DEBUG, to allow backtrace
     # -lasan      # when sanitize address enabled.
 )
+
+add_library(dl_curses SHARED dl_curses.cpp)
+target_link_libraries(dl_curses ${LIBS})
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})

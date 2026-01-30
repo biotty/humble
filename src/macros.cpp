@@ -144,6 +144,7 @@ Lex m_let(LexForm && s, bool rec = false)
     if (s.v.size() < 2) throw SrcError("let argc");
     if (holds_alternative<LexNam>(s.v[1]))
         return named_let(move(s));
+    malt_or_fail<LexForm>(s.v[1], "let[1] not form");
     LexForm lbd{{LexOp{OP_LAMBDA}}};
     auto [a, v] = bnd_unzip(get<LexForm>(s.v[1]));
     LexArgs t;
@@ -157,7 +158,7 @@ Lex m_let(LexForm && s, bool rec = false)
     lbd.v.push_back(LexArgs{u.begin(), u.end()});
     if (s.v.size() == 2) lbd.v.push_back(LexVoid{});
     else move(s.v.begin() + 2, s.v.end(), back_inserter(lbd.v));
-    LexForm r{{lbd}};
+    LexForm r{{move(lbd)}};
     move(v.begin(), v.end(), back_inserter(r.v));
     if (rec) {
         recset(r);
@@ -168,7 +169,7 @@ Lex m_let(LexForm && s, bool rec = false)
 
 Lex m_letx(LexForm && s, bool rec = false)
 {
-    if (s.v.size() < 2) throw SrcError("let* argc");
+    if (s.v.size() < 2) return m_let(move(s), rec);
     malt_or_fail<LexForm>(s.v[1], "let*.1 expected sub-form");
     auto & f = get<LexForm>(s.v[1]);
     if (f.v.empty())
@@ -199,7 +200,7 @@ Lex m_letx(LexForm && s, bool rec = false)
         move(block.v.begin(), block.v.end(), back_inserter(lbd.v));
         LexForm r{{move(lbd), move(y)}};
         if (rec) recset(r);
-        block.v = {r};
+        block.v = {move(r)};
     }
     auto r = move(get<LexForm>(block.v[0]));
     if (rec) r = rectmp(r, t);
@@ -208,8 +209,9 @@ Lex m_letx(LexForm && s, bool rec = false)
 
 Lex named_let(LexForm && s)
 {
-    malt_or_fail<LexNam>(s.v[1], "let not name");
+    malt_or_fail<LexNam>(s.v[1], "let[1] not name");
     auto name = get<LexNam>(s.v[1]);
+    malt_or_fail<LexForm>(s.v[2], "let[2] not form");
     auto [a, v] = bnd_unzip(get<LexForm>(s.v[2]));
     span<Lex> blk{s.v.begin() + 3, s.v.end()};
     ::set<int> k{a.begin(), a.end()};
@@ -218,10 +220,10 @@ Lex named_let(LexForm && s)
         u.push_back(m);
     LexForm lbd{{LexOp{OP_LAMBDA}, a, u}};
     move(blk.begin(), blk.end(), back_inserter(lbd.v));
-    LexForm bnd{{LexForm{{name, lbd}}}};
+    LexForm bnd{{LexForm{{name, move(lbd)}}}};
     LexForm x{{name}};
     move(v.begin(), v.end(), back_inserter(x.v));
-    LexForm r{{LexOp{}, bnd, x}};
+    LexForm r{{LexOp{}, move(bnd), move(x)}};
     return m_let(move(r), true);
 }
 

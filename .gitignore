@@ -8,4 +8,5 @@
 /build.ninja
 /Testing
 /libHumble.a
+/libdl_curses.so
 /humble

@@ -3,10 +3,14 @@
 #include "top.hpp"
 #include "functions.hpp"
 #include "io_functions.hpp"
+#include "dl.hpp"
 #include "except.hpp"
 #include <fstream>
 #include <iostream>
 #include <list>
+
+// dlopen
+#include <dlfcn.h>
 
 using namespace humble;
 using namespace std;
@@ -57,6 +61,21 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
     errout("error", e.what(), fn);
 }
 
+void load_lib(Names & n, GlobalEnv & env, string path, string sym)
+{
+    void * dl = dlopen(path.c_str(), RTLD_NOW);
+    if (not dl) {
+        warn(path + " not loaded");
+    } else {
+        auto f = (dl_fn)dlsym(dl, sym.c_str());
+        if (not f) warn(sym + ": " + dlerror());
+        else {
+            dl_arg a = { &n, &env };
+            f(&a);
+        }
+    }
+}
+
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
@@ -64,12 +83,15 @@ int main(int argc, char ** argv)
     // there instead. can still dispose explicitly in tests.
     Names names = init_names();
     init_functions(names);
-    io_functions(names);
     // placeholder: reg more functions
+    io_functions(names);
+    // ^ also serves as example of extension types, VarExt
+
     Macros macros;
     Opener opener;
     init_macros(macros, names, opener);
     // evt: insert here more language-macros
+
     top_included(names, macros);
     auto env = init_top(macros);
     if (argc == 2) {
@@ -78,6 +100,10 @@ int main(int argc, char ** argv)
         compxrun(ast, src, names, macros, env, opener.filename);
         exit(0);
     }
+
+    load_lib(names, env, "./libdl_curses.so", "dl_curses");
+    // unstick: auto-load (current) directory libdl_xxx.so:dl_xxx()
+
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
     list<LexForm> x;
