@@ -5,6 +5,7 @@
 #include "compx.hpp"
 #include "xeval.hpp"
 #include "dl.hpp"
+#include "fun_impl.hpp"
 #include "debug.hpp"
 #include <functional>
 #include <sstream>
@@ -15,6 +16,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+
+// for misc
+#include <ctime>
+#include <cmath>
 
 using namespace humble;
 using namespace std;
@@ -273,21 +278,19 @@ void delete_output_pipe(void * u)
     delete static_cast<OutputPipe *>(u);
 }
 
-Names * u_names;
-
-VarExt & vext_or_fail(const vector<int> & ts, span<EnvEntry> args, size_t i, string s)
-{
-    ostringstream oss;
-    oss << s << " args[" << i << "] ";
-    if (not holds_alternative<VarExt>(*args[i])) {
-        oss << var_type_name(*args[i]);
-        throw RunError(oss.str());
-    } else if (auto u = get<VarExt>(*args[i]).t;
-            find(ts.begin(), ts.end(), u) == ts.end()) {
-        oss << "ext:" << u_names->get(u);
-        throw RunError(oss.str());
+struct PrngState {
+    char statebuf[32];
+    random_data buf;
+    PrngState(unsigned int seed) {
+        buf.state = NULL;
+        initstate_r(0, statebuf, sizeof statebuf, &buf);
+        srandom_r(seed, &buf);
     }
-    return get<VarExt>(*args[i]);
+};
+
+void delete_prng_state(void * u)
+{
+    delete static_cast<PrngState *>(u);
 }
 
 int t_eof_object;
@@ -297,6 +300,7 @@ int t_input_pipe;
 int t_output_string;
 int t_output_file;
 int t_output_pipe;
+int t_prng_state;
 
 EnvEntry make_eof()
 {
@@ -340,8 +344,7 @@ string get_line(int k, function<int()> get)
 EnvEntry f_open_input_string(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("open-input-string argc");
-    if (not holds_alternative<VarString>(*args[0]))
-        throw RunError("open-input-string args[0] takes string");
+    valt_or_fail<VarString>(args, 0, "open-input-string");
     auto r = VarExt{t_input_string};
     r.u = new InputString{get<VarString>(*args[0]).s};
     r.f = delete_input_string;
@@ -350,10 +353,8 @@ EnvEntry f_open_input_string(span<EnvEntry> args)
 
 EnvEntry f_open_input_string_bytes(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("open-input-string-bytes argc");
-    if (not holds_alternative<VarCons>(*args[0])
-            and not holds_alternative<VarList>(*args[0]))
-        throw RunError("open-input-string-bytes args[0] takes list");
+    if (args.size() != 1) throw RunError("o-i-s-b argc");
+    valt_or_fail<VarCons, VarList>(args, 0, "o-i-s-b");
     auto j = make_iter(*args[0]);
     string s;
     for (;;) {
@@ -373,8 +374,7 @@ EnvEntry f_open_input_string_bytes(span<EnvEntry> args)
 EnvEntry f_open_input_file(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("open-input-file argc");
-    if (not holds_alternative<VarString>(*args[0]))
-        throw RunError("open-input-file args[0] takes string");
+    valt_or_fail<VarString>(args, 0, "open-input-file");
     auto r = VarExt{t_input_file};
     r.u = new InputFile{get<VarString>(*args[0]).s};
     r.f = delete_input_file;
@@ -384,12 +384,8 @@ EnvEntry f_open_input_file(span<EnvEntry> args)
 EnvEntry f_with_input_pipe(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("with-input-pipe argc");
-    if (not holds_alternative<VarList>(*args[0])
-            and not holds_alternative<VarCons>(*args[0]))
-        throw RunError("with-input-pipe args[0] takes list");
-    if (not holds_alternative<VarFunHost>(*args[1])
-            and not holds_alternative<VarFunOps>(*args[1]))
-        throw RunError("with-input-pipe args[1] takes procedure");
+    valt_or_fail<VarCons, VarList>(args, 0, "with-input-pipe");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-input-pipe");
     auto p = new InputPipe{make_iter(*args[0])};
     auto k = make_shared<Var>(VarExt{t_input_pipe});
     get<VarExt>(*k).u = p;
@@ -475,8 +471,7 @@ EnvEntry f_output_string_get_bytes(span<EnvEntry> args)
 EnvEntry f_open_output_file(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("open-output-file argc");
-    if (not holds_alternative<VarString>(*args[0]))
-        throw RunError("open-output-file args[0] takes string");
+    valt_or_fail<VarString>(args, 0, "open-output-file");
     auto r = VarExt{t_output_file};
     r.u = new OutputFile{get<VarString>(*args[0]).s};
     r.f = delete_output_file;
@@ -486,12 +481,8 @@ EnvEntry f_open_output_file(span<EnvEntry> args)
 EnvEntry f_with_output_pipe(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("with-output-pipe argc");
-    if (not holds_alternative<VarList>(*args[0])
-            and not holds_alternative<VarCons>(*args[0]))
-        throw RunError("with-output-pipe args[0] takes list");
-    if (not holds_alternative<VarFunHost>(*args[1])
-            and not holds_alternative<VarFunOps>(*args[1]))
-        throw RunError("with-output-pipe args[1] takes procedure");
+    valt_or_fail<VarCons, VarList>(args, 0, "with-output-pipe");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-output-pipe");
     auto p = new OutputPipe{make_iter(*args[0])};
     auto k = make_shared<Var>(VarExt{t_output_pipe});
     get<VarExt>(*k).u = p;
@@ -506,8 +497,7 @@ EnvEntry f_with_output_pipe(span<EnvEntry> args)
 EnvEntry f_write_byte(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("write-byte argc");
-    if (not holds_alternative<VarNum>(*args[0]))
-        throw RunError("write-byte args[0] takes number");
+    valt_or_fail<VarNum>(args, 0, "write-byte");
     auto & e = vext_or_fail(
             {t_output_string, t_output_file, t_output_pipe},
             args, 1, "write-byte");
@@ -525,8 +515,7 @@ EnvEntry f_write_byte(span<EnvEntry> args)
 EnvEntry f_write_string(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("write-string argc");
-    if (not holds_alternative<VarString>(*args[0]))
-        throw RunError("write-string args[0] takes string");
+    valt_or_fail<VarString>(args, 0, "write-string");
     auto & e = vext_or_fail(
             {t_output_string, t_output_file, t_output_pipe},
             args, 1, "write-string");
@@ -541,12 +530,77 @@ EnvEntry f_write_string(span<EnvEntry> args)
     return make_shared<Var>(VarVoid{});
 }
 
+EnvEntry f_clock(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("clock argc");
+    time_t r;
+    (void)time(&r);
+    return make_shared<Var>(VarNum{r});
+}
+
+constexpr long long JIFFIES_PER_SECOND = 1000;
+static timespec u_zt;
+
+EnvEntry f_current_jiffy(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("current-jiffy argc");
+    long long r{};
+    if (u_zt.tv_sec == 0) {
+        (void)clock_gettime(CLOCK_MONOTONIC, &u_zt);
+    } else {
+        timespec ts{};
+        (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+        r = ((ts.tv_sec - u_zt.tv_sec)
+                + 1e-9 * double(ts.tv_nsec - u_zt.tv_nsec))
+            * JIFFIES_PER_SECOND;
+    }
+    return make_shared<Var>(VarNum{r});
+}
+
+EnvEntry f_pause(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("pause argc");
+    valt_or_fail<VarNum>(args, 0, "pause");
+    auto p = get<VarNum>(*args[0]).i * 1e9 / JIFFIES_PER_SECOND;
+    if (p > 0) {
+        timespec ts;
+        timespec rem;
+        ts.tv_sec = p * 1e-9;
+        ts.tv_nsec = fmod(p, 1e9);
+        nanosleep(&ts, &rem);
+        // TODO: on ind re-do w rem
+    }
+    return make_shared<Var>(VarVoid{});
+}
+
+EnvEntry f_make_prng_state(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("make-prng-state argc");
+    valt_or_fail<VarNum>(args, 0, "make-prng-state");
+    unsigned int seed = get<VarNum>(*args[0]).i;
+    auto r = VarExt{t_prng_state};
+    r.u = new PrngState(seed);
+    r.f = delete_prng_state;
+    return make_shared<Var>(move(r));
+}
+
+EnvEntry f_prng_get(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("prng-get argc");
+    auto & e = vext_or_fail({t_prng_state}, args, 0, "prng-get");
+    int32_t result;
+    (void)random_r(&static_cast<PrngState *>(e.u)->buf, &result);
+    return make_shared<Var>(VarNum{result});
+}
+
 } // ans
 
 namespace humble {
 
 void io_functions(Names & n)
 {
+    if (u_names and u_names != &n)
+        throw CoreError("io_functions on separate intern");
     u_names = &n;
     t_eof_object = n.intern("eof-object");
     t_input_string = n.intern("input-string");
@@ -555,6 +609,7 @@ void io_functions(Names & n)
     t_output_string = n.intern("output-string");
     t_output_file = n.intern("output-file");
     t_output_pipe = n.intern("output-pipe");
+    t_prng_state = n.intern("prng-state");
     auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
     for (auto & p : initializer_list<pair<string, hp>>{
@@ -573,6 +628,11 @@ void io_functions(Names & n)
             { "output-string-get-bytes", f_output_string_get_bytes },
             { "write-byte", f_write_byte },
             { "write-string", f_write_string },
+            { "clock", f_clock },
+            { "current-jiffy", f_current_jiffy },
+            { "pause", f_pause },
+            { "make-prng-state", f_make_prng_state },
+            { "prng-get", f_prng_get },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 

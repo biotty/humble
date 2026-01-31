@@ -66,6 +66,9 @@ void top_included(Names & names, Macros & macros)
     ,@getter-defs
     ,@setter-defs
 ))
+(ref (make-prng i) (ref s (make-prng-state i))
+  (lambda (a b) (+ a (/ (* (- b a) (prng-get s))
+    4294967296))))
 (macro class procs
   (ref (gen-case proc)
     `((',proc) ,proc))

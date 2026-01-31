@@ -5,6 +5,7 @@
 #include "xeval.hpp"
 #include "compx.hpp"
 #include "utf.hpp"
+#include "fun_impl.hpp"
 #include "debug.hpp"
 #include <iostream>
 #include <sstream>
@@ -15,23 +16,6 @@ using namespace humble;
 using namespace std;
 
 namespace {
-
-template <typename T, typename... Ts>
-bool valt_in(Var & v)
-{
-    if (holds_alternative<T>(v)) return true;
-    if constexpr (sizeof...(Ts) != 0) return valt_in<Ts...>(v);
-    return false;
-}
-
-template <typename... Ts>
-void valt_or_fail(span<EnvEntry> args, size_t i, string s)
-{
-    if (valt_in<Ts...>(*args[i])) return;
-    ostringstream oss;
-    oss << s << " args[" << i << "] " << var_type_name(*args[i]);
-    throw RunError(oss.str());
-}
 
 //
 // cons, (non)list
@@ -753,8 +737,6 @@ EnvEntry f_list_z_string(span<EnvEntry> args)
     return make_shared<Var>(VarString{move(s)});
 }
 
-Names * u_names;
-
 EnvEntry f_symbol_z_string(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("symbol->string argc");
@@ -1202,6 +1184,8 @@ namespace humble {
 
 void init_functions(Names & n)
 {
+    if (u_names and u_names != &n)
+        throw CoreError("functions on separate intern");
     u_names = &n;
     auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);

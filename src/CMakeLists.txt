@@ -7,7 +7,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 add_compile_options(-Wall -Wextra -Werror
     # -Wshadow     # for potential tidyup
 )
-# add_compile_options(-DDEBUG)
+add_compile_options(-DDEBUG)
 # add_compile_options(-ggdb -O0)
 # add_compile_options(-fsanitize=address)
 # # alt: valgrind
@@ -15,6 +15,7 @@ add_compile_options(-Wall -Wextra -Werror
 find_package(GTest REQUIRED)
 
 add_library(Humble
+    fun_impl.cpp
     io_functions.cpp
     functions.cpp
     top.cpp
@@ -30,7 +31,7 @@ add_library(Humble
     except.cpp)
 
 set(LIBS Humble
-    # -lstdc++exp # when DEBUG, to allow backtrace
+    -lstdc++exp # when DEBUG, to allow backtrace
     # -lasan      # when sanitize address enabled.
 )
 

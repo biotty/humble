@@ -1,12 +1,27 @@
 #include "debug.hpp"
 
 #include "compx.hpp"
+#include "fun_impl.hpp"  // for u_names
 #include <array>
 
 using namespace humble;
 using namespace std;
 
 namespace {
+
+string op_repr(int op)
+{
+    switch (op) {
+        case OP_BIND: return "BIND";
+        case OP_COND: return "COND";
+        case OP_LAMBDA: return "LAMBDA";
+        case OP_LAMBDA_DOT: return "LAMBDA_DOT";
+        case OP_SEQ: return "SEQ";
+        case OP_IMPORT: return "IMPORT";
+        case OP_EXPORT: return "EXPORT";
+    }
+    return "<UNKNOWN>";
+}
 
 void out(ostream & os, const LexBeg & x) { os << x.par; }
 void out(ostream & os, const LexEnd & x) { os << x.par; }
@@ -20,7 +35,7 @@ void out(ostream &, const LexR &) { }
 void out(ostream &, const LexQt &) { }
 void out(ostream &, const LexQqt &) { }
 void out(ostream &, const LexUnq &) { }
-void out(ostream & os, const LexNam & x) { os << x.h << ", " << x.line; }
+void out(ostream & os, const LexNam & x) { os << u_names->get(x.h) << " L" << x.line; }
 void out(ostream & os, const LexSym & x) { os << x.h; }
 void out(ostream & os, const LexForm & x);
 void out(ostream & os, const LexList & x);
@@ -31,7 +46,7 @@ void out(ostream & os, const LexQuasiquote & x);
 void out(ostream & os, const LexUnquote & x);
 void out(ostream & os, const LexArgs & x);
 void out(ostream & os, const LexEnv * const & x);
-void out(ostream & os, const LexOp & x) { os << x.code; };
+void out(ostream & os, const LexOp & x) { os << op_repr(x.code); };
 void out(ostream & os, const LexImport & x) { out(os, x.a); os << ", "; out(os, x.b); }
 
 } // ans

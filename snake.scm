@@ -117,7 +117,7 @@
      (nc-addstr scr 0 x (number->string n) 2))
 
 (ref score-path ".snake_score")
-(ref hiscore (case (input-file score-path)
+(ref hiscore (case (open-input-file score-path)
                ((#f) 0)
                (else => (lambda (f)
                  (ref s (read-line f))
@@ -138,7 +138,7 @@
 
 (ref (quit) (nc-endwin)
      (exit (if has-record
-       {case (output-file score-path)
+       {case (open-output-file score-path)
          ((#f) 1)
          (else => [lambda (f)
            (write-string (number->string score) f)
@@ -148,6 +148,7 @@
 (grid-snake @(game 'get-head))
 (let loop ((t (current-jiffy)))
     (ref ch (nc-getch scr))
+    (ref nt 0)
     (cond [(eq? ch #\q)
            (quit)]
           [(game 'is-over)
@@ -161,7 +162,7 @@
             (game 'step! up-score)
             (apply grid-snake (game 'get-head))
             (apply grid-unset (game 'get-butt))
-            (ref nt (current-jiffy))
+            (set! nt (current-jiffy))
             (pause (- JPFR (- nt t)))
             (loop (+ t JPFR))]))
 

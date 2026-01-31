@@ -434,12 +434,15 @@ struct Seq : MacroClone<Seq> {
 
 Lex m_cond(LexForm && s)
 {
+    cout << "m_cond: " << s << endl;  // debug
     s.v[0] = LexOp{OP_COND};
     size_t n = s.v.size();
     size_t i = 1;
     for (; i != n; ++i) {
+        cout << "s.v[" << i << "]: " << s.v[i] << endl;  // debug
         auto & d = get<LexForm>(s.v[i]);
         if (nameq(d.v.at(0), NAM_ELSE)) {
+            // at fires ^ as else-branch from src somehow here is empty
             LexForm r;
             move(s.v.begin(), s.v.begin() + i, back_inserter(r.v));
             LexForm a{{LexOp{}}};
