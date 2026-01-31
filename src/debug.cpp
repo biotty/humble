@@ -20,22 +20,32 @@ string op_repr(int op)
         case OP_IMPORT: return "IMPORT";
         case OP_EXPORT: return "EXPORT";
     }
-    return "<UNKNOWN>";
+    ostringstream oss;
+    oss << op;
+    return oss.str();
+}
+
+string nam_repr(const LexNam & n)
+{
+    ostringstream r;
+    if (u_names) r << u_names->get(n.h) << " L" << n.line;
+    else r << n.h << ", " << n.line;
+    return r.str();
 }
 
 void out(ostream & os, const LexBeg & x) { os << x.par; }
 void out(ostream & os, const LexEnd & x) { os << x.par; }
 void out(ostream & os, const LexNum & x) { os << x.i; }
-void out(ostream & os, const LexBool & x) { os << boolalpha << x.b; }
+void out(ostream & os, const LexBool & x) { os << x.b; }
 void out(ostream &, const LexVoid &) { }
-void out(ostream & os, const LexString & x) { os << '"' << x.s << '"'; }
+void out(ostream & os, const LexString & x) { os << x.s; }
 void out(ostream &, const LexDot &) { }
 void out(ostream &, const LexSpl &) { }
 void out(ostream &, const LexR &) { }
 void out(ostream &, const LexQt &) { }
 void out(ostream &, const LexQqt &) { }
 void out(ostream &, const LexUnq &) { }
-void out(ostream & os, const LexNam & x) { os << u_names->get(x.h) << " L" << x.line; }
+void out(ostream & os, const LexNam & x) { os << nam_repr(x); }
 void out(ostream & os, const LexSym & x) { os << x.h; }
 void out(ostream & os, const LexForm & x);
 void out(ostream & os, const LexList & x);

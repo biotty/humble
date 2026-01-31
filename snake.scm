@@ -19,7 +19,7 @@
 (ref JGOVER 800)
 (ref GROWPF 6)  ; <-- snake growth per frog
 (ref SP "  ")
-(ref SQ (list->string '(0x2588 0x2588)))
+(ref SQ "##")
 ; will operate on grid of double characters, so the
 ; filled "square" are defined by this unicode string
 ; and we may erase with two spaces.
@@ -148,7 +148,6 @@
 (grid-snake @(game 'get-head))
 (let loop ((t (current-jiffy)))
     (ref ch (nc-getch scr))
-    (ref nt 0)
     (cond [(eq? ch #\q)
            (quit)]
           [(game 'is-over)
@@ -162,7 +161,7 @@
             (game 'step! up-score)
             (apply grid-snake (game 'get-head))
             (apply grid-unset (game 'get-butt))
-            (set! nt (current-jiffy))
+            (ref nt (current-jiffy))
             (pause (- JPFR (- nt t)))
             (loop (+ t JPFR))]))
 

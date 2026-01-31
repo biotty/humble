@@ -42,7 +42,7 @@ EnvEntry f_nc_initscr(span<EnvEntry> args)
 EnvEntry f_nc_getmaxyx(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("nc-getmaxyx argc");
-    auto & e = vext_or_fail({t_nc_stdscr}, args, 1, "nc-getmaxyx");
+    auto & e = vext_or_fail({t_nc_stdscr}, args, 0, "nc-getmaxyx");
     auto w = static_cast<WINDOW *>(e.u);
     int y{};
     int x{};
@@ -70,16 +70,19 @@ EnvEntry f_nc_addstr(span<EnvEntry> args)
     auto & s = get<VarString>(*args[3]).s;
     wattrset(w, COLOR_PAIR(c));
     mvwaddstr(w, y, x, s.c_str());
+    // TODO:  convert utf8 to wchar_t values and
+    //        use mvwaddwstr instead here.
     return make_shared<Var>(VarVoid{});
 }
 
 EnvEntry f_nc_getch(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("nc-getch argc");
-    auto & e = vext_or_fail({t_nc_stdscr}, args, 1, "nc-getch");
+    auto & e = vext_or_fail({t_nc_stdscr}, args, 0, "nc-getch");
     auto w = static_cast<WINDOW *>(e.u);
     int r = wgetch(w);
     if (r == KEY_RESIZE) {
+        (void)endwin();
         exit(1);
     }
     return make_shared<Var>(VarNum{r});
@@ -103,6 +106,7 @@ extern "C" void dl_curses(void * a)
             { "nc-initscr", f_nc_initscr },
             { "nc-getmaxyx", f_nc_getmaxyx },
             { "nc-addstr", f_nc_addstr },
+            { "nc-getch", f_nc_getch },
             { "nc-endwin", f_nc_endwin },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }

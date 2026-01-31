@@ -169,7 +169,7 @@ Lex m_let(LexForm && s, bool rec = false)
 
 Lex m_letx(LexForm && s, bool rec = false)
 {
-    if (s.v.size() < 2) return m_let(move(s), rec);
+    if (s.v.size() < 2) throw SrcError("let* argc");
     malt_or_fail<LexForm>(s.v[1], "let*.1 expected sub-form");
     auto & f = get<LexForm>(s.v[1]);
     if (f.v.empty())
@@ -434,15 +434,12 @@ struct Seq : MacroClone<Seq> {
 
 Lex m_cond(LexForm && s)
 {
-    cout << "m_cond: " << s << endl;  // debug
     s.v[0] = LexOp{OP_COND};
     size_t n = s.v.size();
     size_t i = 1;
     for (; i != n; ++i) {
-        cout << "s.v[" << i << "]: " << s.v[i] << endl;  // debug
         auto & d = get<LexForm>(s.v[i]);
         if (nameq(d.v.at(0), NAM_ELSE)) {
-            // at fires ^ as else-branch from src somehow here is empty
             LexForm r;
             move(s.v.begin(), s.v.begin() + i, back_inserter(r.v));
             LexForm a{{LexOp{}}};
@@ -453,13 +450,11 @@ Lex m_cond(LexForm && s)
         }
         if (nameq(d.v.at(1), NAM_THEN)) break;
         if (d.v.size() != 2) {
-            vector<Lex> r{d.v[0]};
+            LexForm r{{d.v[0]}};
             LexForm a{{LexOp{}}};
-            move(s.v.begin() + i, s.v.end(), back_inserter(a.v));
-            Lex b = m_begin(move(a));
-            auto & f = get<LexForm>(b);
-            move(f.v.begin(), f.v.end(), back_inserter(r));
-            s.v[i] = LexForm{move(r)};
+            move(d.v.begin() + 1, d.v.end(), back_inserter(a.v));
+            r.v.push_back(m_begin(move(a)));
+            s.v[i] = move(r);
         }
     }
     if (i == n) return move(s);
