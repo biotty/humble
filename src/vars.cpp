@@ -5,13 +5,13 @@ using namespace std;
 
 namespace humble {
 
-GlobalEnv & GlobalEnv::instance()
+GlobalEnv & GlobalEnv::initial()
 {
     static GlobalEnv r(create_t{});
     return r;
 }
 
-GlobalEnv::GlobalEnv(create_t) : initial{false} { };
+GlobalEnv::GlobalEnv(create_t) : inited{false} { };
 
 EnvEntry GlobalEnv::get(int i)
 {
@@ -31,9 +31,9 @@ void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
 GlobalEnv GlobalEnv::init()
 {
     GlobalEnv r(create_t{});
-    if (this != &instance()) throw CoreError("init on user-env");
-    if (initial) throw CoreError("init more than once");
-    initial = true;
+    if (this != &initial()) throw CoreError("init on user-env");
+    if (inited) throw CoreError("init more than once");
+    inited = true;
     r.m = m;
     return r;
 }

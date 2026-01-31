@@ -341,7 +341,7 @@ struct UserMacro : MacroNotClone<UserMacro>
         for (auto & x : s.v)
             if (&x != &s.v[0])
                 args.push_back(from_lex(x));
-        auto env = OverlayEnv(GlobalEnv::instance());
+        auto env = OverlayEnv(GlobalEnv::initial());
         if (isdot) {
             size_t last = parms.size() - 1;
             if (args.size() < last) throw SrcError("user-macro dot argc");
@@ -628,7 +628,7 @@ struct Scope : MacroClone<Scope> {
     std::set<int> env_keys;
     Scope(Names & names)
         : names(&names)
-        , env_keys(GlobalEnv::instance().keys())
+        , env_keys(GlobalEnv::initial().keys())
     { }
 
     Lex operator()(LexForm && s) override
@@ -687,7 +687,7 @@ public:
         e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener);
         auto src = (*opener)(get<LexString>(s.v[1]).s);
         auto u_ln = linenumber;
-        auto r = compx(src, *names, e_macros, GlobalEnv::instance().keys());
+        auto r = compx(src, *names, e_macros, GlobalEnv::initial().keys());
         string prefix_s;
         bool is_prefix_sym{};
         if (s.v.size() == 3) {

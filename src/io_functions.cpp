@@ -555,7 +555,7 @@ void io_functions(Names & n)
     t_output_string = n.intern("output-string");
     t_output_file = n.intern("output-file");
     t_output_pipe = n.intern("output-pipe");
-    auto & g = GlobalEnv::instance();
+    auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
     for (auto & p : initializer_list<pair<string, hp>>{
             { "port?", f_portp },

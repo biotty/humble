@@ -74,7 +74,7 @@ struct GlobalEnv : Env {
     // note: ^ control construction as primary use is singleton.
     // alternative: split this class in two (secondary use is
     // for testing and in the overlay env implementation)
-    static GlobalEnv & instance();  // get global aka "initial" env
+    static GlobalEnv & initial();
     GlobalEnv(create_t);
     GlobalEnv(Env &) = delete;
     bool operator=(Env &) = delete;
@@ -83,7 +83,7 @@ struct GlobalEnv : Env {
     GlobalEnv init();
     std::set<int> keys();
 private:
-    bool initial;
+    bool inited;
     std::map<int, EnvEntry> m;
 };
 

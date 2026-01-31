@@ -213,7 +213,7 @@ EnvEntry xeval_op(LexForm & f, Env & env)
         }
         throw RunError("all cond #f");
     } else if (op.code == OP_IMPORT) {
-        OverlayEnv e{GlobalEnv::instance()};
+        OverlayEnv e{GlobalEnv::initial()};
         for (auto zi = f.v.begin() + 2; zi != f.v.end(); ++zi)
             run(*zi, e);
         auto & m = get<LexImport>(f.v.at(1));

@@ -61,17 +61,22 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
     errout("error", e.what(), fn);
 }
 
-void load_lib(Names & n, GlobalEnv & env, string path, string sym)
+void load_lib(string name, GlobalEnv & env, Names & n)
 {
+    dl_arg u_arg = { &n, &env };
+    string path = "./libdl_" + name + ".so";
+    string sym = "dl_" + name;
     void * dl = dlopen(path.c_str(), RTLD_NOW);
     if (not dl) {
-        warn(path + " not loaded");
+        cerr << path << " not loaded: " << dlerror() << endl;
+        exit(1);
     } else {
         auto f = (dl_fn)dlsym(dl, sym.c_str());
-        if (not f) warn(sym + ": " + dlerror());
-        else {
-            dl_arg a = { &n, &env };
-            f(&a);
+        if (not f) {
+            cerr << sym << ": " << dlerror() << endl;
+            exit(1);
+        } else {
+            f(&u_arg);
         }
     }
 }
@@ -83,7 +88,6 @@ int main(int argc, char ** argv)
     // there instead. can still dispose explicitly in tests.
     Names names = init_names();
     init_functions(names);
-    // placeholder: reg more functions
     io_functions(names);
     // ^ also serves as example of extension types, VarExt
 
@@ -91,18 +95,19 @@ int main(int argc, char ** argv)
     Opener opener;
     init_macros(macros, names, opener);
     // evt: insert here more language-macros
-
     top_included(names, macros);
     auto env = init_top(macros);
+
+    load_lib("curses", env, names);
+    // todo: ^ from argv -x name and HUMBLE_X=~/bar:/foo
+
+    // todo: for the opener, have HUMBLE_P=~/bar:/foo
     if (argc == 2) {
         auto src = opener(argv[1]);
         LexForm ast;
         compxrun(ast, src, names, macros, env, opener.filename);
         exit(0);
     }
-
-    load_lib(names, env, "./libdl_curses.so", "dl_curses");
-    // unstick: auto-load (current) directory libdl_xxx.so:dl_xxx()
 
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";

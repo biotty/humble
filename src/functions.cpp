@@ -1203,7 +1203,7 @@ namespace humble {
 void init_functions(Names & n)
 {
     u_names = &n;
-    auto & g = GlobalEnv::instance();
+    auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
     if (n.size() != NAM__KNOWN) throw CoreError("init names expected");
     for (auto & p : initializer_list<pair<string, hp>>{

@@ -78,7 +78,7 @@ void top_included(Names & names, Macros & macros)
 (macro local args
   (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
 )";
-    auto & env = GlobalEnv::instance();
+    auto & env = GlobalEnv::initial();
     static auto t = compx(s, names, macros, env.keys());
     // ^ keep lex tree for fun-ops refs
     for (auto & a : t.v) run(a, env);
@@ -87,7 +87,7 @@ void top_included(Names & names, Macros & macros)
 GlobalEnv init_top(Macros & macros)
 {
     macros_init(macros);
-    auto & g = GlobalEnv::instance();
+    auto & g = GlobalEnv::initial();
     return g.init();
 }
 
