@@ -1,6 +1,6 @@
 Hello.  The Python3 and then the C++ implementation of this programming
-language interpreter was written by me, Christian Øien.  None of it was
-merely generated, but it was carefully thought out and written.
+language interpreter was written by me, Christian Øien.  None of it
+was merely generated, but it was carefully thought out and written.
 I do not see how the python implementation could be of any use, except
 for development as a reference.  But the C++ implementation might be.
 The following are a few words from me as author and creator of this work.
@@ -8,29 +8,31 @@ The following are a few words from me as author and creator of this work.
 The mechanism employed to optain TCO, letret and the other language
 macros, or the local scope name-lookup optimization, were found by myself,
 after studying these problems, and not immitated from elsewhere.  The only
-material I read on the scheme language was the r7rs specification,
-and took as a challenge to figure out how to implement the interpreter.
-Certain concepts such as call/cc or exact numbers were understood as two
-complicated or laborious for me to attack.  Certain other concepts such as
-arriving at separating comma-at into two independent operators that when
-combined fulfill standard scheme behavior, was a result of my mentioned
-approach of studying the concepts and taking the challenge as a puzzle.
-The deviating behavior of set! where I use lvalue semantics instead of
-substituting the entry in the respective scope, and passing by reference,
-was an implementation accident based on initial misconceptions.  When this
-was propperly grasped, I kept the deviation in place in order to conserve
-the value of my list-optimization where kept as a contiguous array
-until cdr-used or otherwise a second reference given out:  Duplicating
-frequently as opposed to taking references would too probably transition
-lists their cons-chain representation.  Having mentioned these subjects,
-I now state that the objective was to provide an interpreter for a small
-language that could possibly be quick to start and run, and usefull
-as a system scripting language.  Please understand that despite that
-"define" duplicates as needed, the interpreter is not conforming to r7rs
-semantics, and contains only a subset of the features:  The only number
-type is the integer, and there is no exception mechanism.  That said,
-it may be useful as a replacement in certain cases of system scripting,
-and is both embeddable and extensible.  My hope is that it may serve you.
+material I read on the scheme language was the r7rs specification, and
+took as a challenge to figure out how to implement the interpreter.
+Certain concepts such as call/cc or exact numbers were understood as
+too complicated or laborious for me to attack.  Certain other concepts
+such as arriving at separating comma-at into two independent operators
+that when combined fulfill standard scheme behavior, was a result of my
+mentioned approach of studying the concepts and taking the challenge as
+a puzzle.  The deviating behavior where set! will be observed on a value
+instead of substituting the entry in the respective scope, or observed
+as pass-by-reference, was an implementation accident based on initial
+misconceptions.  When this was propperly grasped, I kept the deviation
+in place in order to conserve the benefit of my list-optimization where
+kept as a contiguous array until cdr-used or otherwise a second reference
+given out:  Duplicating frequently as opposed to taking references would
+too probably transition lists their cons-chain representation and result
+in lost benefit of the contiguous array layout.  Having mentioned these
+subjects, I now state that the objective was to provide an interpreter
+for a small language that could possibly be quick to start and run, and
+usefull as a system scripting language.  Please understand that despite
+that "define" duplicates as needed, the interpreter is not conforming
+to r7rs semantics, and contains only a subset of the features:  The
+only number type is the integer, and there is no exception mechanism.
+That said, it may be useful as a replacement in certain cases of system
+scripting, and is both embeddable and extensible.  My hope is that it
+may serve you.
 
 20xy Christian Øien, author of Humble Scheme
 
