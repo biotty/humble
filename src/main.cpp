@@ -91,6 +91,8 @@ int main(int argc, char ** argv)
     io_functions(names);
     // ^ also serves as example of extension types, VarExt
 
+    io_set_command_line(argc, argv);
+
     Macros macros;
     Opener opener;
     init_macros(macros, names, opener);
@@ -102,7 +104,7 @@ int main(int argc, char ** argv)
     // todo: ^ from argv -x name and HUMBLE_X=~/bar:/foo
 
     // todo: for the opener, have HUMBLE_P=~/bar:/foo
-    if (argc == 2) {
+    if (argc >= 2) {
         auto src = opener(argv[1]);
         LexForm ast;
         compxrun(ast, src, names, macros, env, opener.filename);

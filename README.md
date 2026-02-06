@@ -6,15 +6,15 @@ interactive mode, or run a program from file.
 The implementation in C++ is found under [src](src/) where
 there are no dependencies for the interpreter itself:
 Not even the C++ standard "algorithm" is used, and it
-should be trivial to build without exceptions, if that
+should be trivial to build without exceptions if that
 is desired.  I use the 2023 revision of C++ language.
 Accomodation for systems that are not POSIX compliant
 has not been provided.
 
-The "curses" extension is added as an example, and if
-not desired, that so-module target as well as `-fPIC`
-may be dropped from the build.  But then there is
-no game:  As an example I create the
+The "curses" extension is added as an example and if
+not wanted that so-module target as well as `-fPIC`
+may be dropped from the build-instructions.  But then there
+is no game:  As an example I create the
 *SNAKE* game, maintaining a persisted high-score,
 [snake.scm](snake.scm).
 
@@ -26,10 +26,10 @@ and [io\_test.scm](io\_test.scm).
 The Python implementation is not suggested for other
 usage than as a reference.  To run it
 you only need Python3 and a very few modules
-that comes with python itself.
-Please see the comments in "Humble.py" itself for
-some comments of the concepts of the interpreter
-and the language.  You will recognize it as Scheme.
+that comes in a normal Python package.
+Please see "Humble.py" for some comments on
+the concepts of the interpreter and the language.
+You will recognize it as Scheme.
 
 The language is a subset of r7rs except that variables
 are not "duplicated" implicitly when evaluated.
@@ -46,7 +46,7 @@ layour of lists:  Lists are stored in a contiguous
 array until they cannot be, and they are converted to
 usual "cons" chains as usual Scheme or LISPS in general.
 The reason it cannot be stored as a contiguous array
-is that ownership of elements get shared:
+is that ownership of elements gets shared:
 If a reference to a cons-cell is given out, i-e with
 the "cdr" function, or that a reference to the very
 list is given out, such as "duplicating" the variable,

@@ -1916,8 +1916,10 @@ def f_list_setj(*args):
     return [VAR_VOID]
 
 def f_make_list(*args):
-    fargt_must_eq("make-list", args, 0, VAR_NUM)
-    x = [VAR_VOID]
+    fn = "make-list"
+    fargc_must_ge(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_NUM)
+    x = [VAR_VOID] if len(args) == 1 else args[1]
     n = args[0][1]
     return [VAR_LIST, [x] * n]
 
@@ -2875,6 +2877,15 @@ def f_output_string_get_bytes(*args):
         r.append([VAR_NUM, i])
     return [VAR_LIST, r]
 
+command_line = None
+
+def f_command_line(*args):
+    fargc_must_eq("command-line", args, 0)
+    r = []
+    for s in command_line:
+        r.append([VAR_STRING, s])
+    return [VAR_LIST, r]
+
 # prng function
 
 from random import Random
@@ -3248,6 +3259,7 @@ def init_env(names):
             ("output-string-get-bytes", f_output_string_get_bytes),
             ("open-input-string", f_open_input_string),
             ("open-input-string-bytes", f_open_input_string_bytes),
+            ("command-line", f_command_line),
             ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
@@ -3259,6 +3271,8 @@ def init_env(names):
             ("system-output", sys.stdout),
             ("system-error", sys.stderr)]:
         with_new_name(a, [VAR_PORT, SystemFile(b)], env, names)
+    # TODO: * have the system-files as functions instead.
+    #       * implement this in the C++ interpreter.
 
     return env
 
@@ -3640,6 +3654,7 @@ def compxrun(src, names, macros, env, fn):
         return True
 
 if __name__ == "__main__":
+    command_line = sys.argv[1:]  # skip Humble itself
     class SrcOpener:
         def __init__(self):
             self.filename = None

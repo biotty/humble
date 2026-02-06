@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 enable_testing()
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 # ^ only needed to support extension modules
-add_compile_options(-Wall -Wextra -Werror
+add_compile_options(-Wall -Wextra -Werror -O2
     # -Wshadow     # for potential tidyup
 )
 # add_compile_options(-DDEBUG)

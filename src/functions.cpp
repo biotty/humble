@@ -237,12 +237,14 @@ EnvEntry f_list_setj(span<EnvEntry> args)
 
 EnvEntry f_make_list(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("make-list argc");
+    if (args.size() == 0) throw RunError("make-list argc");
     valt_or_fail<VarNum>(args, 0, "make-list");
     auto n = get<VarNum>(*args[0]).i;
+    EnvEntry x;
+    if (args.size() == 2) x = args[1];
+    else x = make_shared<Var>(VarVoid{});
     vector<EnvEntry> v;
     v.reserve(n);
-    auto x = make_shared<Var>(VarVoid{});
     for (auto i = 0u; i != n; ++i)
         v.push_back(x);
     return make_shared<Var>(VarList{move(v)});

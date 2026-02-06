@@ -6,6 +6,7 @@
 namespace humble {
 
 void io_functions(Names & names);
+void io_set_command_line(int argc, char ** argv);
 
 } // ns
 

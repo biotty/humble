@@ -593,9 +593,27 @@ EnvEntry f_prng_get(span<EnvEntry> args)
     return make_shared<Var>(VarNum{result});
 }
 
+vector<string> u_command_line;
+
+EnvEntry f_command_line(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("command-line argc");
+    vector<EnvEntry> result;
+    for (auto & s : u_command_line) {
+        result.push_back(make_shared<Var>(VarString{s}));
+    }
+    return make_shared<Var>(VarList{result});
+}
+
 } // ans
 
 namespace humble {
+
+void io_set_command_line(int argc, char ** argv)
+{
+    for (int i = 1; i != argc; ++i) u_command_line.push_back(argv[i]);
+    // skip humble itself
+}
 
 void io_functions(Names & n)
 {
@@ -633,6 +651,7 @@ void io_functions(Names & n)
             { "pause", f_pause },
             { "make-prng-state", f_make_prng_state },
             { "prng-get", f_prng_get },
+            { "command-line", f_command_line },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 
