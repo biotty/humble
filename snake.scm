@@ -1,4 +1,4 @@
-#!/usr/bin/env humble.py
+#! /usr/bin/env humble
 
 ; humble scheme demonstration, where ncurses functions
 ; (nc-) has been brought in (example of extension
@@ -19,7 +19,7 @@
 (ref JGOVER 800)
 (ref GROWPF 6)  ; <-- snake growth per frog
 (ref SP "  ")
-(ref SQ "##")
+(ref SQ (list->string '(#x2588 #x2588)))
 ; will operate on grid of double characters, so the
 ; filled "square" are defined by this unicode string
 ; and we may erase with two spaces.

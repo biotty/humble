@@ -36,7 +36,7 @@ set(LIBS Humble
 )
 
 add_library(dl_curses SHARED dl_curses.cpp)
-target_link_libraries(dl_curses -lcurses ${LIBS})
+target_link_libraries(dl_curses -lncursesw ${LIBS})
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})

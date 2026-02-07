@@ -1,8 +1,10 @@
 #include "dl.hpp"
 #include "fun_impl.hpp"
+#include "utf.hpp"
 #include <iostream>
 
 #include <curses.h>
+#include <locale.h>
 
 using namespace humble;
 using namespace std;
@@ -16,6 +18,7 @@ void delete_nc_stdscr(void *)
 
 EnvEntry f_nc_initscr(span<EnvEntry> args)
 {
+    setlocale(LC_ALL, "");  // needed for unicode wchar
     int tenths{};
     if (args.size() != 0) {
         valt_or_fail<VarNum>(args, 0, "nc-initscr");
@@ -69,9 +72,15 @@ EnvEntry f_nc_addstr(span<EnvEntry> args)
     auto x =  get<VarNum>(*args[2]).i;
     auto & s = get<VarString>(*args[3]).s;
     wattrset(w, COLOR_PAIR(c));
-    mvwaddstr(w, y, x, s.c_str());
-    // TODO:  convert utf8 to wchar_t values and
-    //        use mvwaddwstr instead here.
+    wstring t;
+    size_t i{};
+    while (i != s.size()) {
+        auto g = utf_ref({s.begin() + i, s.end()}, 0);
+        if (g.u.empty()) break;
+        t.push_back(static_cast<wchar_t>(utf_value(g)));
+        i += g.u.size();
+    }
+    mvwaddnwstr(w, y, x, t.data(), t.size());
     return make_shared<Var>(VarVoid{});
 }
 
