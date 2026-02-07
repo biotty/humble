@@ -90,8 +90,7 @@ int main(int argc, char ** argv)
     init_functions(names);
     io_functions(names);
     // ^ also serves as example of extension types, VarExt
-
-    io_set_command_line(argc, argv);
+    io_set_system_command_line(argc, argv);
 
     Macros macros;
     Opener opener;
@@ -101,11 +100,19 @@ int main(int argc, char ** argv)
     auto env = init_top(macros);
 
     load_lib("curses", env, names);
-    // todo: ^ from argv -x name and HUMBLE_X=~/bar:/foo
-
-    // todo: for the opener, have HUMBLE_P=~/bar:/foo
+    // todo: * ^ from argv -x name and HUMBLE_X=~/bar:/foo
+    //       * for the opener, have HUMBLE_P=~/bar:/foo
     if (argc >= 2) {
-        auto src = opener(argv[1]);
+        char * fn{};
+        if (argc >= 3) {
+            if (0 == strcmp(argv[2], "-v"))
+                cerr << "option not supported:"
+                    " instead compile with -DDEBUG\n";
+            else warn("unknown option");
+            fn = argv[2];
+        } else
+            fn = argv[1];
+        auto src = opener(fn);
         LexForm ast;
         compxrun(ast, src, names, macros, env, opener.filename);
         exit(0);

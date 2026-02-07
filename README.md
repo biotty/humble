@@ -26,7 +26,7 @@ and [io\_test.scm](io\_test.scm).
 The Python implementation is not suggested for other
 usage than as a reference.  To run it
 you only need Python3 and a very few modules
-that comes in a normal Python package.
+that come in a normal Python package.
 Please see "Humble.py" for some comments on
 the concepts of the interpreter and the language.
 You will recognize it as Scheme.
@@ -42,9 +42,9 @@ set! will affect the variable used as argument.  This is
 an effect of the non-duplicating evaluation mentioned.
 The omission of the implicit duplication
 permits benefit of an optimization regarding the memory
-layour of lists:  Lists are stored in a contiguous
+layout of lists:  Lists are stored in a contiguous
 array until they cannot be, and they are converted to
-usual "cons" chains as usual Scheme or LISPS in general.
+"cons" chains as usual in Scheme or LISPS in general.
 The reason it cannot be stored as a contiguous array
 is that ownership of elements gets shared:
 If a reference to a cons-cell is given out, i-e with

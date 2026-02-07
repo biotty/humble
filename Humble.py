@@ -115,9 +115,9 @@
 #   from type y, on which only action is to run.  Remember that
 #   I still don't have string->symbol, which would not trivially
 #   work in a scope, and this problem is not worth resolving.
-# * Ad previous idea:  One could have a graft-point in the AST,
-#   denoted by an expression, that is globally named and may then
-#   by used as a target p for (compile p), allowing to mutate
+# * Delirium ad previous idea:  One could have a graft-point in the
+#   AST denoted by an expression, that is globally named and may
+#   then be used as a target p for (compile p), allowing to mutate
 #   the code itself.  The graft point may be wrapped as possibly
 #   a lambda or OP_IMPORT (at hand waving level of thought here).
 #
@@ -2879,12 +2879,25 @@ def f_output_string_get_bytes(*args):
 
 command_line = None
 
-def f_command_line(*args):
-    fargc_must_eq("command-line", args, 0)
+def f_system_command_line(*args):
+    fargc_must_eq("system-command-line", args, 0)
     r = []
     for s in command_line:
         r.append([VAR_STRING, s])
     return [VAR_LIST, r]
+
+def system_f(n, f, fn):
+    if n: fargs_count_fail(fn, 0, n)
+    return [VAR_PORT, SystemFile(f)]
+
+def f_system_input_file(*args):
+    return system_f(len(args), sys.stdin, "system-input-file")
+
+def f_system_output_file(*args):
+    return system_f(len(args), sys.stdout, "system-output-file")
+
+def f_system_error_file(*args):
+    return system_f(len(args), sys.stderr, "system-error-file")
 
 # prng function
 
@@ -3259,20 +3272,15 @@ def init_env(names):
             ("output-string-get-bytes", f_output_string_get_bytes),
             ("open-input-string", f_open_input_string),
             ("open-input-string-bytes", f_open_input_string_bytes),
-            ("command-line", f_command_line),
+            ("system-command-line", f_system_command_line),
+            ("system-input-file", f_system_input_file),
+            ("system-output-file", f_system_output_file),
+            ("system-error-file", f_system_error_file),
             ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
             ("pause", f_pause)]:
         with_new_name(a, [VAR_FUN_HOST, b], env, names)
-
-    for a, b in [
-            ("system-input", sys.stdin),
-            ("system-output", sys.stdout),
-            ("system-error", sys.stderr)]:
-        with_new_name(a, [VAR_PORT, SystemFile(b)], env, names)
-    # TODO: * have the system-files as functions instead.
-    #       * implement this in the C++ interpreter.
 
     return env
 
@@ -3663,7 +3671,7 @@ if __name__ == "__main__":
             return open(path, "r", encoding="utf-8")
     opener = SrcOpener()
     if len(sys.argv) >= 2:
-        if len(sys.argv) == 3:
+        if len(sys.argv) >= 3:
             if (sys.argv[1]) != "-v":
                 error("unknown option")
             set_verbose(True)

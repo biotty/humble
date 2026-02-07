@@ -1,6 +1,6 @@
 #! /usr/bin/env humble
 
-(define args (command-line))
+(define args (system-command-line))
 (when (> 2 (length args))
   (display "usage: N\n-- "
            "will output primes below N\n")

@@ -42,6 +42,14 @@ void delete_input_string(void * u)
     delete static_cast<InputString *>(u);
 }
 
+int read_byte(ifstream & ifs)
+{
+    unsigned char r;
+    if (ifs.read(reinterpret_cast<char *>(&r), 1))
+        return r;
+    return -1;
+}
+
 struct InputFile {
     ifstream ifs;
     InputFile(string s) : ifs(s, std::ios_base::binary)
@@ -51,11 +59,11 @@ struct InputFile {
     }
     int get()
     {
-        unsigned char r;
-        if (ifs.read(reinterpret_cast<char *>(&r), 1)) return r;
+        int r = read_byte(ifs);
+        if (r >= 0) return r;
         if (not ifs.eof()) warn("file-read error");
         ifs.close();
-        return -1;
+        return r;
     }
 };
 
@@ -156,6 +164,23 @@ void delete_output_string(void * u)
     delete static_cast<OutputString *>(u);
 }
 
+void write_byte(ofstream & ofs, int i)
+{
+    unsigned char r = i;
+    if (ofs.write(reinterpret_cast<char *>(&r), 1)) return;
+    if (not ofs.eof()) warn("file-write error");
+    ofs.close();
+}
+
+void write_str(ofstream & ofs, const string & s)
+{
+    ofs << s;
+    if (not ofs) {
+        warn("file-write error");
+        ofs.close();
+    }
+}
+
 struct OutputFile {
     ofstream ofs;
     OutputFile(string s) : ofs(s, std::ios_base::binary)
@@ -163,21 +188,8 @@ struct OutputFile {
         if (not ofs.is_open()) throw std::runtime_error(
                 "Failed to open output-file by name '" + s + "'");
     }
-    void put(int i)
-    {
-        unsigned char r = i;
-        if (ofs.write(reinterpret_cast<char *>(&r), 1)) return;
-        if (not ofs.eof()) warn("file-write error");
-        ofs.close();
-    }
-    void put(string s)
-    {
-        ofs << s;
-        if (not ofs) {
-            warn("file-write error");
-            ofs.close();
-        }
-    }
+    void put(int i) { write_byte(ofs, i); }
+    void put(const string & s) { write_str(ofs, s); }
 };
 
 void delete_output_file(void * u)
@@ -243,7 +255,7 @@ struct OutputPipe {
         close(fd);
         fd = -1;
     }
-    void put(string s)
+    void put(const string & s)
     {
         if (fd < 0) return;
         if (complete_write(s.c_str(), s.size()))
@@ -297,9 +309,11 @@ int t_eof_object;
 int t_input_string;
 int t_input_file;
 int t_input_pipe;
+int t_input_sys;
 int t_output_string;
 int t_output_file;
 int t_output_pipe;
+int t_output_sys;
 int t_prng_state;
 
 EnvEntry make_eof()
@@ -326,9 +340,11 @@ EnvEntry f_portp(span<EnvEntry> args)
             or t == t_input_string
             or t == t_input_file
             or t == t_input_pipe
+            or t == t_input_sys
             or t == t_output_string
             or t == t_output_file
-            or t == t_output_pipe});
+            or t == t_output_pipe
+            or t == t_output_sys});
 }
 
 string get_line(int k, function<int()> get)
@@ -401,7 +417,7 @@ EnvEntry f_read_byte(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("read-byte argc");
     auto & e = vext_or_fail(
-            {t_input_string, t_input_file, t_input_pipe},
+            {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-byte");
     int k;
     if (e.t == t_input_string)
@@ -410,6 +426,8 @@ EnvEntry f_read_byte(span<EnvEntry> args)
         k = static_cast<InputFile *>(e.u)->get();
     else if (e.t == t_input_pipe)
         k = static_cast<InputPipe *>(e.u)->get();
+    else if (e.t == t_input_sys)
+        k = read_byte(*static_cast<ifstream *>(e.u));
     else abort();
     if (k < 0) return make_eof();
     return make_shared<Var>(VarNum{k});
@@ -419,7 +437,7 @@ EnvEntry f_read_line(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("read-line argc");
     auto & e = vext_or_fail(
-            {t_input_string, t_input_file, t_input_pipe},
+            {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-line");
     string r;
     if (e.t == t_input_string) {
@@ -434,6 +452,10 @@ EnvEntry f_read_line(span<EnvEntry> args)
         auto p = static_cast<InputPipe *>(e.u);
         if (auto k = p->get(); k < 0) return make_eof();
         else r = get_line(k, [&p](){ return p->get(); });
+    } else if (e.t == t_input_sys) {
+        auto p = static_cast<ifstream *>(e.u);
+        if (auto k = read_byte(*p); k < 0) return make_eof();
+        else r = get_line(k, [p](){ return read_byte(*p); });
     } else abort();
     return make_shared<Var>(VarString{r});
 }
@@ -508,6 +530,8 @@ EnvEntry f_write_byte(span<EnvEntry> args)
         static_cast<OutputFile *>(e.u)->put(i);
     else if (e.t == t_output_pipe)
         static_cast<OutputPipe *>(e.u)->put(i);
+    else if (e.t == t_output_sys)
+        write_byte(*static_cast<ofstream *>(e.u), i);
     else abort();
     return make_shared<Var>(VarVoid{});
 }
@@ -519,13 +543,15 @@ EnvEntry f_write_string(span<EnvEntry> args)
     auto & e = vext_or_fail(
             {t_output_string, t_output_file, t_output_pipe},
             args, 1, "write-string");
-    string s = get<VarString>(*args[0]).s;
+    const string & s = get<VarString>(*args[0]).s;
     if (e.t == t_output_string)
         static_cast<OutputString *>(e.u)->put(s);
     else if (e.t == t_output_file)
         static_cast<OutputFile *>(e.u)->put(s);
     else if (e.t == t_output_pipe)
         static_cast<OutputPipe *>(e.u)->put(s);
+    else if (e.t == t_output_sys)
+        write_str(*static_cast<ofstream *>(e.u), s);
     else abort();
     return make_shared<Var>(VarVoid{});
 }
@@ -568,7 +594,7 @@ EnvEntry f_pause(span<EnvEntry> args)
         ts.tv_sec = p * 1e-9;
         ts.tv_nsec = fmod(p, 1e9);
         nanosleep(&ts, &rem);
-        // TODO: on ind re-do w rem
+        // todo: on interupt-ind re-do w rem
     }
     return make_shared<Var>(VarVoid{});
 }
@@ -593,25 +619,49 @@ EnvEntry f_prng_get(span<EnvEntry> args)
     return make_shared<Var>(VarNum{result});
 }
 
-vector<string> u_command_line;
+vector<string> u_system_command_line;
 
-EnvEntry f_command_line(span<EnvEntry> args)
+EnvEntry f_system_command_line(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("command-line argc");
+    if (args.size() != 0) throw RunError("system-command-line argc");
     vector<EnvEntry> result;
-    for (auto & s : u_command_line) {
+    for (auto & s : u_system_command_line) {
         result.push_back(make_shared<Var>(VarString{s}));
     }
     return make_shared<Var>(VarList{result});
+}
+
+EnvEntry f_system_input_file(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("system-input-file argc");
+    auto r = VarExt{t_input_sys};
+    r.u = &cin;
+    return make_shared<Var>(r);
+}
+
+EnvEntry f_system_output_file(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("system-output-file argc");
+    auto r = VarExt{t_output_sys};
+    r.u = &cout;
+    return make_shared<Var>(r);
+}
+
+EnvEntry f_system_error_file(span<EnvEntry> args)
+{
+    if (args.size() != 0) throw RunError("system-error-file argc");
+    auto r = VarExt{t_output_sys};
+    r.u = &cerr;
+    return make_shared<Var>(r);
 }
 
 } // ans
 
 namespace humble {
 
-void io_set_command_line(int argc, char ** argv)
+void io_set_system_command_line(int argc, char ** argv)
 {
-    for (int i = 1; i != argc; ++i) u_command_line.push_back(argv[i]);
+    for (int i = 1; i != argc; ++i) u_system_command_line.push_back(argv[i]);
     // skip humble itself
 }
 
@@ -624,9 +674,11 @@ void io_functions(Names & n)
     t_input_string = n.intern("input-string");
     t_input_file = n.intern("input-file");
     t_input_pipe = n.intern("input-pipe");
+    t_input_sys = n.intern("system-input");
     t_output_string = n.intern("output-string");
     t_output_file = n.intern("output-file");
     t_output_pipe = n.intern("output-pipe");
+    t_output_sys = n.intern("system-output");
     t_prng_state = n.intern("prng-state");
     auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
@@ -637,11 +689,14 @@ void io_functions(Names & n)
             { "open-input-string-bytes", f_open_input_string_bytes },
             { "open-input-file", f_open_input_file },
             { "with-input-pipe", f_with_input_pipe },
+            { "system-input-file", f_system_input_file },
             { "read-byte", f_read_byte },
             { "read-line", f_read_line },
             { "open-output-string", f_open_output_string },
             { "open-output-file", f_open_output_file },
             { "with-output-pipe", f_with_output_pipe },
+            { "system-output-file", f_system_output_file },
+            { "system-error-file", f_system_error_file },
             { "output-string-get", f_output_string_get },
             { "output-string-get-bytes", f_output_string_get_bytes },
             { "write-byte", f_write_byte },
@@ -651,7 +706,7 @@ void io_functions(Names & n)
             { "pause", f_pause },
             { "make-prng-state", f_make_prng_state },
             { "prng-get", f_prng_get },
-            { "command-line", f_command_line },
+            { "system-command-line", f_system_command_line },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 

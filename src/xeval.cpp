@@ -235,10 +235,10 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     return make_shared<Var>(VarVoid{});
 }
 
-// TODO:  one could think const x propagated from here down would prevent
+// mishaps: one could think const x propagated from here down would prevent
 // issues, but not when i unintentionally take a copy of a lex and pass
 // that down to make a fun, then for the copies scope to go away prior to
-// invoking that fun -- just what slip-slapped now.
+// invoking that fun -- just what has at times caused trouble.
 EnvEntry run(Lex & x, Env & env)
 {
     // cout << x << " *run*\n";
