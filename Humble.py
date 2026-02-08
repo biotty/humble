@@ -2745,6 +2745,19 @@ def f_read_line(*args):
         return [VAR_EOF]
     return [VAR_STRING, s]
 
+def f_read_to_eof(*args):
+    fn = "read-to-eof"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_PORT)
+    f = args[0][1]
+    a = bytes()
+    while True:
+        b = f.read_byte()
+        if not b:
+            break;
+        a += b
+    return [VAR_STRING, a.decode(encoding='utf-8')]
+
 def f_write_byte(*args):
     fn = "write-byte"
     fargc_must_eq(fn, args, 2)
@@ -3253,6 +3266,7 @@ def init_env(names):
             ("open-output-file", f_open_output_file),
             ("read-byte", f_read_byte),
             ("read-line", f_read_line),
+            ("read-to-eof", f_read_to_eof),
             ("write-byte", f_write_byte),
             ("write-string", f_write_string),
             ("with-input-pipe", f_with_input_pipe),
@@ -3661,13 +3675,7 @@ if __name__ == "__main__":
             return open(path, "r", encoding="utf-8")
     opener = SrcOpener()
     if len(sys.argv) >= 2:
-        if len(sys.argv) >= 3:
-            if (sys.argv[1]) != "-v":
-                error("unknown option")
-            set_verbose(True)
-            fn = sys.argv[2]
-        else:
-            fn = sys.argv[1]
+        fn = sys.argv[1]
         efs = efs_nc
         names, env, macros = init_top(opener, efs)
         with opener(fn) as f:

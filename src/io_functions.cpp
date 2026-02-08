@@ -357,6 +357,15 @@ string get_line(int k, function<int()> get)
     return r;
 }
 
+string get_to_eof(function<int()> get)
+{
+    string r;
+    int k;
+    while ((k = get()) >= 0)
+        r.push_back(k);
+    return r;
+}
+
 EnvEntry f_open_input_string(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("open-input-string argc");
@@ -433,6 +442,11 @@ EnvEntry f_read_byte(span<EnvEntry> args)
     return make_shared<Var>(VarNum{k});
 }
 
+#define TC_GET_LINE(T, C, G) (e.t == T)           \
+    {   auto p = static_cast<C>(e.u);             \
+        if (auto k = G; k < 0) return make_eof(); \
+        else r = get_line(k, [&p](){ return G; }); }
+
 EnvEntry f_read_line(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("read-line argc");
@@ -440,23 +454,30 @@ EnvEntry f_read_line(span<EnvEntry> args)
             {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-line");
     string r;
-    if (e.t == t_input_string) {
-        auto p = static_cast<InputString *>(e.u);
-        if (auto k = p->get(); k < 0) return make_eof();
-        else r = get_line(k, [&p](){ return p->get(); });
-    } else if (e.t == t_input_file) {
-        auto p = static_cast<InputFile *>(e.u);
-        if (auto k = p->get(); k < 0) return make_eof();
-        else r = get_line(k, [&p](){ return p->get(); });
-    } else if (e.t == t_input_pipe) {
-        auto p = static_cast<InputPipe *>(e.u);
-        if (auto k = p->get(); k < 0) return make_eof();
-        else r = get_line(k, [&p](){ return p->get(); });
-    } else if (e.t == t_input_sys) {
-        auto p = static_cast<ifstream *>(e.u);
-        if (auto k = read_byte(*p); k < 0) return make_eof();
-        else r = get_line(k, [p](){ return read_byte(*p); });
-    } else abort();
+    if TC_GET_LINE(t_input_string, InputString *, p->get())
+    else if TC_GET_LINE(t_input_file, InputFile *, p->get())
+    else if TC_GET_LINE(t_input_pipe, InputPipe *, p->get())
+    else if TC_GET_LINE(t_input_sys, ifstream *, read_byte(*p))
+    else abort();
+    return make_shared<Var>(VarString{r});
+}
+
+#define TC_GET_TO_EOF(T, C, G) (e.t == t_input_string) \
+    {   auto p = static_cast<C>(e.u);                  \
+        r = get_to_eof([&p](){ return G; }); }
+
+EnvEntry f_read_to_eof(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("read-to-eof argc");
+    auto & e = vext_or_fail(
+            {t_input_string, t_input_file, t_input_pipe, t_input_sys},
+            args, 0, "read-to-eof");
+    string r;
+    if TC_GET_TO_EOF(t_input_string, InputString *, p->get())
+    else if TC_GET_TO_EOF(t_input_file, InputFile *, p->get())
+    else if TC_GET_TO_EOF(t_input_pipe, InputPipe *, p->get())
+    else if TC_GET_TO_EOF(t_input_sys, ifstream *, read_byte(*p))
+    else abort();
     return make_shared<Var>(VarString{r});
 }
 
@@ -521,7 +542,7 @@ EnvEntry f_write_byte(span<EnvEntry> args)
     if (args.size() != 2) throw RunError("write-byte argc");
     valt_or_fail<VarNum>(args, 0, "write-byte");
     auto & e = vext_or_fail(
-            {t_output_string, t_output_file, t_output_pipe},
+            {t_output_string, t_output_file, t_output_pipe, t_output_sys},
             args, 1, "write-byte");
     int i = get<VarNum>(*args[0]).i;
     if (e.t == t_output_string)
@@ -541,7 +562,7 @@ EnvEntry f_write_string(span<EnvEntry> args)
     if (args.size() != 2) throw RunError("write-string argc");
     valt_or_fail<VarString>(args, 0, "write-string");
     auto & e = vext_or_fail(
-            {t_output_string, t_output_file, t_output_pipe},
+            {t_output_string, t_output_file, t_output_pipe, t_output_sys},
             args, 1, "write-string");
     const string & s = get<VarString>(*args[0]).s;
     if (e.t == t_output_string)
@@ -692,6 +713,7 @@ void io_functions(Names & n)
             { "system-input-file", f_system_input_file },
             { "read-byte", f_read_byte },
             { "read-line", f_read_line },
+            { "read-to-eof", f_read_to_eof},
             { "open-output-string", f_open_output_string },
             { "open-output-file", f_open_output_file },
             { "with-output-pipe", f_with_output_pipe },
