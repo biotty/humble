@@ -2625,15 +2625,8 @@ def f_read(names, env):
         fn = "read"
         fargc_must_eq(fn, args, 1)
         fargt_must_eq(fn, args, 0, VAR_STRING)
-        try:
-            with open(args[0][1], "r") as f:
-                s = f.read()
-        except:
-            warning("no such file")
-            return [VAR_VOID]
-        t = readx(s, names)
+        t = readx(args[0][1], names)
         if len(t) == 0:
-            warning("empty file")
             return [VAR_VOID]
         if len(t) != 1:
             warning("trailing objects")
@@ -2643,12 +2636,9 @@ def f_read(names, env):
 def f_write(names):
     def rd(*args):
         fn = "write"
-        fargc_must_eq(fn, args, 2)
-        fargt_must_eq(fn, args, 0, VAR_STRING)
-        s = vrepr(args[1], names)
-        with open(args[0][1], "w") as f:
-            f.write(s)
-        return [VAR_VOID]
+        fargc_must_eq(fn, args, 1)
+        s = vrepr(args[0], names)
+        return [VAR_STRING, s]
     return rd
 
 # I/O functions

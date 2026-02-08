@@ -1123,16 +1123,10 @@ EnvEntry f_read(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("read argc");
     valt_or_fail<VarString>(args, 0, "read");
-    auto & name = get<VarString>(*args[0]).s;
-    ifstream f(name, std::ios_base::binary);
-    if (not f.is_open())
-        throw RunError("Failed to read file at path '" + name + "'");
-    string s{(istreambuf_iterator<char>(f)), istreambuf_iterator<char>()};
+    auto & s = get<VarString>(*args[0]).s;
     auto t = readx(s, *u_names);
-    if (t.v.size() == 0) {
-        warn("empty file", args);
+    if (t.v.size() == 0)
         return make_shared<Var>(VarVoid{});
-    }
     if (t.v.size() != 1)
         warn("trailing objects", args);
     return from_lex(t.v[0]);
@@ -1140,14 +1134,10 @@ EnvEntry f_read(span<EnvEntry> args)
 
 EnvEntry f_write(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("write argc");
-    valt_or_fail<VarString>(args, 0, "write");
-    auto & name = get<VarString>(*args[0]).s;
-    ofstream f(name, std::ios_base::binary);
-    if (not f.is_open())
-        throw RunError("Failed to write file at path '" + name + "'");
-    print(args[1], *u_names, f);
-    return make_shared<Var>(VarVoid{});
+    if (args.size() != 1) throw RunError("write argc");
+    ostringstream f;
+    print(args[0], *u_names, f);
+    return make_shared<Var>(VarString{f.str()});
 }
 
 //
