@@ -614,8 +614,9 @@ EnvEntry f_pause(span<EnvEntry> args)
         timespec rem;
         ts.tv_sec = p * 1e-9;
         ts.tv_nsec = fmod(p, 1e9);
-        nanosleep(&ts, &rem);
-        // todo: on interupt-ind re-do w rem
+        while (nanosleep(&ts, &rem) == -1
+                and errno == EINTR)
+            ts = rem;
     }
     return make_shared<Var>(VarVoid{});
 }
