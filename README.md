@@ -61,6 +61,8 @@ of an at-operator that works separately as well as
 together as the standard comma-at operator.  I also
 have the user "macro" mechanism back from LISP.
 Please note that the only numeric type is the integer.
+For an index of all language-macros, macros and
+functions, see the [INDEX](INDEX.md).
 
 # Compiling the Interpreter
 

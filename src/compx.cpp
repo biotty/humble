@@ -421,6 +421,10 @@ void print(EnvEntry a, Names & n, std::ostream & os)
                 os << n.get(z.h);
             } else if constexpr (is_same_v<T, VarVoid>) {
                 os << "#void";
+            } else if constexpr (is_same_v<T, VarFunOps>) {
+                os << "#~fun";
+            } else if constexpr (is_same_v<T, VarFunHost>) {
+                os << "#~fun-host";
             } else if constexpr (is_same_v<T, VarExt>) {
                 os << "#~" << n.get(z.t);
             } else {
