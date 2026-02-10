@@ -608,6 +608,8 @@ public:
     {
         if (s.v.size() < 2)
             throw SrcError("case argc");
+        if (s.v.size() == 2)
+            return LexBool{false};
         LexForm a;
         move(s.v.begin() + 2, s.v.end(), back_inserter(a.v));
         // note: abuse of "else" as switch variable name

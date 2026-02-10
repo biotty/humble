@@ -2,22 +2,22 @@
 
 This is the index of the language-macros.
 After the name of each macro I indicate the required arguments.
-The may be (q)Name, String, Form or any kind of token, denoted by X.
+Remember that a macro is run at parse time.
+The first element in a form must be a Name to be considered a macro.
+The remaining lexical elements, or arguments,
+may be (q)Name, String, Form or any kind of token, denoted by X.
 qName here means a possibly quoted name, while QName means a quoted name.
-"\*", "+" and "?" has the common meanings for repetition or optionality.
+"\*" means zero-or-more and "?" optional.
 "-" is used when no argument shall be provided.
-The names "else" and "=>" are used as syntactical keywords.
 Form:export means a form with the name "export", as used in "scope".
-Note that such a form must also begin a file parsed for "import".
+Note that a file used with "import" must begin with such an export form.
 
 | Name | Args |
 | --- | --- |
 | and | X\* |
 | begin | X\* |
-| case | X Form+ |
-| case | X Form\* else X\* |
-| cond | Form+ |
-| cond | Form\* else X\* |
+| case | X Form\* Form:else? |
+| cond | Form\* Form:else? |
 | define | Form X |
 | define | Name X |
 | do | Form Form X\* |
@@ -27,8 +27,7 @@ Note that such a form must also begin a file parsed for "import".
 | import | String Name? QName? |
 | lambda | Form X |
 | lambda | Name X |
-| let | Form X\* |
-| let | Name Form X\* |
+| let | Name? Form X\* |
 | letrec | Form X\* |
 | letrecx | Form X\* |
 | letx | Form X\* |
@@ -46,27 +45,33 @@ Note that such a form must also begin a file parsed for "import".
 
 # Macro Index
 
-Here is the user-macros provided with Humble.
-In a Humble program you can create such user-macros as well.
+Here are the user-macros provided with Humble.
+In a program you can create such user-macros as well.
 The "define-record-type" and "make-prng" builds ontop
 functions that are otherwise not intended for direct use.
-In the belo function index, I have therefore taken then out
-resulting in the last index; the internal one.
+In the below function index, I have therefore taken them out
+those, resulting in an appended index.
 
 | Name | Args |
 | --- | --- |
-| case-lambda | Form+ |
+| case-lambda | Form\* |
 | class | Name\* |
 | define-record-type | Name Form Name Form\* |
 | local | Name\* |
 | make-prng | X |
-| ref@ | X+ Form |
+| ref@ | X\* X |
+
+Other macros may be defined by the user, where the lexical arguments
+are converted to variables that the users macro definition receives.
+The value resulting from the users code will be coverted to a lexical
+entity and substituted in the parse-tree for the macro invocation.
+When new variable names are needed in the produced code, you use "gensym".
 
 # Function Index
 
 After the name of each function I indicate the argument order and types.
 Cons is used here to mean either a NonList or a List.  Any means any type.
-InPort stands for Ext:input-string,input-file,input-pipe or system-input,
+InPort stands for ext:input-string,input-file,input-pipe or system-input,
 and OutPort similarly but for output.
 For possibly repeated types, "\*" is used for zero-or-more, while "+"
 means one-or-more.  "?" means optional.
@@ -165,8 +170,8 @@ means one-or-more.  "?" means optional.
 | system-output-file | - |
 | take | Number Cons |
 | void? | Any |
-| with-input-pipe | Cons |
-| with-output-pipe | Cons |
+| with-input-pipe | List |
+| with-output-pipe | List |
 | write | Any |
 | write-byte | Number OutPort |
 | write-string | String OutPort |
@@ -186,3 +191,4 @@ as could have been this index.
 | record? | Any |
 | record-get | Record Number |
 | record-set! | Record Number Any |
+
