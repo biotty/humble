@@ -45,8 +45,9 @@ permits benefit of an optimization regarding the memory
 layout of lists:  Lists are stored in a contiguous
 array until they cannot be, and they are converted to
 "cons" chains as usual in Scheme or LISPS in general.
-The reason it cannot be stored as a contiguous array
-is that ownership of elements gets shared:
+The reason contiguous storage becomes impossible
+is that ownership of elements gets shared, and
+one list may now be part of another:  A graph.
 If a reference to a cons-cell is given out, i-e with
 the "cdr" function, or that a reference to the very
 list is given out, such as "duplicating" the variable,

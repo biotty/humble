@@ -85,8 +85,8 @@ void load_lib(string name, GlobalEnv & env, Names & n)
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
-    // todo: ^ mechanism such as hold by global unique_ptr
-    // there instead. can still dispose explicitly in tests.
+    // improve: ^ mechanism such as hold by global unique_ptr
+    // there instead, that can still dispose explicitly in tests.
     Names names = init_names();
     init_functions(names);
     io_functions(names);
@@ -100,9 +100,13 @@ int main(int argc, char ** argv)
     top_included(names, macros);
     auto env = init_top(macros);
 
+    // example: seemingly a dynamic library loader mechanism,
+    // but we could just as well have extended the set of functions
+    // as above, without taking the steps via dlopen to get to
+    // a function that does the same.
     load_lib("curses", env, names);
-    // todo: * ^ from argv -x name and HUMBLE_X=~/bar:/foo
-    //       * for the opener, have HUMBLE_P=~/bar:/foo
+
+    // todo: for the opener, have "HUMBLEPATH" i-e "~/bar:/foo"
     if (argc >= 2) {
         char * fn = argv[1];
         auto src = opener(fn);

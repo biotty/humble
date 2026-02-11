@@ -49,7 +49,7 @@ Here are the user-macros provided with Humble.
 In a program you can create such user-macros as well.
 The "define-record-type" and "make-prng" builds ontop
 functions that are otherwise not intended for direct use.
-In the below function index, I have therefore taken them out
+In the below function index, I have therefore taken out
 those, resulting in an appended index.
 
 | Name | Args |
@@ -63,7 +63,7 @@ those, resulting in an appended index.
 
 Other macros may be defined by the user, where the lexical arguments
 are converted to variables that the users macro definition receives.
-The value resulting from the users code will be coverted to a lexical
+The value resulting from the users code will be converted to a lexical
 entity and substituted in the parse-tree for the macro invocation.
 When new variable names are needed in the produced code, you use "gensym".
 
