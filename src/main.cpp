@@ -17,6 +17,7 @@ using namespace humble;
 using namespace std;
 
 struct Opener : SrcOpener {
+    // todo: if not starts with dot or slash, then prefix "/opt/humble"
     string operator()(string name) override {
         filename = name;
         ifstream f(name, std::ios_base::binary);
@@ -100,13 +101,13 @@ int main(int argc, char ** argv)
     top_included(names, macros);
     auto env = init_top(macros);
 
-    // example: seemingly a dynamic library loader mechanism,
-    // but we could just as well have extended the set of functions
-    // as above, without taking the steps via dlopen to get to
-    // a function that does the same.
+    // pretentious: seemingly a dynamic library loader mechanism,
+    // but of questionable benefit, as the load must be instructed
+    // prior to parsing the program.
+    // note: I chose to here extend the user-env, and not the
+    // initial-env.
     load_lib("curses", env, names);
 
-    // todo: for the opener, have "HUMBLEPATH" i-e "~/bar:/foo"
     if (argc >= 2) {
         char * fn = argv[1];
         auto src = opener(fn);
