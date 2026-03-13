@@ -687,7 +687,8 @@ public:
         e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener);
         auto src = (*opener)(get<LexString>(s.v[1]).s);
         auto u_ln = linenumber;
-        auto r = compx(src, *names, e_macros, GlobalEnv::initial().keys());
+        auto r = compx(parse(src, *names, e_macros), *names,
+                GlobalEnv::initial().keys());
         string prefix_s;
         bool is_prefix_sym{};
         if (s.v.size() == 3) {

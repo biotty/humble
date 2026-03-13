@@ -32,19 +32,19 @@ TEST(compx, unbound)
     auto i_b = ++i;
     Macros m;
     try {
-        auto t = compx(s, n, m, { i_b });
+        auto t = compx(parse(s, n, m), n, { i_b });
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a");
     }
     try {
-        auto t = compx(s, n, m, { i_a });
+        auto t = compx(parse(s, n, m), n, { i_a });
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: b");
     }
     try {
-        auto t = compx(s, n, m, {});
+        auto t = compx(parse(s, n, m), n, {});
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\nline 1: b");

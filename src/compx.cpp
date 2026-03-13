@@ -183,9 +183,8 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
     }
 }
 
-LexForm compx(const string & s, Names & names, Macros & macros, set<int> env_keys)
+LexForm compx(LexForm && t, Names & names, set<int> env_keys)
 {
-    auto t = parse(s, names, macros);
     auto u = unbound(t.v, env_keys, true);
     if (u.empty()) {
         zloc_scopes(t.v, nullptr);

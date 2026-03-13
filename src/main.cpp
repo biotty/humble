@@ -50,19 +50,6 @@ void errout(const string & ty, const string & wh, const string & fn)
     cerr << ",\n" << wh << endl;
 }
 
-void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalEnv & env, string & fn)
-    try
-{
-    ast = compx(src, names, macros, env.keys());
-    run_top(ast, env, names, cout);
-} catch (const SrcError & e) {
-    errout("src-error", e.what(), fn);
-} catch (const RunError & e) {
-    errout("run-error", e.what(), fn);
-} catch (const runtime_error & e) {
-    errout("error", e.what(), fn);
-}
-
 void load_lib(string name, GlobalEnv & env, Names & n)
 {
     dl_arg u_arg = { &n, &env };
@@ -83,6 +70,29 @@ void load_lib(string name, GlobalEnv & env, Names & n)
     }
 }
 
+set<string> u_requires_accum;
+
+void load_libs(GlobalEnv & env, Names & n)
+{
+    for (const string & s : u_requires_accum)
+        load_lib(s, env, n);
+}
+
+void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalEnv & env, string & fn)
+    try
+{
+    auto t = parse(src, names, macros);
+    load_libs(env, names);
+    ast = compx(move(t), names, env.keys());
+    run_top(ast, env, names, cout);
+} catch (const SrcError & e) {
+    errout("src-error", e.what(), fn);
+} catch (const RunError & e) {
+    errout("run-error", e.what(), fn);
+} catch (const runtime_error & e) {
+    errout("error", e.what(), fn);
+}
+
 int main(int argc, char ** argv)
 {
     atexit(compx_dispose);
@@ -97,16 +107,20 @@ int main(int argc, char ** argv)
     Macros macros;
     Opener opener;
     init_macros(macros, names, opener);
-    // evt: insert here more language-macros
+    struct Requires : MacroClone<Requires> {
+        set<string> * accum;
+        Requires(set<string> & accum) : accum(&accum) { }
+        Lex operator()(LexForm && s) override
+        {
+            if (s.v.size() != 2) throw SrcError("requires argc");
+            if (not holds_alternative<LexString>(s.v[1])) throw SrcError("requires");
+            accum->insert(get<LexString>(s.v[1]).s);
+            return LexVoid{};
+        }
+    };
+    macros[names.intern("requires")] = make_unique<Requires>(u_requires_accum);
     top_included(names, macros);
     auto env = init_top(macros);
-
-    // pretentious: seemingly a dynamic library loader mechanism,
-    // but of questionable benefit, as the load must be instructed
-    // prior to parsing the program.
-    // note: I chose to here extend the user-env, and not the
-    // initial-env.
-    load_lib("curses", env, names);
 
     if (argc >= 2) {
         char * fn = argv[1];

@@ -1,5 +1,7 @@
 #! /usr/bin/env humble
 
+(requires "curses")
+
 ; humble scheme demonstration, where ncurses functions
 ; (nc-) has been brought in (example of extension
 ; mechanism onto interpreter) so to provide a

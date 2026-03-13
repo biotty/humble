@@ -37,6 +37,7 @@ Note that a file used with "import" must begin with such an export form.
 | quasiquote | X |
 | quote | X |
 | ref | Name X |
+| requires | String |
 | scope | Form:export X\* |
 | seq | X\* |
 | unless | X X\* |

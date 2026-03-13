@@ -82,7 +82,7 @@ void top_included(Names & names, Macros & macros)
   (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
 )";
     auto & env = GlobalEnv::initial();
-    static auto t = compx(s, names, macros, env.keys());
+    static auto t = compx(parse(s, names, macros), names, env.keys());
     // ^ keep lex tree for fun-ops refs
     for (auto & a : t.v) run(a, env);
 }
