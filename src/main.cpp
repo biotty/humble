@@ -17,7 +17,8 @@ using namespace humble;
 using namespace std;
 
 struct Opener : SrcOpener {
-    // todo: if not starts with dot or slash, then prefix "/opt/humble"
+    // todo: if not starts with dot or slash
+    //       then prefix "/opt/humble/import" (HUMBLE_IMPORT)
     string operator()(string name) override {
         filename = name;
         ifstream f(name, std::ios_base::binary);
@@ -52,6 +53,8 @@ void errout(const string & ty, const string & wh, const string & fn)
 
 void load_lib(string name, GlobalEnv & env, Names & n)
 {
+    // todo: prefix with "/opt/humble/dl" (HUMBLE_DL) and
+    //       use mere symbol "init" always, if allows
     dl_arg u_arg = { &n, &env };
     string path = "./libdl_" + name + ".so";
     string sym = "dl_" + name;
