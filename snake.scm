@@ -52,11 +52,12 @@
     (grid-wall y 0) (grid-wall y grid-width) (loop (- y 1))))
 
 ; arbitrarily choose non-occupied place for frog
-(ref (rnd-frog body)
+(ref (rnd-frog body head)
   (let loop ()
     (let ((y (random 1 (- grid-height 1)))
           (x (random 1 (- grid-width 1))))
-      (if (member (nonlist y x) body)
+      (if (or (member (nonlist y x) body)
+              (eq? head (list y x)))
         (loop)  ; yes we get tco here
         (begin
           (ref r (list y x))
@@ -80,7 +81,7 @@
     (ref dir 'right)
     (inc! x)
     (ref (get-head) (list y x))
-    (ref frog (rnd-frog '()))
+    (ref frog (rnd-frog '() (get-head)))
     (ref (set-dir! v) (set! dir v))
     (ref (step! score-fun)
       (set! body (cons (nonlist (dup y) (dup x)) body))
@@ -94,7 +95,7 @@
         (('right) (inc! x))
         (else => error))
       (when (equal? (list y x) frog)
-        (set! frog (rnd-frog body))
+        (set! frog (rnd-frog body (get-head)))
         (set! body (append body (butt-dup GROWPF)))
         (set! body-length (+ GROWPF body-length))
         (score-fun (/ (- body-length INIT-LENGTH) GROWPF))))
