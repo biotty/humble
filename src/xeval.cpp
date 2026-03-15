@@ -150,9 +150,12 @@ EnvEntry xeval(Lex & x, Env & env)
                     return make_shared<Var>(VarList{move(v)});
                 }
                 if (holds_alternative<VarCons>(*v.back())) {
+                    ConsPtr cons_last;
                     auto c = make_shared<Var>(Cons::from_list(
-                                {v.begin(), v.begin() + v.size() - 1}));
-                    Cons::last->d = v.back();
+                                {v.begin(), v.begin() + v.size() - 1},
+                                cons_last));
+                    if (not cons_last) throw CoreError("empty list");
+                    cons_last->d = v.back();
                     return c;
                 }
                 return make_shared<Var>(VarNonlist{move(v)});

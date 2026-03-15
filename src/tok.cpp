@@ -25,7 +25,7 @@ static const char * name_cs = "!$%&*+-./:<=>?@^_~";
 
 size_t spaces(const char * s, size_t n)
 {
-    if ( ! s) throw CoreError("spaces null");
+    if (not s) throw CoreError("spaces null");
     auto h = s;
     auto p = s + n;
     while (s != p) {

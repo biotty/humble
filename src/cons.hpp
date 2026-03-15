@@ -13,16 +13,16 @@ struct Cons {
     ConsNext d;  // invariant: when EnvEntry not VarCons
 
     Cons(EnvEntry a, ConsNext d);
-    VarCons xcopy(size_t n);
+    VarCons xcopy(size_t n, ConsPtr & last);
     std::variant<VarList, VarNonlist> to_list_var();
     size_t length();
-    static VarCons from_list(std::span<EnvEntry> x);
+    static VarCons from_list(std::span<EnvEntry> x, ConsPtr & last);
     static VarCons from_nonlist(std::span<EnvEntry> x);
-    static ConsPtr last;
 };
 
 ConsPtr to_cons(Var & x);
-ConsPtr to_cons_copy(Var & x);
+ConsPtr to_cons_list(Var & x, ConsPtr & last);
+ConsPtr to_cons_copy(Var & x, ConsPtr & last);
 VarList normal_list(Var & x);
 
 struct ConsOrListIter {

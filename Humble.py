@@ -1570,13 +1570,6 @@ class Cons:
     # improvement: opt.loop detect by mark of cons,
     #              w (i-e incr.gen) unique mark per loop-run
 
-    # todo: pass last-holder option where used,
-    #       instead of static last member.  in either
-    #       implementation it may keep big memory,
-    #       and the work around would be to clear it in
-    #       various call-sites.  the suggested more explicit
-    #       approach will be more manageable.
-
     class Iter:
 
         def __init__(self, c):
@@ -1599,7 +1592,7 @@ class Cons:
         self.d = d  # CDR will be a Cons (not VAR_CONS) or None,
         #             or in case of a non-list will be a VAR_xyz
 
-    def xcopy(self, n):
+    def xcopy(self, n, set_last):
         """zero n means all"""
         r = c = Cons(self.a, None)
         for a in Cons.Iter(self.d):
@@ -1609,7 +1602,7 @@ class Cons:
             if n == 0:
                 break
         else:
-            Cons.last = c
+            set_last(c)
         return r
 
     def length(self):
@@ -1632,11 +1625,11 @@ class Cons:
         return [t, r]
 
     @staticmethod
-    def from_list(x):
+    def from_list(x, set_last):
         if len(x) == 0:
             return None
         r = Cons(x[-1], None)
-        Cons.last = r
+        set_last(r)
         for e in reversed(x[:-1]):
             r = Cons(e, r)
         return r
@@ -1644,24 +1637,30 @@ class Cons:
     @staticmethod
     def from_nonlist(x):
         assert len(x) >= 2
-        Cons.last = None
         r = x[-1]
         for e in reversed(x[:-1]):
             r = Cons(e, r)
         return r
 
+def to_cons_list(a, set_last):
+    if a[0] == VAR_LIST:
+        return Cons.from_list(a[1], set_last)
+    if a[0] == VAR_NONLIST:
+        set_last(None)  # vfy: not needed
+        return Cons.from_nonlist(a[1])
+    raise RunError("not list")
+
 def to_cons(a):
     if a[0] == VAR_CONS:
         return a[1]
-    if a[0] == VAR_LIST:
-        return Cons.from_list(a[1])
-    if a[0] == VAR_NONLIST:
-        return Cons.from_nonlist(a[1])
+    return to_cons_list(a, lambda x:None)
 
-def to_cons_copy(a):
+def to_cons_copy(a, set_last):
     if a[0] == VAR_CONS:
-        return a[1].xcopy(0)
-    return to_cons(a)
+        if a[1] is None:
+            return None
+        return a[1].xcopy(0, set_last)
+    return to_cons_list(a, set_last)
 
 def normal_list(a):
     if a is None:
@@ -1826,7 +1825,11 @@ def f_append(*args):
     if var_in(last[0], VAR_LIST | VAR_NONLIST):
         last[1] = to_cons(last)
         last[0] = VAR_CONS
-    r = p = to_cons_copy(args[0])
+    cons_last = None
+    def set_last(x):
+        nonlocal cons_last
+        cons_last = x
+    r = p = to_cons_copy(args[0], set_last)
     # print("arg[0]: ", args[0][0] - BIT_VAR, type(args[0][1]), id(args[0][1]))
     # print("r: ", type(r), id(r))
     q = None
@@ -1834,7 +1837,7 @@ def f_append(*args):
         if i == 0:
             continue
         if p is not None:
-            q = Cons.last
+            q = cons_last
         if i == i_last:
             if last[0] == VAR_CONS:
                 p = last[1]
@@ -1842,9 +1845,11 @@ def f_append(*args):
                 p = last
         else:
             fargt_must_in("append", args, i, VAR_CONS | VAR_LIST)
-            p = to_cons_copy(c)
+            p = to_cons_copy(c, set_last)
         if q is not None:
             q.d = p
+        elif r is None:
+            r = p
     # print("R", id(r))
     # print("Q", id(q))
     # print("P type", type(p))
@@ -1939,7 +1944,7 @@ def f_take(*args):
         return [VAR_LIST, args[1][1][:n]]
     if n == 0 or args[1][1] is None:
         return [VAR_CONS, None]
-    return args[1][1].xcopy(n)
+    return args[1][1].xcopy(n, lambda x:None)
 
 def f_splice(*args):
     fn = "splice"
@@ -3047,8 +3052,12 @@ def xeval(x, env):
             if r[-1][0] == VAR_LIST:
                 return [VAR_LIST, r[:-1] + r[-1][1]]
             if r[-1][0] == VAR_CONS:
-                c = Cons.from_list(r[:-1])
-                Cons.last.d = r[-1][1]
+                cons_last = None
+                def set_last(x):
+                    nonlocal cons_last
+                    cons_last = x
+                c = Cons.from_list(r[:-1], set_last)
+                cons_last.d = r[-1][1]
                 return [VAR_CONS, c]
             return [VAR_NONLIST, r]
         if x[0] == LEX_NAM:

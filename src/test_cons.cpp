@@ -18,19 +18,21 @@ struct ConsTest : testing::Test {
 TEST_F(ConsTest, from_list)
 {
     vector<EnvEntry> x = { s, t };
-    auto r = Cons::from_list(x);
+    ConsPtr cons_last;
+    auto r = Cons::from_list(x, cons_last);
     ASSERT_EQ(1, get<VarNum>(*r.c->a).i);
-    ASSERT_EQ(Cons::last, get<ConsPtr>(r.c->d));
-    ASSERT_EQ(nullptr, get<ConsPtr>(Cons::last->d));
+    ASSERT_EQ(cons_last, get<ConsPtr>(r.c->d));
+    ASSERT_EQ(nullptr, get<ConsPtr>(cons_last->d));
 }
 
 TEST_F(ConsTest, xcopy)
 {
     auto c = make_shared<Cons>(s, make_shared<Cons>(t, ConsPtr{}));
-    auto b = c->xcopy(0);
+    ConsPtr cons_last;
+    auto b = c->xcopy(0, cons_last);
     ASSERT_EQ(c->a, b.c->a);
     ASSERT_NE(c->d, b.c->d);
-    ASSERT_EQ(Cons::last, get<ConsPtr>(b.c->d));
+    ASSERT_EQ(cons_last, get<ConsPtr>(b.c->d));
 }
 
 TEST_F(ConsTest, length)

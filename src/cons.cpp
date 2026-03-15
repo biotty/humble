@@ -24,7 +24,7 @@ namespace humble {
 
 Cons::Cons(EnvEntry a, ConsNext d) : a(a), d(d) { }
 
-VarCons Cons::xcopy(size_t n)
+VarCons Cons::xcopy(size_t n, ConsPtr & last)
 {
     if (n == 0) --n;
     // cerr << "xcopy\n";
@@ -65,7 +65,7 @@ variant<VarList, VarNonlist> Cons::to_list_var()
     return VarList{r};
 }
 
-VarCons Cons::from_list(span<EnvEntry> x)
+VarCons Cons::from_list(span<EnvEntry> x, ConsPtr & last)
 {
     if (x.empty())
         return { nullptr };
@@ -81,7 +81,6 @@ VarCons Cons::from_nonlist(span<EnvEntry> x)
 {
     if (x.size() < 2)
         throw CoreError("short nonlist");
-    last = nullptr;
     ConsNext r = x.back();
     auto it = x.rbegin();
     for (++it; it != x.rend(); ++it)
@@ -89,28 +88,32 @@ VarCons Cons::from_nonlist(span<EnvEntry> x)
     return { get<ConsPtr>(r) };
 }
 
-ConsPtr Cons::last;
-
-ConsPtr to_cons(Var & x)
-{
-    // cerr << "to_cons\n";
-    if (holds_alternative<VarCons>(x)) {
-        return get<VarCons>(x).c;
-    } else if (holds_alternative<VarList>(x)) {
-        return Cons::from_list(get<VarList>(x).v).c;
+ConsPtr to_cons_list(Var & x, ConsPtr & last) {
+    if (holds_alternative<VarList>(x)) {
+        return Cons::from_list(get<VarList>(x).v, last).c;
     } else if (holds_alternative<VarNonlist>(x)) {
+        last = nullptr;  // vfy: not needed
         return Cons::from_nonlist(get<VarNonlist>(x).v).c;
     }
     throw CoreError("to_cons on not list");
 }
 
-ConsPtr to_cons_copy(Var & x)
+ConsPtr to_cons(Var & x)
+{
+    // cerr << "to_cons\n";
+    if (holds_alternative<VarCons>(x))
+        return get<VarCons>(x).c;
+    ConsPtr ign_last;
+    return to_cons_list(x, ign_last);
+}
+
+ConsPtr to_cons_copy(Var & x, ConsPtr & last)
 {
     if (holds_alternative<VarCons>(x)) {
-        auto w = get<VarCons>(x).c->xcopy(0);
+        auto w = get<VarCons>(x).c->xcopy(0, last);
         return w.c;
     }
-    return to_cons(x);
+    return to_cons_list(x, last);
 }
 
 VarList normal_list(Var & x)

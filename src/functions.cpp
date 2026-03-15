@@ -126,22 +126,24 @@ EnvEntry f_append(span<EnvEntry> args)
         auto c = to_cons(*last);
         *last = VarCons{c};
     }
-    ConsNext p = to_cons_copy(*args[0]);
+    ConsPtr cons_last;
+    ConsNext p = to_cons_copy(*args[0], cons_last);
     ConsPtr r = get<ConsPtr>(p);
     ConsPtr q;
     for (size_t i = 1; i != args.size(); ++i) {
         if (holds_alternative<EnvEntry>(p)
                 or get<ConsPtr>(p) != nullptr)
-            q = Cons::last;
+            q = cons_last;
         if (i == i_last) {
             if (holds_alternative<VarCons>(*last))
                 p = get<VarCons>(*last).c;
             else p = last;
         } else {
             valt_or_fail<VarCons, VarList>(args, i, "append");
-            p = to_cons_copy(*args[i]);
+            p = to_cons_copy(*args[i], cons_last);
         }
         if (q) q->d = p;
+        else if (not r) r = get<ConsPtr>(p);
     }
     /* debug:
     cerr << "R " << r.get() << endl;
@@ -279,8 +281,9 @@ EnvEntry f_take(span<EnvEntry> args)
     }
     if (n == 0 or get<VarCons>(*args[1]).c == nullptr)
         return make_shared<Var>(VarCons{});
+    ConsPtr ign_last;
     return make_shared<Var>(
-            get<VarCons>(*args[1]).c->xcopy(n));
+            get<VarCons>(*args[1]).c->xcopy(n, ign_last));
 }
 
 EnvEntry f_splice(span<EnvEntry> args)
