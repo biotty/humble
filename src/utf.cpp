@@ -41,17 +41,17 @@ long long utf_value(Glyph s)
     auto p = reinterpret_cast<const unsigned char *>(s.u.data());
     if (n == 1) return p[0];
     if (n == 2) return
-        (p[0] & 0b11111) << 6
-        | (p[1] & 0b111111);
+        (p[0] bitand 0b11111) << 6
+        bitor (p[1] bitand 0b111111);
     if (n == 3) return
-        (p[0] & 0b1111) << 12
-        | (p[1] & 0b111111) << 6
-        | (p[2] & 0b111111);
+        (p[0] bitand 0b1111) << 12
+        bitor (p[1] bitand 0b111111) << 6
+        bitor (p[2] bitand 0b111111);
     if (n == 4) return
-        (p[0] & 0b111) << 18
-        | (p[1] & 0b111111) << 12
-        | (p[2] & 0b111111) << 6
-        | (p[3] & 0b111111);
+        (p[0] bitand 0b111) << 18
+        bitor (p[1] bitand 0b111111) << 12
+        bitor (p[2] bitand 0b111111) << 6
+        bitor (p[3] bitand 0b111111);
     throw CoreError("not utf8");
 }
 
@@ -64,17 +64,17 @@ string utf_make(long long i)
     } else if (u <= 0x7f) {
         r[0] = i;
     } else if (u <= 0x7ff) {
-        r[0] = (u >> 6) | 0b11000000;
-        r[1] = (u & 0b111111) | 0b10000000;
+        r[0] = (u >> 6) bitor 0b11000000;
+        r[1] = (u bitand 0b111111) bitor 0b10000000;
     } else if (u <= 0xffff) {
-        r[0] = (u >> 12) | 0b11100000;
-        r[1] = ((u >> 6) & 0b111111) | 0b10000000;
-        r[2] = (u & 0b111111) | 0b10000000;
+        r[0] = (u >> 12) bitor 0b11100000;
+        r[1] = ((u >> 6) bitand 0b111111) bitor 0b10000000;
+        r[2] = (u bitand 0b111111) bitor 0b10000000;
     } else if (u <= 0x1fffff) {
-        r[0] = (u >> 18) | 0b11110000;
-        r[1] = ((u >> 12) & 0b111111) | 0b10000000;
-        r[2] = ((u >> 6) & 0b111111) | 0b10000000;
-        r[3] = (u & 0b111111) | 0b10000000;
+        r[0] = (u >> 18) bitor 0b11110000;
+        r[1] = ((u >> 12) bitand 0b111111) bitor 0b10000000;
+        r[2] = ((u >> 6) bitand 0b111111) bitor 0b10000000;
+        r[3] = (u bitand 0b111111) bitor 0b10000000;
     }
     return string{r};
 }
