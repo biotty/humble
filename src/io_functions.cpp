@@ -52,11 +52,7 @@ int read_byte(ifstream & ifs)
 
 struct InputFile {
     ifstream ifs;
-    InputFile(string s) : ifs(s, std::ios_base::binary)
-    {
-        if (not ifs.is_open()) throw std::runtime_error(
-                "Failed to open input-file by name '" + s + "'");
-    }
+    InputFile(string s) : ifs(s, std::ios_base::binary) { }
     int get()
     {
         int r = read_byte(ifs);
@@ -183,11 +179,7 @@ void write_str(ofstream & ofs, const string & s)
 
 struct OutputFile {
     ofstream ofs;
-    OutputFile(string s) : ofs(s, std::ios_base::binary)
-    {
-        if (not ofs.is_open()) throw std::runtime_error(
-                "Failed to open output-file by name '" + s + "'");
-    }
+    OutputFile(string s) : ofs(s, std::ios_base::binary) { }
     void put(int i) { write_byte(ofs, i); }
     void put(const string & s) { write_str(ofs, s); }
 };
@@ -401,8 +393,10 @@ EnvEntry f_open_input_file(span<EnvEntry> args)
     if (args.size() != 1) throw RunError("open-input-file argc");
     valt_or_fail<VarString>(args, 0, "open-input-file");
     auto r = VarExt{t_input_file};
-    r.u = new InputFile{get<VarString>(*args[0]).s};
+    auto p = new InputFile{get<VarString>(*args[0]).s};
+    r.u = p;
     r.f = delete_input_file;
+    if (not p->ifs) return make_shared<Var>(VarBool{false});
     return make_shared<Var>(move(r));
 }
 
@@ -516,8 +510,10 @@ EnvEntry f_open_output_file(span<EnvEntry> args)
     if (args.size() != 1) throw RunError("open-output-file argc");
     valt_or_fail<VarString>(args, 0, "open-output-file");
     auto r = VarExt{t_output_file};
-    r.u = new OutputFile{get<VarString>(*args[0]).s};
+    auto p = new OutputFile{get<VarString>(*args[0]).s};
+    r.u = p;
     r.f = delete_output_file;
+    if (not p->ofs) return make_shared<Var>(VarBool{false});
     return make_shared<Var>(move(r));
 }
 

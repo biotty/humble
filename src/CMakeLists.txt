@@ -35,8 +35,8 @@ set(LIBS Humble
     # -lasan      # when sanitize address enabled.
 )
 
-add_library(dl_curses SHARED dl_curses.cpp)
-target_link_libraries(dl_curses -lncursesw ${LIBS})
+add_library(Hcurses SHARED Hcurses.cpp)
+target_link_libraries(Hcurses -lncursesw ${LIBS})
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})
@@ -68,4 +68,7 @@ add_test(cons test_cons)
 add_executable(test_xeval test_xeval.cpp)
 target_link_libraries(test_xeval GTest::GTest GTest::Main ${LIBS})
 add_test(xeval test_xeval)
+
+install(FILES ${CMAKE_BINARY_DIR}/humble DESTINATION ~/.local/bin PERMISSIONS OWNER_EXECUTE)
+install(FILES ${CMAKE_BINARY_DIR}/libHcurses.so DESTINATION ~/.local/humble)
 

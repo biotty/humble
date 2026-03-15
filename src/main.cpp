@@ -16,9 +16,10 @@
 using namespace humble;
 using namespace std;
 
+string u_home;
+
 struct Opener : SrcOpener {
-    // todo: if not starts with dot or slash
-    //       then prefix "/opt/humble/import" (HUMBLE_IMPORT)
+    // todo: if not contains slash then prefix w u_home + "/.local/humble/"
     string operator()(string name) override {
         filename = name;
         ifstream f(name, std::ios_base::binary);
@@ -53,11 +54,10 @@ void errout(const string & ty, const string & wh, const string & fn)
 
 void load_lib(string name, GlobalEnv & env, Names & n)
 {
-    // todo: prefix with "/opt/humble/dl" (HUMBLE_DL) and
-    //       use mere symbol "init" always, if allows
     dl_arg u_arg = { &n, &env };
-    string path = "./libdl_" + name + ".so";
+    string path = u_home + "/.local/humble/libH" + name + ".so";
     string sym = "dl_" + name;
+    // todo: ^ use mere symbol "init" always, if allows
     void * dl = dlopen(path.c_str(), RTLD_NOW);
     if (not dl) {
         cerr << path << " not loaded: " << dlerror() << endl;
@@ -98,6 +98,8 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
 
 int main(int argc, char ** argv)
 {
+    u_home = getenv("HOME");
+    if (u_home.empty()) exit(1);
     atexit(compx_dispose);
     // improve: ^ mechanism such as hold by global unique_ptr
     // there instead, that can still dispose explicitly in tests.

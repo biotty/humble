@@ -119,7 +119,7 @@
 (ref (show-score x n)
      (nc-addstr scr 0 x (number->string n) 2))
 
-(ref score-path ".snake_score")
+(ref score-path ".snake_score")  ; todo: need io_functions.cpp:getenv
 (ref hiscore (case (open-input-file score-path)
                ((#f) 0)
                (else => (lambda (f)
