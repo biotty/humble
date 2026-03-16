@@ -657,7 +657,7 @@ EnvEntry f_equalp(span<EnvEntry> args)
         get<VarBool>(*r).b = i == n;
         return r;
     }
-    // note: must now be NONLIST and LIST -- hence not equal
+    warn("list-nonlist compare", args);
     return r;
 }
 
@@ -943,6 +943,7 @@ EnvEntry f_pairp(span<EnvEntry> args)
 EnvEntry f_contpp(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("cont?? argc");
+    // warn("uses cont??", args);
     return make_shared<Var>(
             VarBool{valt_in<VarList, VarNonlist>(*args[0])});
 }

@@ -16,11 +16,20 @@
 using namespace humble;
 using namespace std;
 
-string u_home;
+string u_humble_dir;
 
 struct Opener : SrcOpener {
-    // todo: if not contains slash then prefix w u_home + "/.local/humble/"
-    string operator()(string name) override {
+    constexpr static struct noresolve_t { } noresolve { };
+
+    string operator()(string name) override
+    {
+        if (not name.contains('/'))
+            name = u_humble_dir + "/" + name;
+        return operator()(name, noresolve);
+    }
+
+    string operator()(string name, noresolve_t)
+    {
         filename = name;
         ifstream f(name, std::ios_base::binary);
         if (not f.is_open()) {
@@ -55,9 +64,9 @@ void errout(const string & ty, const string & wh, const string & fn)
 void load_lib(string name, GlobalEnv & env, Names & n)
 {
     dl_arg u_arg = { &n, &env };
-    string path = u_home + "/.local/humble/libH" + name + ".so";
+    string path = u_humble_dir + "/libH" + name + ".so";
     string sym = "dl_" + name;
-    // todo: ^ use mere symbol "init" always, if allows
+    // consider: ^ use mere symbol "init" always, if allows
     void * dl = dlopen(path.c_str(), RTLD_NOW);
     if (not dl) {
         cerr << path << " not loaded: " << dlerror() << endl;
@@ -98,8 +107,10 @@ void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalE
 
 int main(int argc, char ** argv)
 {
-    u_home = getenv("HOME");
-    if (u_home.empty()) exit(1);
+    string home = getenv("HOME");
+    if (home.empty()) exit(1);
+    u_humble_dir = home + "/.local/humble";
+
     atexit(compx_dispose);
     // improve: ^ mechanism such as hold by global unique_ptr
     // there instead, that can still dispose explicitly in tests.
@@ -129,7 +140,7 @@ int main(int argc, char ** argv)
 
     if (argc >= 2) {
         char * fn = argv[1];
-        auto src = opener(fn);
+        auto src = opener(fn, Opener::noresolve);
         LexForm ast;
         compxrun(ast, src, names, macros, env, opener.filename);
         exit(0);

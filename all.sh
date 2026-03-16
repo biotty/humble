@@ -24,3 +24,4 @@ check out.{a,b}-test.txt
 check out.{a,b}-import_test.txt
 check out.{a,b}-io_test.txt
 
+cmake --install .
