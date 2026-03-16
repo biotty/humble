@@ -110,7 +110,9 @@ ConsPtr to_cons(Var & x)
 ConsPtr to_cons_copy(Var & x, ConsPtr & last)
 {
     if (holds_alternative<VarCons>(x)) {
-        auto w = get<VarCons>(x).c->xcopy(0, last);
+        auto c = get<VarCons>(x).c;
+        if (c == nullptr) return c;
+        auto w = c->xcopy(0, last);
         return w.c;
     }
     return to_cons_list(x, last);

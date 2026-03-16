@@ -1849,7 +1849,11 @@ def f_append(*args):
         if q is not None:
             q.d = p
         elif r is None:
-            r = p
+            if p is None or is_cons(p):
+                r = p
+            else:
+                assert i == i_last
+                return p
     # print("R", id(r))
     # print("Q", id(q))
     # print("P type", type(p))

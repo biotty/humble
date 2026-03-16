@@ -143,7 +143,15 @@ EnvEntry f_append(span<EnvEntry> args)
             p = to_cons_copy(*args[i], cons_last);
         }
         if (q) q->d = p;
-        else if (not r) r = get<ConsPtr>(p);
+        else if (not r) {
+            if (holds_alternative<ConsPtr>(p)) {
+                r = get<ConsPtr>(p);
+            } else {
+                if (i == i_last)
+                    return get<EnvEntry>(p);
+                throw CoreError("programmatic");
+            }
+        }
     }
     /* debug:
     cerr << "R " << r.get() << endl;

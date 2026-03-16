@@ -29,8 +29,8 @@ Note that a file used with "import" must begin with such an export form.
 | lambda | Name X |
 | let | Name? Form X\* |
 | letrec | Form X\* |
-| letrecx | Form X\* |
-| letx | Form X\* |
+| letrec\* | Form X\* |
+| let\* | Form X\* |
 | macro | Form X |
 | macro | Name X |
 | or | X\* |
@@ -91,7 +91,7 @@ means one-or-more.  "?" means optional.
 | >= | Number\* |
 | abs | Number |
 | alias? | Any Any |
-| append | Cons\* List |
+| append | List\* Any |
 | apply | Proc List |
 | assoc | Any List |
 | boolean? | Any |

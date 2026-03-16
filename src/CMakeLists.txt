@@ -8,7 +8,7 @@ add_compile_options(-Wall -Wextra -Werror -O2
     # -Wshadow     # for potential tidyup
 )
 # add_compile_options(-DDEBUG)
-# add_compile_options(-ggdb -O0)
+ add_compile_options(-ggdb -O0)
 # add_compile_options(-fsanitize=address)
 # # alt: valgrind
 
