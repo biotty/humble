@@ -329,24 +329,16 @@ y
 (scope (export fo0)
   ; vfy that dup will convert cont.list to cons-chain
   (ref a (list 0 1 9))
-  (display a " ")
-  ; shows (0 1 9)
+  (chk #t (cont?? a))
   (define b a)
-  (display b " ")
-  ; shows #:(0 1 9)
+  (chk #f (cont?? a))
   (chk #t (eq? a b))
   (ref c (cdr b))
   (chk c (list 1 9))
-  (set-car! c 2);
+  (set-car! c 2)
   (chk a (list 0 2 9))
-  (local c);
-  (set! c (list 3))
-  (chk b (list 0 2 9))
-  ; but not when sole ref
   (define d (list 1 2 3))
-  (display d ".\n")
-  ; ^ display (1 2 3)
-  ; and not #:(1 2 3)
+  (chk #t (cont?? d))
   (ref (fo0) "ok")
   ; lambda in a here-import
 ) ; v invoke it as exported
@@ -382,6 +374,14 @@ y
 (chk #t (cont?? '(@(list))))  ; quoted splice
 (chk (list 3) (list @(list (+ 1 2))));
 (chk 3 @(list (+ 1 2)));
+(ref q (list 1 2))
+(ref p q)
+(local p)
+(chk #t (alias? p q))
+(ref j 1)
+(ref i j)
+(local i)
+(chk #f (alias? i j))
 ; explicit dict (idea obsoleted by implicit optimized
 ; assoc in cons/list - which will be very involved)
 ;(ref d (alist->dict '[(1 . 2)]))

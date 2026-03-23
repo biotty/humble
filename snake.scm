@@ -70,7 +70,7 @@
         (x (random 1 (/ maxx 2))))  ; start in left-half
     (ref INIT-LENGTH 15)
     (define body-length INIT-LENGTH)
-    (ref butt (list (+ y) (+ x)))
+    (ref butt (list y x))
     (ref (butt-dup n)
       (let loop ((b '()) (i n))
         (if (zero? i) b
@@ -84,7 +84,7 @@
     (ref frog (rnd-frog '() (get-head)))
     (ref (set-dir! v) (set! dir v))
     (ref (step! score-fun)
-      (set! body (cons (nonlist (dup y) (dup x)) body))
+      (set! body (cons (nonlist y x) body))
       (ref d (list-tail body (- body-length 1)))
       (set! butt (list (caar d) (cdar d)))
       (set-cdr! d '())

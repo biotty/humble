@@ -79,7 +79,7 @@ void top_included(Names & names, Macros & macros)
          (else => error))
        args)))
 (macro local args
-  (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
+  `(ref@ ,@args (list ,@args)))
 )";
     auto & env = GlobalEnv::initial();
     static auto t = compx(parse(s, names, macros), names, env.keys());

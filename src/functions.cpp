@@ -17,6 +17,23 @@ using namespace std;
 
 namespace {
 
+EnvEntry setjj(span<EnvEntry> args);
+
+void keeps(EnvEntry & a)
+{
+    if (valt_in<VarCons, VarList, VarNonlist, VarString>(*a))
+        return;
+    auto i = a.use_count();
+    if (i == 0)
+        throw CoreError("bad assumption on keeps");
+    if (i == 1)
+        return;
+    EnvEntry b = make_shared<Var>(VarVoid{});
+    vector<EnvEntry> w{b, a};
+    setjj(w);
+    a = b;
+}
+
 //
 // cons, (non)list
 //
@@ -24,11 +41,13 @@ namespace {
 EnvEntry f_list(span<EnvEntry> args)
 {
     if (args.empty()) return make_shared<Var>(VarCons{});
+    for (auto & a : args) keeps(a);
     return make_shared<Var>(VarList{ { args.begin(), args.end() } });
 }
 
 EnvEntry f_nonlist(span<EnvEntry> args)
 {
+    for (auto & a : args) keeps(a);
     return make_shared<Var>(VarNonlist{ { args.begin(), args.end() } });
 }
 
@@ -42,11 +61,13 @@ EnvEntry f_list_copy(span<EnvEntry> args)
 EnvEntry f_cons(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("cons argc");
+    keeps(args[0]);
     if (valt_in<VarCons, VarList, VarNonlist>(*args[1])) {
         auto c = to_cons(*args[1]);
         *args[1] = VarCons{c};
         return make_shared<Var>(VarCons{make_shared<Cons>(args[0], c)});
     }
+    keeps(args[1]);
     return make_shared<Var>(VarNonlist{{args.begin(), args.end()}});
 }
 
@@ -121,6 +142,7 @@ EnvEntry f_append(span<EnvEntry> args)
     if (args.size() == 0) return make_shared<Var>(VarCons{});
     if (args.size() == 1) return args[0];
     size_t i_last = args.size() - 1;
+    keeps(args[i_last]);
     auto last = args[i_last];
     if (valt_in<VarList, VarNonlist>(*last)) {
         auto c = to_cons(*last);
@@ -174,6 +196,7 @@ EnvEntry f_set_carj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set-car! argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-car!");
+    keeps(args[1]);
     if (valt_in<VarCons>(*args[0])) {
         get<VarCons>(*args[0]).c->a = args[1];
     } else if (valt_in<VarList>(*args[0])) {
@@ -188,6 +211,7 @@ EnvEntry f_set_cdrj(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("set-cdr! argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-cdr!");
+    keeps(args[1]);
     if (valt_in<VarList>(*args[1])) {
         auto c = to_cons(*args[1]);
         *args[1] = VarCons{c};
@@ -687,6 +711,7 @@ EnvEntry f_record_setj(span<EnvEntry> args)
     if (args.size() != 3) throw RunError("record-set! argc");
     valt_or_fail<VarRec>(args, 0, "record-set!");
     valt_or_fail<VarNum>(args, 1, "record-set!");
+    keeps(args[2]);
     auto & r = get<VarRec>(*args[0]);
     r.v[get<VarNum>(*args[1]).i + 1] = args[2];
     return make_shared<Var>(VarVoid{});

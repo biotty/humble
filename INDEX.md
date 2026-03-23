@@ -178,6 +178,17 @@ means one-or-more.  "?" means optional.
 | write-string | String OutPort |
 | zero? | Number |
 
+The following are considered "constructors" of values and are
+duplicating its arguments of non-container types:
+
+* append  // remember last arg may be non-cons
+* cons
+* list
+* nonlist
+* record-set!
+* set-car!
+* set-cdr!
+
 # Hidden Index
 
 The following are functions that are not meant for

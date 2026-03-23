@@ -1487,6 +1487,13 @@ def m_export(s):
     s[0] = OP_EXPORT
     return s
 
+def m_requires(s):
+    if s[1][0] != LEX_STRING:
+        raise SrcError("requires arg")
+    if s[1][1] not in ("curses",):
+        raise SrcError("requires dl not in py-impl")
+    return (LEX_VOID,)
+
 ##
 # builtin functions
 ##
@@ -1743,14 +1750,41 @@ def fargt_must_in(fn, args, i, vts):
                     for vt in var_members(vts)),
                     fargt_repr(args[i][0])))
 
+# the keeps helper-function accomodates for
+# value-semantics of value-types*, by letting
+# constructors duplicate non-container** values
+# *(boolean and numbers are practical to mutate
+# but this would wreak havoc passing bare refs
+# when constructing.  a user-function that wants
+# the effect of keeps may pass args via list,
+# as provided by the (local) macro)
+# **(strings are treated as containers as it is
+# bad practice to (set!) a string variables.
+# the choice here definitely makes it more so)
+
+def keeps(a, n):
+    if not (var_in(a[0], VAR_CONS | VAR_LIST | VAR_NONLIST)
+            or a[0] == VAR_STRING):
+        j = RC_BARE + n
+        rc = sys.getrefcount(a)
+        if rc < j:
+            broken("bad assumption on keeps")
+        elif rc != j:
+            b = [VAR_VOID]
+            setjj(b, a, "keeps")
+            a = b
+    return a
+
 # functions on CONS, (NON)LIST
 
 def f_list(*args):
+    args = tuple(keeps(a, 2) for a in args)
     if len(args) == 0:
         return [VAR_CONS, None]
     return [VAR_LIST, list(args)]
 
 def f_nonlist(*args):
+    args = tuple(keeps(a, 2) for a in args)
     # note: not cat'ing as done on (nested) dots
     # in xeval -- i-e (0 . (1 2)) ==> (0 1 2)
     return [VAR_NONLIST, list(args)]
@@ -1763,11 +1797,13 @@ def f_list_copy(*args):
 
 def f_cons(*args):
     fargc_must_eq("cons", args, 2)
+    a = keeps(args[0], 1)
     if var_in(args[1][0], VAR_CONS | VAR_LIST | VAR_NONLIST):
         c = to_cons(args[1])
         args[1][:] = [VAR_CONS, c]
-        return [VAR_CONS, Cons(args[0], c)]
-    return [VAR_NONLIST, list(args)]
+        return [VAR_CONS, Cons(a, c)]
+    b = keeps(args[1], 1)
+    return [VAR_NONLIST, [a, b]]
 
 def f_car(*args):
     fn = "car"
@@ -1821,7 +1857,7 @@ def f_append(*args):
     if len(args) == 1:
         return args[0]
     i_last = len(args) - 1
-    last = args[i_last]
+    last = keeps(args[i_last], 1)
     if var_in(last[0], VAR_LIST | VAR_NONLIST):
         last[1] = to_cons(last)
         last[0] = VAR_CONS
@@ -1865,10 +1901,11 @@ def f_set_carj(*args):
     fn = "set-car!"
     fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_CONS | VAR_LIST | VAR_NONLIST)
+    v = keeps(args[1], 1)
     if args[0][0] == VAR_CONS:
-        args[0][1].a = args[1]
+        args[0][1].a = v
     else:
-        args[0][1][0] = args[1]
+        args[0][1][0] = v
     return [VAR_VOID]
 
 def f_set_cdrj(*args):
@@ -1881,7 +1918,7 @@ def f_set_cdrj(*args):
     if args[1][0] == VAR_CONS:
         d = args[1][1]
     else:
-        d = args[1]
+        d = keeps(args[1], 1)
     if args[0][0] == VAR_CONS:
         args[0][1].d = d
         return [VAR_VOID]
@@ -2111,15 +2148,17 @@ def f_setjj(*args):
     fargc_must_eq(fn, args, 2)
     return setjj(args[0], args[1], fn)
 
+RC_BARE = 3
+
 def f_dup(*args):
     fargc_must_eq("dup", args, 1)
     if args[0][0] == VAR_VOID:
         warning("dup of void")
         return args[0]
     rc = sys.getrefcount(args[0])
-    if rc < 3:
+    if rc < RC_BARE:
         broken("assumption of refs to an arg")
-    if rc == 3:
+    if rc == RC_BARE:
         return args[0]
     r = [VAR_VOID]
     setjj(r, args[0], "dup")
@@ -2321,7 +2360,7 @@ def f_record_setj(*args):
     fargc_must_eq(fn, args, 3)
     fargt_must_eq(fn, args, 0, VAR_REC)
     fargt_must_eq(fn, args, 1, VAR_NUM)
-    args[0][1].values[args[1][1]] = args[2]
+    args[0][1].values[args[1][1]] = keeps(args[2], 1)
     return [VAR_VOID]
 
 def f_recordp(*args):
@@ -3180,6 +3219,7 @@ def init_macros(env_keys, names, opener):
             ("or", m_or),
             ("when", m_when),
             ("unless", m_unless),
+            ("requires", m_requires),
             ("export", m_export)]:
         with_new_name(a, b, macros, names)
 
@@ -3391,7 +3431,7 @@ def inc_macros(names, macros):
          (else => error))
        args)))
 (macro local args
-  (cons 'seq (map (lambda (n) `(define ,n ,n)) args)))
+  `(ref@ ,@args (list ,@args)))
 """
     env = i_env
     t = compx(s, names, macros, env.keys())

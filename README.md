@@ -56,6 +56,15 @@ then I convert the list to a cons-chain.
 That was a mouthful.  But the idea is quite simple,
 and is the main deviation from standard Scheme.
 
+Now that you understood the above, please note that
+this deviation is not severe in practice, because the
+"constructor" functions such as "cons" or "list" does
+as mentioned above for "define" and duplicates.
+However, in this case it's done on a condition:
+The type of the argument must not be of string or
+list type.  See the function-index as referred below
+that also specifies which have this behavior.
+
 Other differences are either parts in Scheme r7rs that
 are absent, or that are added, such as the existence
 of an at-operator that works separately as well as
