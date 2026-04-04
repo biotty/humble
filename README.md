@@ -35,19 +35,25 @@ The language is a subset of r7rs except that variables
 are not "duplicated" implicitly when evaluated.
 The usual "define" form however, *does*, and I have "ref"
 as the counter-part without.  By "duplicated" I mean
-that when more than one reference is held to a value,
-a new variable will be created with a copy of that value.
+value-semantics evaluation, namely a copy of the instance
+(the term here is "variable", and it may be bound to
+(referenced from) a "name" or a "constructor" such as
+cons, lambda or nonlist)
+taken (when more than one reference held to the it).
 What you will observe is that when passing paramenters,
 set! will affect the variable used as argument.  This is
 an effect of the non-duplicating evaluation mentioned.
+In this interpreter, set! is not a special form or macro.
+
 The omission of the implicit duplication
 permits benefit of an optimization regarding the memory
 layout of lists:  Lists are stored in a contiguous
 array until they cannot be, and they are converted to
 "cons" chains as usual in Scheme or LISPS in general.
-The reason contiguous storage becomes impossible
-is that ownership of elements gets shared, and
-one list may now be part of another:  A graph.
+The reason a list can no longer be stored contigously
+is that ownership of elements get shared, and
+one part of the list may now have a different set of
+owners than another part:  A graph with incoming forks.
 If a reference to a cons-cell is given out, i-e with
 the "cdr" function, or that a reference to the very
 list is given out, such as "duplicating" the variable,
