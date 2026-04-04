@@ -16,15 +16,16 @@
 using namespace humble;
 using namespace std;
 
-string u_humble_dir;
-
 struct Opener : SrcOpener {
     constexpr static struct noresolve_t { } noresolve { };
+
+    string src_dir;
+    Opener(string src_dir) : src_dir(src_dir) { }
 
     string operator()(string name) override
     {
         if (not name.contains('/'))
-            name = u_humble_dir + "/" + name;
+            name = src_dir + "/" + name;
         return operator()(name, noresolve);
     }
 
@@ -41,18 +42,6 @@ struct Opener : SrcOpener {
     }
 };
 
-void run_top(LexForm & ast, GlobalEnv & env, Names & names, ostream & os)
-{
-    for (auto & a : ast.v) {
-        auto r = run(a, env);
-        if (not holds_alternative<VarVoid>(*r)) {
-            os << "; ==> ";
-            print(r, names, os);
-            os << endl;
-        }
-    }
-}
-
 void errout(const string & ty, const string & wh, const string & fn)
 {
     cerr << ty;
@@ -61,43 +50,71 @@ void errout(const string & ty, const string & wh, const string & fn)
     cerr << ",\n" << wh << endl;
 }
 
-void load_lib(string name, GlobalEnv & env, Names & n)
-{
-    dl_arg u_arg = { &n, &env };
-    string path = u_humble_dir + "/libH" + name + ".so";
-    string sym = "dl_" + name;
-    // consider: ^ use mere symbol "init" always, if allows
-    void * dl = dlopen(path.c_str(), RTLD_NOW);
-    if (not dl) {
-        cerr << path << " not loaded: " << dlerror() << endl;
-        exit(1);
-    } else {
-        auto f = (dl_fn)dlsym(dl, sym.c_str());
-        if (not f) {
-            cerr << sym << ": " << dlerror() << endl;
+struct LibLoader {
+    string libs_dir;
+    set<string> requires_accum;
+    LibLoader(string libs_dir) : libs_dir(libs_dir) { }
+
+    unique_ptr<Macro> requires_macro()
+    {
+        struct Requires : MacroClone<Requires> {
+            set<string> * accum;
+            Requires(set<string> & accum) : accum(&accum) { }
+            Lex operator()(LexForm && s) override
+            {
+                if (s.v.size() != 2) throw SrcError("requires argc");
+                if (not holds_alternative<LexString>(s.v[1])) throw SrcError("requires");
+                accum->insert(get<LexString>(s.v[1]).s);
+                return LexVoid{};
+            }
+        };
+        return make_unique<Requires>(requires_accum);
+    }
+
+    void load_lib(string name, GlobalEnv & env, Names & n)
+    {
+        dl_arg u_arg = { &n, &env };
+        string path = libs_dir + "/libH" + name + ".so";
+        string sym = "dl_" + name;
+        // consider: ^ use mere symbol "init" always, if allows
+        void * dl = dlopen(path.c_str(), RTLD_NOW);
+        if (not dl) {
+            cerr << path << " not loaded: " << dlerror() << endl;
             exit(1);
         } else {
-            f(&u_arg);
+            auto f = (dl_fn)dlsym(dl, sym.c_str());
+            if (not f) {
+                cerr << sym << ": " << dlerror() << endl;
+                exit(1);
+            } else {
+                f(&u_arg);
+            }
         }
     }
-}
 
-set<string> u_requires_accum;
+    void operator()(GlobalEnv & env, Names & n)
+    {
+        for (const string & s : requires_accum)
+            load_lib(s, env, n);
+    }
+};
 
-void load_libs(GlobalEnv & env, Names & n)
-{
-    for (const string & s : u_requires_accum)
-        load_lib(s, env, n);
-}
-
-void compxrun(LexForm & ast, string src, Names & names, Macros & macros,
-        GlobalEnv & env, string & fn, vector<LexEnv *> & local_envs)
+void run_top(LexForm & ast, string src, Names & names, Macros & macros,
+        GlobalEnv & env, string & fn, vector<LexEnv *> & local_envs, LibLoader & loader)
     try
 {
     auto t = parse(src, names, macros);
-    load_libs(env, names);
+    loader(env, names);
     ast = compx(move(t), names, env.keys(), local_envs);
-    run_top(ast, env, names, cout);
+    auto & os = cout;
+    for (auto & a : ast.v) {
+        auto r = run(a, env);
+        if (not holds_alternative<VarVoid>(*r)) {
+            os << "; ==> ";
+            print(r, names, os);
+            os << endl;
+        }
+    }
 } catch (const SrcError & e) {
     errout("src-error", e.what(), fn);
 } catch (const RunError & e) {
@@ -110,7 +127,7 @@ int main(int argc, char ** argv)
 {
     string home = getenv("HOME");
     if (home.empty()) exit(1);
-    u_humble_dir = home + "/.local/humble";
+    string dir = home + "/.local/humble";
 
     vector<LexEnv *> local_envs;
 
@@ -121,20 +138,10 @@ int main(int argc, char ** argv)
     io_set_system_command_line(argc, argv);
 
     Macros macros;
-    Opener opener;
+    Opener opener{ dir };
     init_macros(macros, names, opener, local_envs);
-    struct Requires : MacroClone<Requires> {
-        set<string> * accum;
-        Requires(set<string> & accum) : accum(&accum) { }
-        Lex operator()(LexForm && s) override
-        {
-            if (s.v.size() != 2) throw SrcError("requires argc");
-            if (not holds_alternative<LexString>(s.v[1])) throw SrcError("requires");
-            accum->insert(get<LexString>(s.v[1]).s);
-            return LexVoid{};
-        }
-    };
-    macros[names.intern("requires")] = make_unique<Requires>(u_requires_accum);
+    LibLoader loader{ dir };
+    macros[names.intern("requires")] = loader.requires_macro();
     top_included(names, macros, local_envs);
     auto env = init_top(macros);
 
@@ -142,7 +149,7 @@ int main(int argc, char ** argv)
         char * fn = argv[1];
         auto src = opener(fn, Opener::noresolve);
         LexForm ast;
-        compxrun(ast, src, names, macros, env, opener.filename, local_envs);
+        run_top(ast, src, names, macros, env, opener.filename, local_envs, loader);
         compx_dispose(local_envs);
         exit(0);
     }
@@ -157,7 +164,7 @@ int main(int argc, char ** argv)
         buf += line + "\n";
         if (line.back() == ';') {
             x.push_back(LexForm{});
-            compxrun(x.back(), buf, names, macros, env, opener.filename, local_envs);
+            run_top(x.back(), buf, names, macros, env, opener.filename, local_envs, loader);
             buf.clear();
         }
     }
