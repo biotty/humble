@@ -3,44 +3,21 @@
 #include "top.hpp"
 #include "functions.hpp"
 #include "io_functions.hpp"
-#include "dl.hpp"
 #include "except.hpp"
 #include <fstream>
 #include <iostream>
 #include <list>
 #include <cstring>
 
-// dlopen
-#include <dlfcn.h>
-
 using namespace humble;
 using namespace std;
 
-struct Opener : SrcOpener {
-    constexpr static struct noresolve_t { } noresolve { };
-
-    string src_dir;
-    Opener(string src_dir) : src_dir(src_dir) { }
-
-    string operator()(string name) override
-    {
-        if (not name.contains('/'))
-            name = src_dir + "/" + name;
-        return operator()(name, noresolve);
-    }
-
-    string operator()(string name, noresolve_t)
-    {
-        filename = name;
-        ifstream f(name, std::ios_base::binary);
-        if (not f.is_open()) {
-            throw std::runtime_error("Failed to open source-file by name"
-                    " '" + name + "'");
-        }
-        return string{(istreambuf_iterator<char>(f)), 
-            istreambuf_iterator<char>()};
-    }
-};
+GlobalEnv init_top(Macros & macros)
+{
+    macros_init(macros);
+    auto & g = GlobalEnv::initial();
+    return g.init();
+}
 
 void errout(const string & ty, const string & wh, const string & fn)
 {
@@ -50,61 +27,12 @@ void errout(const string & ty, const string & wh, const string & fn)
     cerr << ",\n" << wh << endl;
 }
 
-struct LibLoader {
-    string libs_dir;
-    set<string> requires_accum;
-    LibLoader(string libs_dir) : libs_dir(libs_dir) { }
-
-    unique_ptr<Macro> requires_macro()
-    {
-        struct Requires : MacroClone<Requires> {
-            set<string> * accum;
-            Requires(set<string> & accum) : accum(&accum) { }
-            Lex operator()(LexForm && s) override
-            {
-                if (s.v.size() != 2) throw SrcError("requires argc");
-                if (not holds_alternative<LexString>(s.v[1])) throw SrcError("requires");
-                accum->insert(get<LexString>(s.v[1]).s);
-                return LexVoid{};
-            }
-        };
-        return make_unique<Requires>(requires_accum);
-    }
-
-    void load_lib(string name, GlobalEnv & env, Names & n)
-    {
-        dl_arg u_arg = { &n, &env };
-        string path = libs_dir + "/libH" + name + ".so";
-        string sym = "dl_" + name;
-        // consider: ^ use mere symbol "init" always, if allows
-        void * dl = dlopen(path.c_str(), RTLD_NOW);
-        if (not dl) {
-            cerr << path << " not loaded: " << dlerror() << endl;
-            exit(1);
-        } else {
-            auto f = (dl_fn)dlsym(dl, sym.c_str());
-            if (not f) {
-                cerr << sym << ": " << dlerror() << endl;
-                exit(1);
-            } else {
-                f(&u_arg);
-            }
-        }
-    }
-
-    void operator()(GlobalEnv & env, Names & n)
-    {
-        for (const string & s : requires_accum)
-            load_lib(s, env, n);
-    }
-};
-
 void run_top(LexForm & ast, string src, Names & names, Macros & macros,
         GlobalEnv & env, string & fn, vector<LexEnv *> & local_envs, LibLoader & loader)
     try
 {
     auto t = parse(src, names, macros);
-    loader(env, names);
+    loader(env, names, cerr);
     ast = compx(move(t), names, env.keys(), local_envs);
     auto & os = cout;
     for (auto & a : ast.v) {
