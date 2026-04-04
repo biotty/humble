@@ -369,9 +369,11 @@ struct UserMacro : MacroNotClone<UserMacro>
 struct MacroMacro : MacroNotClone<Macro> {
     Names * names;
     Macros * macros;
-    MacroMacro(Names & names, Macros & macros)
+    vector<LexEnv *> * local_envs;
+    MacroMacro(Names & names, Macros & macros, vector<LexEnv *> & local_envs)
         : names(&names)
         , macros(&macros)
+        , local_envs(&local_envs)
     { }
 
     Lex operator()(LexForm && s) override
@@ -388,7 +390,7 @@ struct MacroMacro : MacroNotClone<Macro> {
             isdot = is_dotform(get<LexForm>(y));
             if (isdot) y = without_dot(get<LexForm>(y));
         }
-        zloc_scopes({s.v.begin() + 3, s.v.end()}, nullptr);
+        zloc_scopes({s.v.begin() + 3, s.v.end()}, nullptr, *local_envs);
         LexArgs parms;
         for (auto & p : get<LexForm>(y).v) {
             malt_or_fail<LexNam>(p, "macro expected name");
@@ -626,9 +628,11 @@ public:
 struct Scope : MacroClone<Scope> {
     Names * names;
     std::set<int> env_keys;
-    Scope(Names & names)
+    vector<LexEnv *> * local_envs;
+    Scope(Names & names, vector<LexEnv *> & local_envs)
         : names(&names)
         , env_keys(GlobalEnv::initial().keys())
+        , local_envs(&local_envs)
     { }
 
     Lex operator()(LexForm && s) override
@@ -647,7 +651,7 @@ struct Scope : MacroClone<Scope> {
         move(s.v.begin() + 2, s.v.end(), back_inserter(t.v));
         auto u = unbound(t.v, env_keys, true);
         if (not u.empty()) report_unbound(u, t, *names);
-        zloc_scopes(t.v, nullptr);
+        zloc_scopes(t.v, nullptr, *local_envs);
         LexForm r{{LexOp{OP_IMPORT}, set_up}};
         move(t.v.begin(), t.v.end(), back_inserter(r.v));
         return r;
@@ -660,10 +664,12 @@ struct Import : MacroNotClone<Import> {
     Names * names;
     Macros * macros;
     SrcOpener * opener;
-    Import(Names & names, Macros & macros, SrcOpener & opener)
+    vector<LexEnv *> * local_envs;
+    Import(Names & names, Macros & macros, SrcOpener & opener, vector<LexEnv *> & local_envs)
         : names(&names)
         , macros(&macros)
         , opener(&opener)
+        , local_envs(&local_envs)
     { }
 
 private:
@@ -683,12 +689,12 @@ public:
         if (s.v.size() != 2 and s.v.size() != 3) throw SrcError("import argc");
         malt_or_fail<LexString>(s.v[1], "import.1 expects name");
         auto e_macros = clone_macros(i_macros);
-        e_macros[NAM_MACRO] = make_unique<MacroMacro>(*names, e_macros);
-        e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener);
+        e_macros[NAM_MACRO] = make_unique<MacroMacro>(*names, e_macros, *local_envs);
+        e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener, *local_envs);
         auto src = (*opener)(get<LexString>(s.v[1]).s);
         auto u_ln = linenumber;
         auto r = compx(parse(src, *names, e_macros), *names,
-                GlobalEnv::initial().keys());
+                GlobalEnv::initial().keys(), *local_envs);
         string prefix_s;
         bool is_prefix_sym{};
         if (s.v.size() == 3) {
@@ -784,11 +790,11 @@ void with_name(Names & n, Macros & m, string name, unique_ptr<Macro> nm)
 
 namespace humble {
 
-void init_macros(Macros & m, Names & names, SrcOpener & opener)
+void init_macros(Macros & m, Names & names, SrcOpener & opener, vector<LexEnv *> & local_envs)
 {
     m = qt_macros();
-    m[NAM_MACRO] = make_unique<MacroMacro>(names, m);
-    m[NAM_IMPORT] = make_unique<Import>(names, m, opener);
+    m[NAM_MACRO] = make_unique<MacroMacro>(names, m, local_envs);
+    m[NAM_IMPORT] = make_unique<Import>(names, m, opener, local_envs);
     with_name(names, m, "lambda", make_unique<Lambda>());
     with_name(names, m, "let", make_unique<Let>());
     with_name(names, m, "let*", make_unique<Letx>());
@@ -808,7 +814,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener)
     with_name(names, m, "export", make_unique<Export>());
     with_name(names, m, "gensym", make_unique<Gensym>(names));
     with_name(names, m, "seq", make_unique<Seq>());
-    with_name(names, m, "scope", make_unique<Scope>(names));
+    with_name(names, m, "scope", make_unique<Scope>(names, local_envs));
 }
 
 void macros_init(Macros & macros)

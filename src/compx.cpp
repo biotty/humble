@@ -13,8 +13,6 @@ using namespace std;
 
 namespace {
 
-std::vector<LexEnv *> local_envs;
-
 Lex find_unbound(span<Lex> t, int y)
 {
     auto b = [](Lex & q) { return not holds_alternative<LexVoid>(q); };
@@ -141,7 +139,7 @@ void report_unbound(set<int> u, LexForm & t, Names & names)
     throw SrcError("unbound," + a.str());
 }
 
-void zloc_scopes(span<Lex> t, LexEnv * local_env)
+void zloc_scopes(span<Lex> t, LexEnv * local_env, vector<LexEnv *> & local_envs)
 {
     for (auto & x : t) {
         if (not holds_alternative<LexForm>(x)) {
@@ -151,30 +149,30 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
                     n.h = local_env->rewrite_name(n.h);
                 }
             } else if (holds_alternative<LexList>(x)) {
-                zloc_scopes(get<LexList>(x).v, local_env);
+                zloc_scopes(get<LexList>(x).v, local_env, local_envs);
             } else if (holds_alternative<LexNonlist>(x)) {
-                zloc_scopes(get<LexNonlist>(x).v, local_env);
+                zloc_scopes(get<LexNonlist>(x).v, local_env, local_envs);
             }
         } else if (auto & f = get<LexForm>(x);
                 not holds_alternative<LexOp>(f.v.at(0))) {
-            zloc_scopes(f.v, local_env);
+            zloc_scopes(f.v, local_env, local_envs);
         } else if (auto & op = get<LexOp>(f.v[0]);
                 op.code == OP_BIND) {
             if (local_env) {
                 auto & n = get<LexNam>(f.v.at(1));
                 n.h = local_env->rewrite_name(n.h);
             }
-            zloc_scopes(span1(f.v, 2), local_env);
+            zloc_scopes(span1(f.v, 2), local_env, local_envs);
         } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
             auto & c = get<LexArgs>(f.v.at(2));
             auto fun_env = new LexEnv(get<LexArgs>(f.v[1]), c);
             local_envs.push_back(fun_env);
-            zloc_scopes({f.v.begin() + 3, f.v.end()}, fun_env);
+            zloc_scopes({f.v.begin() + 3, f.v.end()}, fun_env, local_envs);
             f.v[1] = fun_env;
             if (local_env)
                 c = local_env->rewrite_names(c);
         } else if (op.code == OP_COND or op.code == OP_SEQ) {
-            zloc_scopes({f.v.begin() + 1, f.v.end()}, local_env);
+            zloc_scopes({f.v.begin() + 1, f.v.end()}, local_env, local_envs);
         } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
             // pass
         } else {
@@ -183,18 +181,18 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env)
     }
 }
 
-LexForm compx(LexForm && t, Names & names, set<int> env_keys)
+LexForm compx(LexForm && t, Names & names, set<int> env_keys, vector<LexEnv *> & local_envs)
 {
     auto u = unbound(t.v, env_keys, true);
     if (u.empty()) {
-        zloc_scopes(t.v, nullptr);
+        zloc_scopes(t.v, nullptr, local_envs);
         return t;
     }
     report_unbound(u, t, names);
     terminate();
 }
 
-void compx_dispose()
+void compx_dispose(vector<LexEnv *> & local_envs)
 {
     for (auto p : local_envs)
         delete p;

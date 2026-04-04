@@ -13,7 +13,7 @@ struct SrcOpener {
     virtual ~SrcOpener() = default;
 };
 
-void init_macros(Macros & macros, Names & names, SrcOpener & opener);
+void init_macros(Macros & macros, Names & names, SrcOpener & opener, std::vector<LexEnv *> & local_envs);
 void macros_init(Macros & macros);
 
 } // ns

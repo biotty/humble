@@ -11,7 +11,7 @@
 namespace humble {
 
 GlobalEnv init_top(Macros & macros);
-void top_included(Names & names, Macros & macros);
+void top_included(Names & names, Macros & macros, std::vector<LexEnv *> & local_envs);
 void print(EnvEntry a, Names & n, std::ostream & os);
 
 } // ns

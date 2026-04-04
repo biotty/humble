@@ -90,12 +90,13 @@ void load_libs(GlobalEnv & env, Names & n)
         load_lib(s, env, n);
 }
 
-void compxrun(LexForm & ast, string src, Names & names, Macros & macros, GlobalEnv & env, string & fn)
+void compxrun(LexForm & ast, string src, Names & names, Macros & macros,
+        GlobalEnv & env, string & fn, vector<LexEnv *> & local_envs)
     try
 {
     auto t = parse(src, names, macros);
     load_libs(env, names);
-    ast = compx(move(t), names, env.keys());
+    ast = compx(move(t), names, env.keys(), local_envs);
     run_top(ast, env, names, cout);
 } catch (const SrcError & e) {
     errout("src-error", e.what(), fn);
@@ -111,9 +112,8 @@ int main(int argc, char ** argv)
     if (home.empty()) exit(1);
     u_humble_dir = home + "/.local/humble";
 
-    atexit(compx_dispose);
-    // improve: ^ mechanism such as hold by global unique_ptr
-    // there instead, that can still dispose explicitly in tests.
+    vector<LexEnv *> local_envs;
+
     Names names = init_names();
     init_functions(names);
     io_functions(names);
@@ -122,7 +122,7 @@ int main(int argc, char ** argv)
 
     Macros macros;
     Opener opener;
-    init_macros(macros, names, opener);
+    init_macros(macros, names, opener, local_envs);
     struct Requires : MacroClone<Requires> {
         set<string> * accum;
         Requires(set<string> & accum) : accum(&accum) { }
@@ -135,14 +135,15 @@ int main(int argc, char ** argv)
         }
     };
     macros[names.intern("requires")] = make_unique<Requires>(u_requires_accum);
-    top_included(names, macros);
+    top_included(names, macros, local_envs);
     auto env = init_top(macros);
 
     if (argc >= 2) {
         char * fn = argv[1];
         auto src = opener(fn, Opener::noresolve);
         LexForm ast;
-        compxrun(ast, src, names, macros, env, opener.filename);
+        compxrun(ast, src, names, macros, env, opener.filename, local_envs);
+        compx_dispose(local_envs);
         exit(0);
     }
 
@@ -156,10 +157,11 @@ int main(int argc, char ** argv)
         buf += line + "\n";
         if (line.back() == ';') {
             x.push_back(LexForm{});
-            compxrun(x.back(), buf, names, macros, env, opener.filename);
+            compxrun(x.back(), buf, names, macros, env, opener.filename, local_envs);
             buf.clear();
         }
     }
     cout << "\nfare well.\n";
+    compx_dispose(local_envs);
 }
 

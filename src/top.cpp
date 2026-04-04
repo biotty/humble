@@ -8,7 +8,7 @@ using namespace std;
 
 namespace humble {
 
-void top_included(Names & names, Macros & macros)
+void top_included(Names & names, Macros & macros, vector<LexEnv *> & local_envs)
 {
     string s = R"(
 (ref (caar x) (car (car x)))
@@ -82,7 +82,7 @@ void top_included(Names & names, Macros & macros)
   `(ref@ ,@args (list ,@args)))
 )";
     auto & env = GlobalEnv::initial();
-    static auto t = compx(parse(s, names, macros), names, env.keys());
+    static auto t = compx(parse(s, names, macros), names, env.keys(), local_envs);
     // ^ keep lex tree for fun-ops refs
     for (auto & a : t.v) run(a, env);
 }

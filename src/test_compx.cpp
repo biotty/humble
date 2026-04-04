@@ -31,24 +31,25 @@ TEST(compx, unbound)
     auto i_a = ++i;
     auto i_b = ++i;
     Macros m;
+    vector<LexEnv *> local_envs;
     try {
-        auto t = compx(parse(s, n, m), n, { i_b });
+        auto t = compx(parse(s, n, m), n, { i_b }, local_envs);
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a");
     }
     try {
-        auto t = compx(parse(s, n, m), n, { i_a });
+        auto t = compx(parse(s, n, m), n, { i_a }, local_envs);
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: b");
     }
     try {
-        auto t = compx(parse(s, n, m), n, {});
+        auto t = compx(parse(s, n, m), n, {}, local_envs);
         FAIL();
     } catch (SrcError & e) {
         HUMBLE_EXCEPT_M(e, "unbound,\nline 1: a\nline 1: b");
     }
-    compx_dispose();
+    compx_dispose(local_envs);
 }
 
