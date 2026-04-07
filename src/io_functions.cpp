@@ -4,7 +4,6 @@
 #include "cons.hpp"
 #include "compx.hpp"
 #include "xeval.hpp"
-#include "dl.hpp"
 #include "fun_impl.hpp"
 #include "debug.hpp"
 #include <functional>

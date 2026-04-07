@@ -1,4 +1,4 @@
-#include "dl.hpp"
+#include "xdl_use.hpp"
 #include "fun_impl.hpp"
 #include "utf.hpp"
 #include <iostream>
@@ -104,9 +104,9 @@ EnvEntry f_nc_endwin(span<EnvEntry> args)
     return make_shared<Var>(VarVoid{});
 }
 
-extern "C" void dl_curses(void * a)
+extern "C" void xdl_curses(void * a)
 {
-    auto p = static_cast<dl_arg *>(a);
+    auto p = static_cast<xdl_arg *>(a);
     Names & n = *p->names;
     GlobalEnv & g = *p->env;
     t_nc_stdscr = n.intern("nc-stdscr");

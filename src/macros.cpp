@@ -817,7 +817,7 @@ void init_macros(Macros & m, Names & names, SrcOpener & opener, vector<LexEnv *>
     with_name(names, m, "scope", make_unique<Scope>(names, local_envs));
 }
 
-void macros_init(Macros & macros)
+void macros_init_done(Macros & macros)
 {
     i_macros = clone_macros(macros);
 }

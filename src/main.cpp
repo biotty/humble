@@ -1,6 +1,7 @@
 #include "compx.hpp"
 #include "xeval.hpp"
 #include "top.hpp"
+#include "xdl.hpp"
 #include "functions.hpp"
 #include "io_functions.hpp"
 #include "except.hpp"
@@ -11,13 +12,6 @@
 
 using namespace humble;
 using namespace std;
-
-GlobalEnv init_top(Macros & macros)
-{
-    macros_init(macros);
-    auto & g = GlobalEnv::initial();
-    return g.init();
-}
 
 void errout(const string & ty, const string & wh, const string & fn)
 {
@@ -71,7 +65,8 @@ int main(int argc, char ** argv)
     LibLoader loader{ dir };
     macros[names.intern("requires")] = loader.requires_macro();
     top_included(names, macros, local_envs);
-    auto env = init_top(macros);
+    macros_init_done(macros);
+    auto env = GlobalEnv::initial().init_done();
 
     if (argc >= 2) {
         char * fn = argv[1];

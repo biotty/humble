@@ -80,10 +80,10 @@ struct GlobalEnv : Env {
     bool operator=(Env &) = delete;
     EnvEntry get(int i) final override;
     void set(int i, EnvEntry e) final override;
-    GlobalEnv init();
+    GlobalEnv init_done();
     std::set<int> keys();
 private:
-    bool inited;
+    bool is_init_done;
     std::map<int, EnvEntry> m;
 };
 

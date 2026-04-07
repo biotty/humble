@@ -14,7 +14,7 @@ struct SrcOpener {
 };
 
 void init_macros(Macros & macros, Names & names, SrcOpener & opener, std::vector<LexEnv *> & local_envs);
-void macros_init(Macros & macros);
+void macros_init_done(Macros & macros);
 
 } // ns
 

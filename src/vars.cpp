@@ -11,7 +11,7 @@ GlobalEnv & GlobalEnv::initial()
     return r;
 }
 
-GlobalEnv::GlobalEnv(create_t) : inited{false} { };
+GlobalEnv::GlobalEnv(create_t) : is_init_done{false} { };
 
 EnvEntry GlobalEnv::get(int i)
 {
@@ -24,12 +24,12 @@ EnvEntry GlobalEnv::get(int i)
 
 void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
 
-GlobalEnv GlobalEnv::init()
+GlobalEnv GlobalEnv::init_done()
 {
     GlobalEnv r(create_t{});
     if (this != &initial()) throw CoreError("init on user-env");
-    if (inited) throw CoreError("init more than once");
-    inited = true;
+    if (is_init_done) throw CoreError("init more than once");
+    is_init_done = true;
     r.m = m;
     return r;
 }

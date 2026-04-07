@@ -18,6 +18,7 @@ add_library(Humble
     fun_impl.cpp
     io_functions.cpp
     functions.cpp
+    xdl.cpp
     top.cpp
     xeval.cpp
     cons.cpp
