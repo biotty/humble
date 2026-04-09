@@ -1,5 +1,5 @@
 #include "compx.hpp"
-#include "xeval.hpp"
+#include "eval.hpp"
 #include "top.hpp"
 #include "xdl.hpp"
 #include "functions.hpp"
@@ -47,11 +47,15 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
 
 int main(int argc, char ** argv)
 {
-    string home = getenv("HOME");
-    if (home.empty()) exit(1);
-    string dir = home + "/.local/humble";
+    string dir = "/usr/share/humble";
+    if (char * d = getenv("HUMBLE_DIR"); d) dir = d;
 
-    vector<LexEnv *> local_envs;
+    struct LocalEnvs {
+        using T = vector<LexEnv *>;
+        operator T&() { return v; }
+        ~LocalEnvs() { compx_dispose(v); }
+        T v;
+    } local_envs;
 
     Names names = init_names();
     init_functions(names);
@@ -73,17 +77,14 @@ int main(int argc, char ** argv)
         auto src = opener(fn, Opener::noresolve);
         LexForm ast;
         run_top(ast, src, names, macros, env, opener.filename, local_envs, loader);
-        compx_dispose(local_envs);
-        exit(0);
+        return 0;
     }
 
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
     list<LexForm> x;
     std::string line, buf;
-    while (cout << ":" << flush and std::getline(cin, line)) {
-        if (size_t i = line.find_first_not_of(":"); line.npos != i) line.erase(0, i);
-        if (size_t i = line.find_last_not_of(" \t"); line.npos != i) line.erase(i + 1);
+    while (std::getline(cin, line)) {
         buf += line + "\n";
         if (line.back() == ';') {
             x.push_back(LexForm{});
@@ -92,6 +93,5 @@ int main(int argc, char ** argv)
         }
     }
     cout << "\nfare well.\n";
-    compx_dispose(local_envs);
 }
 

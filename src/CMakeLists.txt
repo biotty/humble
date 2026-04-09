@@ -20,7 +20,7 @@ add_library(Humble
     functions.cpp
     xdl.cpp
     top.cpp
-    xeval.cpp
+    eval.cpp
     cons.cpp
     vars.cpp
     compx.cpp
@@ -66,9 +66,9 @@ add_executable(test_cons test_cons.cpp)
 target_link_libraries(test_cons GTest::GTest GTest::Main ${LIBS})
 add_test(cons test_cons)
 
-add_executable(test_xeval test_xeval.cpp)
-target_link_libraries(test_xeval GTest::GTest GTest::Main ${LIBS})
-add_test(xeval test_xeval)
+add_executable(test_eval test_eval.cpp)
+target_link_libraries(test_eval GTest::GTest GTest::Main ${LIBS})
+add_test(eval test_eval)
 
 install(FILES ${CMAKE_BINARY_DIR}/humble DESTINATION ~/.local/bin PERMISSIONS OWNER_EXECUTE)
 install(FILES ${CMAKE_BINARY_DIR}/libHcurses.so DESTINATION ~/.local/humble)

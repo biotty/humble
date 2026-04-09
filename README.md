@@ -86,13 +86,13 @@ Here is how I have this development set up.
 
 ## Build and run tests
 ```
-sh all.sh
+bash all.sh
 ```
 
 ## C++ environment help
 ```
 sudo apt install build-essential cmake libgtest-dev \
-                 curses-dev  # for snake-game example
+                 ncurses-dev # for snake-game example
 ( cd /usr/src/googletest
   ; sudo cmake .
   ; sudo cmake --build . --target install

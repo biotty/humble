@@ -26,3 +26,9 @@ check out.{a,b}-import_test.txt
 check out.{a,b}-io_test.txt
 
 cmake --install .
+echo
+echo "You're invited to play the snake game with the following command"
+echo "Please note that you navigate with the keys [A] [Z] [O] and [P]."
+echo
+echo "HUMBLE_DIR=$HOME/.local/humble $HOME/.local/bin/humble snake.scm"
+

@@ -35,7 +35,7 @@ static void load_lib(const string & libs_dir, const string & name,
     // consider: ^ use mere symbol "init" always, if allows
     void * dl = dlopen(path.c_str(), RTLD_NOW);
     if (not dl) {
-        es << path << " not loaded: " << dlerror() << endl;
+        es << dlerror() << endl;
         exit(1);
     } else {
         auto f = (xdl_fn)dlsym(dl, sym.c_str());

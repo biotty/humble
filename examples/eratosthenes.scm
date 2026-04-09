@@ -24,9 +24,9 @@
         (loop k)))))
 
 (display "2")
-(do ((i 3 (+ i 2)))
-  ((>= i n))
-  (when (p-ref i)
-    (display " " i)))
+(do ((i 1 (+ i 1)))
+  ((>= i m))
+  (when (list-ref odd-primes i)
+    (display " " (+ 1 (* i 2)))))
 (display "\n")
 
