@@ -15,7 +15,7 @@
 (define (p-ref t) (list-ref odd-primes (/ t 2)))
 (define (p-unset! t) (list-set! odd-primes (/ t 2) #f))
 (do ((i 3 (+ i 2)))
-  ((>= i m))
+  ((>= (* i i) n))
   (when (p-ref i)
     (let loop ((j i))
       (define k (+ j i i))
