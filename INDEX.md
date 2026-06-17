@@ -166,9 +166,9 @@ means one-or-more.  "?" means optional.
 | symbol? | Any |
 | symbol-\>string | Name |
 | system-command-line | - |
-| system-error-file | - |
-| system-input-file | - |
-| system-output-file | - |
+| system-error-port | - |
+| system-input-port | - |
+| system-output-port | - |
 | take | Number Cons |
 | void? | Any |
 | with-input-pipe | List |

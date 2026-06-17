@@ -25,6 +25,38 @@ using namespace std;
 
 namespace {
 
+void pipe_fork(int & fd, int & pid, EnvEntry fun, int parent)
+{
+    int child = 1 - parent;
+    int pfd[2];
+    if (pipe(pfd) == -1) {
+        perror("pipe");
+        fd = -1;
+        return;
+    }
+    fd = pfd[parent];
+    pid = fork();
+    if (pid == -1) {
+        close(pfd[0]);
+        close(pfd[1]);
+        perror("fork");
+        fd = -1;
+        return;
+    }
+    if (pid != 0) {
+        close(pfd[child]);
+        return;
+    }
+    close(fd);
+    dup2(pfd[child], child);
+    vector<EnvEntry> x{fun};
+    (void)fun_call(x);
+    fprintf(stderr, "return from pipe function\n");
+    _Exit(1);
+}
+
+// input
+
 struct InputString {
     string s;
     size_t i;
@@ -72,35 +104,9 @@ constexpr int MAX_ARGV = 30;
 struct InputPipe {
     int fd;
     int pid;
-    InputPipe(unique_ptr<ConsOrListIter> j)
+    InputPipe(EnvEntry fun)
     {
-        char * argv[MAX_ARGV + 1] = {};
-        for (int i = 0; i < MAX_ARGV; ++i) {
-            auto x = j->get();
-            if (not x) break;
-            if (not holds_alternative<VarString>(*x))
-                throw RunError("input-command element not string");
-            auto s = ::get<VarString>(*x).s;
-            argv[i] = strdup(s.c_str());
-        }
-        int pfd[2];
-        if (pipe(pfd) == -1) {
-            perror("pipe");
-            exit(1);
-        }
-        fd = pfd[0];
-        pid = fork();
-        if (pid == -1) {
-            perror("fork");
-        } else if (pid == 0) {
-            close(fd);
-            dup2(pfd[1], 1);
-            execvp(argv[0], argv);
-            _Exit(1);
-        } else {
-            close(pfd[1]);
-        }
-        for (int i = 0; argv[i]; ++i) free(argv[i]);
+        pipe_fork(fd, pid, fun, 0);
     }
     int get()
     {
@@ -140,6 +146,8 @@ void delete_input_pipe(void * u)
 {
     delete static_cast<InputPipe *>(u);
 }
+
+// output
 
 struct OutputString {
     string s;
@@ -191,35 +199,9 @@ void delete_output_file(void * u)
 struct OutputPipe {
     int fd;
     int pid;
-    OutputPipe(unique_ptr<ConsOrListIter> j)
+    OutputPipe(EnvEntry fun)
     {
-        char * argv[MAX_ARGV + 1] = {};
-        for (int i = 0; i < MAX_ARGV; ++i) {
-            auto x = j->get();
-            if (not x) break;
-            if (not holds_alternative<VarString>(*x))
-                throw RunError("output-command element not string");
-            auto s = ::get<VarString>(*x).s;
-            argv[i] = strdup(s.c_str());
-        }
-        int pfd[2];
-        if (pipe(pfd) == -1) {
-            perror("pipe");
-            exit(1);
-        }
-        fd = pfd[1];
-        pid = fork();
-        if (pid == -1) {
-            perror("fork");
-        } else if (pid == 0) {
-            close(fd);
-            dup2(pfd[0], 0);
-            execvp(argv[0], argv);
-            _Exit(1);
-        } else {
-            close(pfd[0]);
-        }
-        for (int i = 0; argv[i]; ++i) free(argv[i]);
+        pipe_fork(fd, pid, fun, 1);
     }
     bool complete_write(const char * s, size_t n)
     {
@@ -280,6 +262,8 @@ void delete_output_pipe(void * u)
 {
     delete static_cast<OutputPipe *>(u);
 }
+
+// prng
 
 struct PrngState {
     char statebuf[32];
@@ -402,9 +386,9 @@ EnvEntry f_open_input_file(span<EnvEntry> args)
 EnvEntry f_with_input_pipe(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("with-input-pipe argc");
-    valt_or_fail<VarCons, VarList>(args, 0, "with-input-pipe");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 0, "with-input-pipe");
     valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-input-pipe");
-    auto p = new InputPipe{make_iter(*args[0])};
+    auto p = new InputPipe{args[0]};
     auto k = make_shared<Var>(VarExt{t_input_pipe});
     get<VarExt>(*k).u = p;
     get<VarExt>(*k).f = delete_input_pipe;
@@ -519,9 +503,9 @@ EnvEntry f_open_output_file(span<EnvEntry> args)
 EnvEntry f_with_output_pipe(span<EnvEntry> args)
 {
     if (args.size() != 2) throw RunError("with-output-pipe argc");
-    valt_or_fail<VarCons, VarList>(args, 0, "with-output-pipe");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 0, "with-output-pipe");
     valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-output-pipe");
-    auto p = new OutputPipe{make_iter(*args[0])};
+    auto p = new OutputPipe{args[0]};
     auto k = make_shared<Var>(VarExt{t_output_pipe});
     get<VarExt>(*k).u = p;
     get<VarExt>(*k).f = delete_output_pipe;
@@ -648,28 +632,45 @@ EnvEntry f_system_command_line(span<EnvEntry> args)
     return make_shared<Var>(VarList{result});
 }
 
-EnvEntry f_system_input_file(span<EnvEntry> args)
+EnvEntry f_system_input_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-input-file argc");
+    if (args.size() != 0) throw RunError("system-input-port argc");
     auto r = VarExt{t_input_sys};
     r.u = &cin;
     return make_shared<Var>(r);
 }
 
-EnvEntry f_system_output_file(span<EnvEntry> args)
+EnvEntry f_system_output_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-output-file argc");
+    if (args.size() != 0) throw RunError("system-output-port argc");
     auto r = VarExt{t_output_sys};
     r.u = &cout;
     return make_shared<Var>(r);
 }
 
-EnvEntry f_system_error_file(span<EnvEntry> args)
+EnvEntry f_system_error_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-error-file argc");
+    if (args.size() != 0) throw RunError("system-error-port argc");
     auto r = VarExt{t_output_sys};
     r.u = &cerr;
     return make_shared<Var>(r);
+}
+
+EnvEntry f_exec_command(span<EnvEntry> args)
+{
+    if (args.size() == 0) throw RunError("exec-command argc");
+    char * argv[MAX_ARGV + 1] = {};
+    int i{};
+    for (auto a : args) {
+        if (i == MAX_ARGV) throw RunError("exec-command argc overflow");
+        if (not holds_alternative<VarString>(*a))
+            throw RunError("exec-command element not string");
+        auto s = ::get<VarString>(*a).s;
+        argv[i++] = strdup(s.c_str());
+    }
+    execvp(argv[0], argv);
+    _Exit(1);
+    return make_shared<Var>(VarVoid{});
 }
 
 } // ans
@@ -706,15 +707,15 @@ void io_functions(Names & n)
             { "open-input-string-bytes", f_open_input_string_bytes },
             { "open-input-file", f_open_input_file },
             { "with-input-pipe", f_with_input_pipe },
-            { "system-input-file", f_system_input_file },
+            { "system-input-port", f_system_input_port },
             { "read-byte", f_read_byte },
             { "read-line", f_read_line },
             { "read-to-eof", f_read_to_eof},
             { "open-output-string", f_open_output_string },
             { "open-output-file", f_open_output_file },
             { "with-output-pipe", f_with_output_pipe },
-            { "system-output-file", f_system_output_file },
-            { "system-error-file", f_system_error_file },
+            { "system-output-port", f_system_output_port },
+            { "system-error-port", f_system_error_port },
             { "output-string-get", f_output_string_get },
             { "output-string-get-bytes", f_output_string_get_bytes },
             { "write-byte", f_write_byte },
@@ -725,6 +726,7 @@ void io_functions(Names & n)
             { "make-prng-state", f_make_prng_state },
             { "prng-get", f_prng_get },
             { "system-command-line", f_system_command_line },
+            { "exec-command", f_exec_command },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 

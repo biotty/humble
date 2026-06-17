@@ -2822,42 +2822,47 @@ def f_write_string(*args):
     args[1][1].write_string(args[0][1])
     return [VAR_VOID]
 
-import subprocess
+import os
+
+def pipe_fork(fn, args, parent):
+    child = 1 - parent
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 0, VAR_FUN_OPS | VAR_FUN_HOST)
+    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
+    pfd = os.pipe()
+    fd = pfd[parent]
+    pid = os.fork()
+    if pid == -1:
+        os.close(pfd[0])
+        os.close(pfd[1])
+        raise RunError("fork")
+    if pid != 0:
+        os.close(pfd[child])
+        return fd, pid
+    os.close(fd)
+    os.dup2(pfd[child], child)
+    y = fun_call([args[0]])
+    sys.stderr.write(fn + " returned\n")
+    os._exit(1)
 
 def f_with_input_pipe(*args):
-    fn = "with-input-pipe"
-    fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
-    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
-    a = []
-    for e in ConsOrListIter(args[0][1]):
-        fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
-                % (fn, fargt_repr(e[0])))
-        a.append(e[1])
-    u = subprocess.Popen(a, stdout=subprocess.PIPE)
-    f = File(u.stdout)
-    p = [VAR_PORT, f]
-    r = fun_call([args[1], p])
-    del f, p
-    c = u.wait()
+    fd, pid = pipe_fork("with-input-pipe", args, 0)
+    g = os.fdopen(fd, "r")
+    g.read = g.buffer.read
+    f = File(g)
+    r = fun_call([args[1], [VAR_PORT, f]])
+    del f
+    c = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
 def f_with_output_pipe(*args):
-    fn = "with-output-pipe"
-    fargc_must_eq(fn, args, 2)
-    fargt_must_in(fn, args, 0, VAR_LIST | VAR_CONS)
-    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
-    a = []
-    for e in ConsOrListIter(args[0][1]):
-        fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
-                % (fn, fargt_repr(e[0])))
-        a.append(e[1])
-    u = subprocess.Popen(a, stdin=subprocess.PIPE)
-    f = File(u.stdin)
-    p = [VAR_PORT, f]
-    r = fun_call([args[1], p])
-    del f, p  # contract:  port reference kept in fun will hang here
-    c = u.wait()
+    fd, pid = pipe_fork("with-output-pipe", args, 1)
+    g = os.fdopen(fd, "w")
+    g.write = g.buffer.write
+    f = File(g)
+    r = fun_call([args[1], [VAR_PORT, f]])
+    del f
+    c = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
 class InStringFile:
@@ -2941,14 +2946,22 @@ def system_f(n, f, fn):
     if n: fargs_count_fail(fn, 0, n)
     return [VAR_PORT, SystemFile(f)]
 
-def f_system_input_file(*args):
-    return system_f(len(args), sys.stdin, "system-input-file")
+def f_system_input_port(*args):
+    return system_f(len(args), sys.stdin, "system-input-port")
 
-def f_system_output_file(*args):
-    return system_f(len(args), sys.stdout, "system-output-file")
+def f_system_output_port(*args):
+    return system_f(len(args), sys.stdout, "system-output-port")
 
-def f_system_error_file(*args):
-    return system_f(len(args), sys.stderr, "system-error-file")
+def f_system_error_port(*args):
+    return system_f(len(args), sys.stderr, "system-error-port")
+
+def f_exec_command(*args):
+    a = []
+    for e in args:
+        fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
+                % (fn, fargt_repr(e[0])))
+        a.append(e[1])
+    os.execvp(a[0], a)
 
 # prng function
 
@@ -3330,9 +3343,10 @@ def init_env(names):
             ("open-input-string", f_open_input_string),
             ("open-input-string-bytes", f_open_input_string_bytes),
             ("system-command-line", f_system_command_line),
-            ("system-input-file", f_system_input_file),
-            ("system-output-file", f_system_output_file),
-            ("system-error-file", f_system_error_file),
+            ("system-input-port", f_system_input_port),
+            ("system-output-port", f_system_output_port),
+            ("system-error-port", f_system_error_port),
+            ("exec-command", f_exec_command),
             ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),
