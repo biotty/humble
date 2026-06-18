@@ -399,6 +399,17 @@ EnvEntry f_with_input_pipe(span<EnvEntry> args)
     return make_shared<Var>(VarNonlist{move(v)});
 }
 
+EnvEntry f_pipe_system_input(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("pipe-system-input argc");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 0, "pipe-system-input");
+    int fd;
+    int pid;
+    pipe_fork(fd, pid, args[0], 0);
+    dup2(fd, 0);
+    return make_shared<Var>(VarVoid{});
+}
+
 EnvEntry f_read_byte(span<EnvEntry> args)
 {
     if (args.size() != 1) throw RunError("read-byte argc");
@@ -514,6 +525,18 @@ EnvEntry f_with_output_pipe(span<EnvEntry> args)
     int status = p->done();
     vector<EnvEntry> v{make_shared<Var>(VarNum{status}), y};
     return make_shared<Var>(VarNonlist{move(v)});
+}
+
+EnvEntry f_pipe_system_output(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("pipe-system-output argc");
+    valt_or_fail<VarFunHost, VarFunOps>(args, 0, "pipe-system-output");
+    int fd;
+    int pid;
+    pipe_fork(fd, pid, args[0], 1);
+    cout.flush();
+    dup2(fd, 1);
+    return make_shared<Var>(VarVoid{});
 }
 
 EnvEntry f_write_byte(span<EnvEntry> args)
@@ -726,6 +749,8 @@ void io_functions(Names & n)
             { "make-prng-state", f_make_prng_state },
             { "prng-get", f_prng_get },
             { "system-command-line", f_system_command_line },
+            { "pipe-system-input", f_pipe_system_input },
+            { "pipe-system-output", f_pipe_system_output },
             { "exec-command", f_exec_command },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }

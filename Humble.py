@@ -2826,9 +2826,7 @@ import os
 
 def pipe_fork(fn, args, parent):
     child = 1 - parent
-    fargc_must_eq(fn, args, 2)
     fargt_must_in(fn, args, 0, VAR_FUN_OPS | VAR_FUN_HOST)
-    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
     pfd = os.pipe()
     fd = pfd[parent]
     pid = os.fork()
@@ -2846,7 +2844,10 @@ def pipe_fork(fn, args, parent):
     os._exit(1)
 
 def f_with_input_pipe(*args):
-    fd, pid = pipe_fork("with-input-pipe", args, 0)
+    fn = "with-input-pipe"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
+    fd, pid = pipe_fork(fn, args, 0)
     g = os.fdopen(fd, "r")
     g.read = g.buffer.read
     f = File(g)
@@ -2855,8 +2856,18 @@ def f_with_input_pipe(*args):
     c = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
 
+def f_pipe_system_input(*args):
+    fn = "pipe-system-input"
+    fargc_must_eq(fn, args, 1)
+    fd, pid = pipe_fork(fn, args, 0)
+    os.dup2(fd, 0)
+    return [VAR_VOID]
+
 def f_with_output_pipe(*args):
-    fd, pid = pipe_fork("with-output-pipe", args, 1)
+    fn = "with-output-pipe"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_in(fn, args, 1, VAR_FUN_OPS | VAR_FUN_HOST)
+    fd, pid = pipe_fork(fn, args, 1)
     g = os.fdopen(fd, "w")
     g.write = g.buffer.write
     f = File(g)
@@ -2864,6 +2875,14 @@ def f_with_output_pipe(*args):
     del f
     c = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
     return [VAR_NONLIST, [[VAR_NUM, c], r]]
+
+def f_pipe_system_output(*args):
+    fn = "pipe-system-output"
+    fargc_must_eq(fn, args, 1)
+    fd, pid = pipe_fork(fn, args, 1)
+    sys.stdout.flush()
+    os.dup2(fd, 1)
+    return [VAR_VOID]
 
 class InStringFile:
 
@@ -2956,6 +2975,7 @@ def f_system_error_port(*args):
     return system_f(len(args), sys.stderr, "system-error-port")
 
 def f_exec_command(*args):
+    fn = "exec-command"
     a = []
     for e in args:
         fchk_or_fail(e[0] == VAR_STRING, "%s got %s expects string"
@@ -3347,6 +3367,8 @@ def init_env(names):
             ("system-output-port", f_system_output_port),
             ("system-error-port", f_system_error_port),
             ("exec-command", f_exec_command),
+            ("pipe-system-input", f_pipe_system_input),
+            ("pipe-system-output", f_pipe_system_output),
             ("make-prng", f_make_prng),
             ("clock", f_clock),
             ("current-jiffy", f_current_jiffy),

@@ -110,6 +110,7 @@ means one-or-more.  "?" means optional.
 | eqv? | Any Any |
 | error | Any\* |
 | even? | Number |
+| exec-command | String+ |
 | exit | Number |
 | length | List |
 | list | Any\* |
@@ -140,6 +141,8 @@ means one-or-more.  "?" means optional.
 | output-string-get-bytes | Ext:output-string |
 | pair? | Any |
 | pause | Number |
+| pipe-system-input | Proc() |
+| pipe-system-output | Proc() |
 | port? | Any |
 | positive? | Number |
 | procedure? | Any |
@@ -171,8 +174,8 @@ means one-or-more.  "?" means optional.
 | system-output-port | - |
 | take | Number Cons |
 | void? | Any |
-| with-input-pipe | List |
-| with-output-pipe | List |
+| with-input-pipe | Proc() Proc(port) |
+| with-output-pipe | Proc() Proc(port) |
 | write | Any |
 | write-byte | Number OutPort |
 | write-string | String OutPort |
