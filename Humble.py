@@ -2983,6 +2983,25 @@ def f_exec_command(*args):
         a.append(e[1])
     os.execvp(a[0], a)
 
+def f_system_getenv(*args):
+    fn = "system-getenv"
+    fargc_must_eq(fn, args, 1)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    name = args[0][1]
+    if name not in os.environ:
+        return [VAR_BOOL, False]
+    return [VAR_STRING, os.environ[name]]
+
+def f_system_setenv(*args):
+    fn = "system-setenv"
+    fargc_must_eq(fn, args, 2)
+    fargt_must_eq(fn, args, 0, VAR_STRING)
+    fargt_must_eq(fn, args, 1, VAR_STRING)
+    name = args[0][1]
+    value = args[1][1]
+    os.environ[name] = value
+    return [VAR_VOID]
+
 # prng function
 
 from random import Random
@@ -3367,6 +3386,8 @@ def init_env(names):
             ("system-output-port", f_system_output_port),
             ("system-error-port", f_system_error_port),
             ("exec-command", f_exec_command),
+            ("system-getenv", f_system_getenv),
+            ("system-setenv", f_system_setenv),
             ("pipe-system-input", f_pipe_system_input),
             ("pipe-system-output", f_pipe_system_output),
             ("make-prng", f_make_prng),

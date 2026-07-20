@@ -696,6 +696,27 @@ EnvEntry f_exec_command(span<EnvEntry> args)
     return make_shared<Var>(VarVoid{});
 }
 
+EnvEntry f_system_getenv(span<EnvEntry> args)
+{
+    if (args.size() != 1) throw RunError("system-getenv argc");
+    valt_or_fail<VarString>(args, 0, "system-getenv");
+    std::string s = get<VarString>(*args[0]).s;
+    char * r = getenv(s.c_str());
+    if ( ! r) return make_shared<Var>(VarBool{false});
+    return make_shared<Var>(VarString{r});
+}
+
+EnvEntry f_system_setenv(span<EnvEntry> args)
+{
+    if (args.size() != 2) throw RunError("system-setenv argc");
+    valt_or_fail<VarString>(args, 0, "system-setenv name");
+    valt_or_fail<VarString>(args, 1, "system-setenv value");
+    std::string n = get<VarString>(*args[0]).s;
+    std::string v = get<VarString>(*args[1]).s;
+    setenv(n.c_str(), v.c_str(), 1);
+    return make_shared<Var>(VarVoid{});
+}
+
 } // ans
 
 namespace humble {
@@ -752,6 +773,8 @@ void io_functions(Names & n)
             { "pipe-system-input", f_pipe_system_input },
             { "pipe-system-output", f_pipe_system_output },
             { "exec-command", f_exec_command },
+            { "system-getenv", f_system_getenv },
+            { "system-setenv", f_system_setenv },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 
