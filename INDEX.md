@@ -170,8 +170,10 @@ means one-or-more.  "?" means optional.
 | symbol-\>string | Name |
 | system-command-line | - |
 | system-error-port | - |
+| system-getenv | String |
 | system-input-port | - |
 | system-output-port | - |
+| system-setenv | String String |
 | take | Number Cons |
 | void? | Any |
 | with-input-pipe | Proc() Proc(port) |

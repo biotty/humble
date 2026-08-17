@@ -17,7 +17,7 @@ Glyph utf_head(std::string_view s)
         return { s.substr(0, 1) };
     }
     if (u < 0b11000000) {
-        throw SrcError("midst utf8");
+        throwSrcError("midst utf8");
     }
     if (u < 0b11100000) {
         return { s.substr(0, 2) };
@@ -28,7 +28,7 @@ Glyph utf_head(std::string_view s)
     if (u < 0b11111000) {
         return { s.substr(0, 4) };
     }
-    throw SrcError("invalid utf8");
+    throwSrcError("invalid utf8");
 }
 
 } // ans
@@ -52,7 +52,7 @@ long long utf_value(Glyph s)
         bitor (p[1] bitand 0b111111) << 12
         bitor (p[2] bitand 0b111111) << 6
         bitor (p[3] bitand 0b111111);
-    throw CoreError("not utf8");
+    throwCoreError("not utf8");
 }
 
 string utf_make(long long i)

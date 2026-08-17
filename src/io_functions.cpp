@@ -298,7 +298,7 @@ EnvEntry make_eof()
 
 EnvEntry f_eof_objectp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("eof-object? argc");
+    if (args.size() != 1) throwRunError("eof-object? argc");
     return make_shared<Var>(VarBool{
             holds_alternative<VarExt>(*args[0])
             and get<VarExt>(*args[0]).t == t_eof_object});
@@ -306,7 +306,7 @@ EnvEntry f_eof_objectp(span<EnvEntry> args)
 
 EnvEntry f_portp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("port? argc");
+    if (args.size() != 1) throwRunError("port? argc");
     if (not holds_alternative<VarExt>(*args[0]))
         return make_shared<Var>(VarBool{false});
     auto t = get<VarExt>(*args[0]).t;
@@ -343,7 +343,7 @@ string get_to_eof(function<int()> get)
 
 EnvEntry f_open_input_string(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("open-input-string argc");
+    if (args.size() != 1) throwRunError("open-input-string argc");
     valt_or_fail<VarString>(args, 0, "open-input-string");
     auto r = VarExt{t_input_string};
     r.u = new InputString{get<VarString>(*args[0]).s};
@@ -353,7 +353,7 @@ EnvEntry f_open_input_string(span<EnvEntry> args)
 
 EnvEntry f_open_input_string_bytes(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("o-i-s-b argc");
+    if (args.size() != 1) throwRunError("o-i-s-b argc");
     valt_or_fail<VarCons, VarList>(args, 0, "o-i-s-b");
     auto j = make_iter(*args[0]);
     string s;
@@ -361,7 +361,7 @@ EnvEntry f_open_input_string_bytes(span<EnvEntry> args)
         auto x = j->get();
         if (not x) break;
         if (not holds_alternative<VarNum>(*x))
-            throw RunError("o-i-s-b not number");
+            throwRunError("o-i-s-b not number");
         auto i = get<VarNum>(*x).i;
         s.push_back(static_cast<unsigned char>(i));
     }
@@ -373,7 +373,7 @@ EnvEntry f_open_input_string_bytes(span<EnvEntry> args)
 
 EnvEntry f_open_input_file(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("open-input-file argc");
+    if (args.size() != 1) throwRunError("open-input-file argc");
     valt_or_fail<VarString>(args, 0, "open-input-file");
     auto r = VarExt{t_input_file};
     auto p = new InputFile{get<VarString>(*args[0]).s};
@@ -385,7 +385,7 @@ EnvEntry f_open_input_file(span<EnvEntry> args)
 
 EnvEntry f_with_input_pipe(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("with-input-pipe argc");
+    if (args.size() != 2) throwRunError("with-input-pipe argc");
     valt_or_fail<VarFunHost, VarFunOps>(args, 0, "with-input-pipe");
     valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-input-pipe");
     auto p = new InputPipe{args[0]};
@@ -401,7 +401,7 @@ EnvEntry f_with_input_pipe(span<EnvEntry> args)
 
 EnvEntry f_pipe_system_input(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("pipe-system-input argc");
+    if (args.size() != 1) throwRunError("pipe-system-input argc");
     valt_or_fail<VarFunHost, VarFunOps>(args, 0, "pipe-system-input");
     int fd;
     int pid;
@@ -412,7 +412,7 @@ EnvEntry f_pipe_system_input(span<EnvEntry> args)
 
 EnvEntry f_read_byte(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("read-byte argc");
+    if (args.size() != 1) throwRunError("read-byte argc");
     auto & e = vext_or_fail(
             {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-byte");
@@ -437,7 +437,7 @@ EnvEntry f_read_byte(span<EnvEntry> args)
 
 EnvEntry f_read_line(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("read-line argc");
+    if (args.size() != 1) throwRunError("read-line argc");
     auto & e = vext_or_fail(
             {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-line");
@@ -456,7 +456,7 @@ EnvEntry f_read_line(span<EnvEntry> args)
 
 EnvEntry f_read_to_eof(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("read-to-eof argc");
+    if (args.size() != 1) throwRunError("read-to-eof argc");
     auto & e = vext_or_fail(
             {t_input_string, t_input_file, t_input_pipe, t_input_sys},
             args, 0, "read-to-eof");
@@ -471,7 +471,7 @@ EnvEntry f_read_to_eof(span<EnvEntry> args)
 
 EnvEntry f_open_output_string(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("open-output-string argc");
+    if (args.size() != 0) throwRunError("open-output-string argc");
     auto r = VarExt{t_output_string};
     r.u = new OutputString{};
     r.f = delete_output_string;
@@ -480,7 +480,7 @@ EnvEntry f_open_output_string(span<EnvEntry> args)
 
 EnvEntry f_output_string_get(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("output-string-get argc");
+    if (args.size() != 1) throwRunError("output-string-get argc");
     auto & e = vext_or_fail({t_output_string}, args, 0, "output-string-get");
     auto p = static_cast<OutputString *>(e.u);
     return make_shared<Var>(VarString{p->s});
@@ -488,7 +488,7 @@ EnvEntry f_output_string_get(span<EnvEntry> args)
 
 EnvEntry f_output_string_get_bytes(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("o-s-g-b argc");
+    if (args.size() != 1) throwRunError("o-s-g-b argc");
     auto & e = vext_or_fail({t_output_string}, args, 0, "o-s-g-b");
     auto p = static_cast<OutputString *>(e.u);
     vector<EnvEntry> r;
@@ -501,7 +501,7 @@ EnvEntry f_output_string_get_bytes(span<EnvEntry> args)
 
 EnvEntry f_open_output_file(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("open-output-file argc");
+    if (args.size() != 1) throwRunError("open-output-file argc");
     valt_or_fail<VarString>(args, 0, "open-output-file");
     auto r = VarExt{t_output_file};
     auto p = new OutputFile{get<VarString>(*args[0]).s};
@@ -513,7 +513,7 @@ EnvEntry f_open_output_file(span<EnvEntry> args)
 
 EnvEntry f_with_output_pipe(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("with-output-pipe argc");
+    if (args.size() != 2) throwRunError("with-output-pipe argc");
     valt_or_fail<VarFunHost, VarFunOps>(args, 0, "with-output-pipe");
     valt_or_fail<VarFunHost, VarFunOps>(args, 1, "with-output-pipe");
     auto p = new OutputPipe{args[0]};
@@ -529,7 +529,7 @@ EnvEntry f_with_output_pipe(span<EnvEntry> args)
 
 EnvEntry f_pipe_system_output(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("pipe-system-output argc");
+    if (args.size() != 1) throwRunError("pipe-system-output argc");
     valt_or_fail<VarFunHost, VarFunOps>(args, 0, "pipe-system-output");
     int fd;
     int pid;
@@ -541,7 +541,7 @@ EnvEntry f_pipe_system_output(span<EnvEntry> args)
 
 EnvEntry f_write_byte(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("write-byte argc");
+    if (args.size() != 2) throwRunError("write-byte argc");
     valt_or_fail<VarNum>(args, 0, "write-byte");
     auto & e = vext_or_fail(
             {t_output_string, t_output_file, t_output_pipe, t_output_sys},
@@ -561,7 +561,7 @@ EnvEntry f_write_byte(span<EnvEntry> args)
 
 EnvEntry f_write_string(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("write-string argc");
+    if (args.size() != 2) throwRunError("write-string argc");
     valt_or_fail<VarString>(args, 0, "write-string");
     auto & e = vext_or_fail(
             {t_output_string, t_output_file, t_output_pipe, t_output_sys},
@@ -581,7 +581,7 @@ EnvEntry f_write_string(span<EnvEntry> args)
 
 EnvEntry f_clock(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("clock argc");
+    if (args.size() != 0) throwRunError("clock argc");
     time_t r;
     (void)time(&r);
     return make_shared<Var>(VarNum{r});
@@ -592,7 +592,7 @@ static timespec u_zt;
 
 EnvEntry f_current_jiffy(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("current-jiffy argc");
+    if (args.size() != 0) throwRunError("current-jiffy argc");
     long long r{};
     if (u_zt.tv_sec == 0) {
         (void)clock_gettime(CLOCK_MONOTONIC, &u_zt);
@@ -608,7 +608,7 @@ EnvEntry f_current_jiffy(span<EnvEntry> args)
 
 EnvEntry f_pause(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("pause argc");
+    if (args.size() != 1) throwRunError("pause argc");
     valt_or_fail<VarNum>(args, 0, "pause");
     auto p = get<VarNum>(*args[0]).i * 1e9 / JIFFIES_PER_SECOND;
     if (p > 0) {
@@ -625,7 +625,7 @@ EnvEntry f_pause(span<EnvEntry> args)
 
 EnvEntry f_make_prng_state(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("make-prng-state argc");
+    if (args.size() != 1) throwRunError("make-prng-state argc");
     valt_or_fail<VarNum>(args, 0, "make-prng-state");
     unsigned int seed = get<VarNum>(*args[0]).i;
     auto r = VarExt{t_prng_state};
@@ -636,7 +636,7 @@ EnvEntry f_make_prng_state(span<EnvEntry> args)
 
 EnvEntry f_prng_get(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("prng-get argc");
+    if (args.size() != 1) throwRunError("prng-get argc");
     auto & e = vext_or_fail({t_prng_state}, args, 0, "prng-get");
     int32_t result;
     (void)random_r(&static_cast<PrngState *>(e.u)->buf, &result);
@@ -647,7 +647,7 @@ vector<string> u_system_command_line;
 
 EnvEntry f_system_command_line(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-command-line argc");
+    if (args.size() != 0) throwRunError("system-command-line argc");
     vector<EnvEntry> result;
     for (auto & s : u_system_command_line) {
         result.push_back(make_shared<Var>(VarString{s}));
@@ -657,7 +657,7 @@ EnvEntry f_system_command_line(span<EnvEntry> args)
 
 EnvEntry f_system_input_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-input-port argc");
+    if (args.size() != 0) throwRunError("system-input-port argc");
     auto r = VarExt{t_input_sys};
     r.u = &cin;
     return make_shared<Var>(r);
@@ -665,7 +665,7 @@ EnvEntry f_system_input_port(span<EnvEntry> args)
 
 EnvEntry f_system_output_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-output-port argc");
+    if (args.size() != 0) throwRunError("system-output-port argc");
     auto r = VarExt{t_output_sys};
     r.u = &cout;
     return make_shared<Var>(r);
@@ -673,7 +673,7 @@ EnvEntry f_system_output_port(span<EnvEntry> args)
 
 EnvEntry f_system_error_port(span<EnvEntry> args)
 {
-    if (args.size() != 0) throw RunError("system-error-port argc");
+    if (args.size() != 0) throwRunError("system-error-port argc");
     auto r = VarExt{t_output_sys};
     r.u = &cerr;
     return make_shared<Var>(r);
@@ -681,13 +681,13 @@ EnvEntry f_system_error_port(span<EnvEntry> args)
 
 EnvEntry f_exec_command(span<EnvEntry> args)
 {
-    if (args.size() == 0) throw RunError("exec-command argc");
+    if (args.size() == 0) throwRunError("exec-command argc");
     char * argv[MAX_ARGV + 1] = {};
     int i{};
     for (auto a : args) {
-        if (i == MAX_ARGV) throw RunError("exec-command argc overflow");
+        if (i == MAX_ARGV) throwRunError("exec-command argc overflow");
         if (not holds_alternative<VarString>(*a))
-            throw RunError("exec-command element not string");
+            throwRunError("exec-command element not string");
         auto s = ::get<VarString>(*a).s;
         argv[i++] = strdup(s.c_str());
     }
@@ -698,7 +698,7 @@ EnvEntry f_exec_command(span<EnvEntry> args)
 
 EnvEntry f_system_getenv(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("system-getenv argc");
+    if (args.size() != 1) throwRunError("system-getenv argc");
     valt_or_fail<VarString>(args, 0, "system-getenv");
     std::string s = get<VarString>(*args[0]).s;
     char * r = getenv(s.c_str());
@@ -708,7 +708,7 @@ EnvEntry f_system_getenv(span<EnvEntry> args)
 
 EnvEntry f_system_setenv(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("system-setenv argc");
+    if (args.size() != 2) throwRunError("system-setenv argc");
     valt_or_fail<VarString>(args, 0, "system-setenv name");
     valt_or_fail<VarString>(args, 1, "system-setenv value");
     std::string n = get<VarString>(*args[0]).s;
@@ -730,7 +730,7 @@ void io_set_system_command_line(int argc, char ** argv)
 void io_functions(Names & n)
 {
     if (u_names and u_names != &n)
-        throw CoreError("io_functions on separate intern");
+        throwCoreError("io_functions on separate intern");
     u_names = &n;
     t_eof_object = n.intern("eof-object");
     t_input_string = n.intern("input-string");

@@ -23,9 +23,16 @@ static const char * quotes = "'`,";
 static const char * par_beg_end = PAR_BEG PAR_END;
 static const char * name_cs = "!$%&*+-./:<=>?@^_~";
 
+[[noreturn]] void throwSrcErrorLine(const std::string & what)
+{
+    ostringstream oss;
+    oss << "line " << linenumber << ": " << what;
+    throwSrcError(oss.str());
+}
+
 size_t spaces(const char * s, size_t n)
 {
-    if (not s) throw CoreError("spaces null");
+    if (not s) throwCoreError("spaces null");
     auto h = s;
     auto p = s + n;
     while (s != p) {
@@ -50,8 +57,7 @@ size_t spaces(const char * s, size_t n)
                     x = y;
                     s += 1;
                 }
-                if (s == p) throw
-                    SrcError("#| comment not ended");
+                if (s == p) throwSrcErrorLine("#| comment not ended");
             } else break;
         } else break;
     }
@@ -60,7 +66,7 @@ size_t spaces(const char * s, size_t n)
 
 pair<string_view, size_t> tok(std::string_view s)
 {
-    if (s.empty()) throw CoreError("tok empty");
+    if (s.empty()) throwCoreError("tok empty");
     auto k = spaces(s.data(), s.size());
     s = s.substr(k);
     if (s.empty()) return {s, k};
@@ -74,10 +80,10 @@ pair<string_view, size_t> tok(std::string_view s)
     }
     const auto n = s.size();
     if (s[i] == '#') {
-        if (++i == n) throw SrcError("stop at #");
+        if (++i == n) throwSrcErrorLine("stop at #");
         if (s[i] == '\\' and ++i == n)
-            throw SrcError("stop at #\\");
-        if (isspace(s[i])) throw SrcError("# space");
+            throwSrcErrorLine("stop at #\\");
+        if (isspace(s[i])) throwSrcErrorLine("# space");
         if (isalnum(s[i])) while (++i != n and isalnum(s[i]));
         else {
             auto w = utf_ref(s.substr(i), 0);
@@ -87,22 +93,22 @@ pair<string_view, size_t> tok(std::string_view s)
     }
     if (s[i] == '"') {
         while (i < n) {
-            if (++i == n) throw SrcError("stop in string");
+            if (++i == n) throwSrcErrorLine("stop in string");
             if (s[i] == '"') {
                 ++i;
                 return r();
             }
             if (s[i] == '\\') {
-                if (++i == n) throw SrcError("stop in string at '\\'");
+                if (++i == n) throwSrcErrorLine("stop in string at '\\'");
             }
         }
     }
     if (s[i] == '@') {
-        if (++i == n) throw SrcError("stop at @");
+        if (++i == n) throwSrcErrorLine("stop at @");
         return r();
     }
     if (strchr(quotes, s[i])) {
-        if (++i == n) throw SrcError("stop at quote");
+        if (++i == n) throwSrcErrorLine("stop at quote");
         return r();
     }
     while (isalnum(s[i]) or strchr(name_cs, s[i])) {
@@ -110,7 +116,7 @@ pair<string_view, size_t> tok(std::string_view s)
     }
     if (i) return r();
     auto g = utf_ref(s.substr(i), 0);
-    throw SrcError("glyph '" + string(g.u) + "'");
+    throwSrcErrorLine("glyph '" + string(g.u) + "'");
 }
 
 string unescape_string(string_view s)
@@ -120,7 +126,7 @@ string unescape_string(string_view s)
     for (size_t i = 0; i < n; ++i) {
         char c = s[i];
         if (c == '\\') {
-            if (++i == n) throw SrcError("end at '\\' in string");
+            if (++i == n) throwSrcErrorLine("end at '\\' in string");
             switch (s[i]) {
                 case 't': c = '\t'; break;
                 case 'n': c = '\n'; break;
@@ -137,13 +143,13 @@ string unescape_string(string_view s)
                                   b *= 8;
                                   b += c - '0';
                                   if (b > 255)
-                                      throw SrcError("octal overflow");
+                                      throwSrcErrorLine("octal overflow");
                               }
                               c = b;
                           }
                           break;
                 default:
-                          throw SrcError("invalid string escape");
+                          throwSrcErrorLine("invalid string escape");
             }
         }
         r.push_back(c);
@@ -163,7 +169,7 @@ size_t Names::size() { return v.size(); }
 int Names::add(std::string_view name, size_t h)
 {
     auto i = v.size();
-    if (i == INT_MAX) throw SrcError("names overflow");
+    if (i == INT_MAX) throwCoreError("names overflow");
     int r = i;
     v.emplace_back(name);
     m.insert({h, r});
@@ -200,7 +206,7 @@ vector<Lex> lex(const string & s, Names & names)
     size_t i = 0;
     if (s[0] == '#' and s[1] == '!') {
         i = s.find('\n');
-        if (i == s.npos) throw SrcError("'#!' without end");
+        if (i == s.npos) throwSrcErrorLine("'#!' without end");
     }
     vector<Lex> r;
     while (i != n) {
@@ -216,7 +222,7 @@ vector<Lex> lex(const string & s, Names & names)
                     and (t[0] == '-' or t[0] == '+'))) {
             long long i;
             if (from_chars(t.data(), t.data() + t.size(), i).ec != errc{})
-                throw SrcError("number");
+                throwSrcErrorLine("number");
             v = LexNum{i};
         } else if (t[0] == '#') {
             if (t == "#t" or t == "#f" or t == "#true" or t == "#false") {
@@ -233,7 +239,7 @@ vector<Lex> lex(const string & s, Names & names)
                 long long i;
                 if (from_chars(t.data() + 2,
                             t.data() + t.size(), i, base).ec != errc{})
-                    throw SrcError("# numeric");
+                    throwSrcErrorLine("# numeric");
                 v = LexNum{i};
             } else if (t[1] == '\\') {
                 auto w = utf_ref(t, 2);
@@ -250,21 +256,21 @@ vector<Lex> lex(const string & s, Names & names)
                     else if (s == "escape") i = 27;
                     else if (s == "space") i = 32;
                     else if (s == "delete") i = 127;
-                    else throw SrcError("#\\");
+                    else throwSrcErrorLine("#\\");
                     v = LexNum{i};
                 }
             } else if (t == "#void") {
                 v = LexVoid{};
             } else if (t == "#r") {
                 v = LexR{};
-            } else throw SrcError("# token");
+            } else throwSrcErrorLine("# token");
         } else if (t[0] == '"') {
             v = LexString{ unescape_string(t.substr(1, t.size() - 2)) };
         } else if (t[0] == '.') {
-            if (t.size() != 1) throw SrcError("token starts in '.'");
+            if (t.size() != 1) throwSrcErrorLine("token starts in '.'");
             v = LexDot{};
         } else if (t[0] == '@') {
-            if (t.size() != 1) throw SrcError("token starts in '@'");
+            if (t.size() != 1) throwSrcErrorLine("token starts in '@'");
             v = LexSpl{};
         } else if (t[0] == quotes[0]) {
             v = LexQt{};

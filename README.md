@@ -3,16 +3,19 @@
 `humble` is an interpreter that may be started in
 interactive mode, or run a program from file.
 
-The implementation in C++ is found under [src](src/) where
-there are no dependencies for the interpreter itself:
+The implementation in C++ is found under [src](src/)
+without any dependencies for the interpreter itself:
 Not even the C++ standard "algorithm" is used, and it
-should be trivial to build without exceptions if that
-is desired.  I use the 2023 revision of C++ language.
+does not depend on exceptions; an alternative build already
+provided for convenience toggles the Humble library to
+not generate exceptions and instead exit on failure.
+We do not use dynamic\_cast and compile with no RTTI.
+I use the 2023 revision of C++ language.
 Accomodation for systems that are not POSIX compliant
 has not been provided.
 
 The "curses" extension is added as an example and if
-not wanted that so-module target as well as `-fPIC`
+not wanted that DSO module target as well as `-fPIC`
 may be dropped from the build-instructions.  But then there
 is no game:  As an example I create the
 *SNAKE* game, maintaining a persisted high-score,
@@ -51,7 +54,7 @@ layout of lists:  Lists are stored in a contiguous
 array until they cannot be, and they are converted to
 "cons" chains as usual in Scheme or LISPS in general.
 The reason a list can no longer be stored contigously
-is that ownership of elements get shared, and
+is that ownership of elements gets shared, and
 one part of the list may now have a different set of
 owners than another part:  A graph with incoming forks.
 If a reference to a cons-cell is given out, i-e with

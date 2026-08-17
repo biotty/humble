@@ -10,7 +10,7 @@ namespace {
 bool cons_iter_next(Cons *& cur)
 {
     if (not holds_alternative<ConsPtr>(cur->d))
-        throw CoreError("list cdr not cons");
+        throwCoreError("list cdr not cons");
     if (not get<ConsPtr>(cur->d))
         return false;
     // cerr << "cons_iter_next " << cur << " d " << &*get<ConsPtr>(cur->d) << endl;
@@ -80,7 +80,7 @@ VarCons Cons::from_list(span<EnvEntry> x, ConsPtr & last)
 VarCons Cons::from_nonlist(span<EnvEntry> x)
 {
     if (x.size() < 2)
-        throw CoreError("short nonlist");
+        throwCoreError("short nonlist");
     ConsNext r = x.back();
     auto it = x.rbegin();
     for (++it; it != x.rend(); ++it)
@@ -95,7 +95,7 @@ ConsPtr to_cons_list(Var & x, ConsPtr & last) {
         last = nullptr;  // vfy: not needed
         return Cons::from_nonlist(get<VarNonlist>(x).v).c;
     }
-    throw CoreError("to_cons on not list");
+    throwCoreError("to_cons on not list");
 }
 
 ConsPtr to_cons(Var & x)
@@ -126,7 +126,7 @@ VarList normal_list(Var & x)
             return {};
         auto r = c->to_list_var();
         if (not holds_alternative<VarList>(r))
-            throw RunError("nonlist for list-use");
+            throwRunError("nonlist for list-use");
         return get<VarList>(r);
     }
     return get<VarList>(x);

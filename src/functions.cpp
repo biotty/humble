@@ -25,7 +25,7 @@ void keeps(EnvEntry & a)
         return;
     auto i = a.use_count();
     if (i == 0)
-        throw CoreError("bad assumption on keeps");
+        throwCoreError("bad assumption on keeps");
     if (i == 1)
         return;
     EnvEntry b = make_shared<Var>(VarVoid{});
@@ -53,14 +53,14 @@ EnvEntry f_nonlist(span<EnvEntry> args)
 
 EnvEntry f_list_copy(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("list-copy argc");
+    if (args.size() != 1) throwRunError("list-copy argc");
     valt_or_fail<VarList, VarCons>(args, 0, "list-copy");
     return make_shared<Var>(normal_list(*args[0]));
 }
 
 EnvEntry f_cons(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("cons argc");
+    if (args.size() != 2) throwRunError("cons argc");
     keeps(args[0]);
     if (valt_in<VarCons, VarList, VarNonlist>(*args[1])) {
         auto c = to_cons(*args[1]);
@@ -73,13 +73,13 @@ EnvEntry f_cons(span<EnvEntry> args)
 
 EnvEntry f_car(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("car argc");
+    if (args.size() != 1) throwRunError("car argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "car");
     Var & v = *args[0];
     if (valt_in<VarList>(v)) return get<VarList>(v).v[0];
     if (valt_in<VarNonlist>(v)) return get<VarNonlist>(v).v[0];
     auto & d = get<VarCons>(v);
-    if (not d.c) throw RunError("car on null");
+    if (not d.c) throwRunError("car on null");
     return d.c->a;
 }
 
@@ -88,7 +88,7 @@ EnvEntry c_list_ref(ConsPtr c, int i)
     while (i) {
         c = get<ConsPtr>(c->d);
         if (not c)
-            throw RunError("list-ref cdr null");
+            throwRunError("list-ref cdr null");
         --i;
     }
     return c->a;
@@ -97,13 +97,13 @@ EnvEntry c_list_ref(ConsPtr c, int i)
 EnvEntry v_list_ref(const vector<EnvEntry> & v, int i)
 {
     if (v.size() <= static_cast<size_t>(i))
-        throw RunError("list-ref index overflow");
+        throwRunError("list-ref index overflow");
     return v[i];
 }
 
 EnvEntry f_list_ref(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("list-ref argc");
+    if (args.size() != 2) throwRunError("list-ref argc");
     valt_or_fail<VarNum>(args, 1, "car");
     auto i = get<VarNum>(*args[1]).i;
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "car");
@@ -116,14 +116,14 @@ EnvEntry f_list_ref(span<EnvEntry> args)
 
 EnvEntry f_cdr(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("cdr argc");
+    if (args.size() != 1) throwRunError("cdr argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "cdr");
     Var & a = *args[0];
     if (not valt_in<VarCons>(a)) {
         if (valt_in<VarNonlist>(a)) {
             auto & u = get<VarNonlist>(a);
             if (u.v.size() <= 1)
-                throw CoreError("cdr short nonlist");
+                throwCoreError("cdr short nonlist");
             if (u.v.size() == 2)
                 return u.v[1];
         }
@@ -131,7 +131,7 @@ EnvEntry f_cdr(span<EnvEntry> args)
         a = VarCons{c};
     }
     VarCons & r = get<VarCons>(a);
-    if (not r.c) throw RunError("cdr on null");
+    if (not r.c) throwRunError("cdr on null");
     if (holds_alternative<EnvEntry>(r.c->d))
         return get<EnvEntry>(r.c->d);
     return make_shared<Var>(VarCons{get<ConsPtr>(r.c->d)});
@@ -171,7 +171,7 @@ EnvEntry f_append(span<EnvEntry> args)
             } else {
                 if (i == i_last)
                     return get<EnvEntry>(p);
-                throw CoreError("programmatic");
+                throwCoreError("programmatic");
             }
         }
     }
@@ -194,7 +194,7 @@ EnvEntry f_append(span<EnvEntry> args)
 
 EnvEntry f_set_carj(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("set-car! argc");
+    if (args.size() != 2) throwRunError("set-car! argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-car!");
     keeps(args[1]);
     if (valt_in<VarCons>(*args[0])) {
@@ -209,7 +209,7 @@ EnvEntry f_set_carj(span<EnvEntry> args)
 
 EnvEntry f_set_cdrj(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("set-cdr! argc");
+    if (args.size() != 2) throwRunError("set-cdr! argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 0, "set-cdr!");
     keeps(args[1]);
     if (valt_in<VarList>(*args[1])) {
@@ -236,7 +236,7 @@ EnvEntry f_set_cdrj(span<EnvEntry> args)
 
 EnvEntry f_list_tail(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("list-tail argc");
+    if (args.size() != 2) throwRunError("list-tail argc");
     valt_or_fail<VarCons, VarList>(args, 0, "list-tail");
     valt_or_fail<VarNum>(args, 1, "list-tail");
     auto n = get<VarNum>(*args[1]).i;
@@ -254,7 +254,7 @@ EnvEntry f_list_tail(span<EnvEntry> args)
 
 EnvEntry f_list_setj(span<EnvEntry> args)
 {
-    if (args.size() != 3) throw RunError("list-set! argc");
+    if (args.size() != 3) throwRunError("list-set! argc");
     valt_or_fail<VarCons, VarList>(args, 0, "list-set!");
     valt_or_fail<VarNum>(args, 1, "list-set!");
     auto n = get<VarNum>(*args[1]).i;
@@ -271,7 +271,7 @@ EnvEntry f_list_setj(span<EnvEntry> args)
 
 EnvEntry f_make_list(span<EnvEntry> args)
 {
-    if (args.size() == 0) throw RunError("make-list argc");
+    if (args.size() == 0) throwRunError("make-list argc");
     valt_or_fail<VarNum>(args, 0, "make-list");
     auto n = get<VarNum>(*args[0]).i;
     EnvEntry x;
@@ -286,7 +286,7 @@ EnvEntry f_make_list(span<EnvEntry> args)
 
 EnvEntry f_reverse(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("reverse argc");
+    if (args.size() != 1) throwRunError("reverse argc");
     valt_or_fail<VarCons, VarList>(args, 0, "reverse");
     auto r = f_list_copy(args);
     auto & a = get<VarList>(*r);
@@ -299,7 +299,7 @@ EnvEntry f_reverse(span<EnvEntry> args)
 
 EnvEntry f_take(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("take argc");
+    if (args.size() != 2) throwRunError("take argc");
     valt_or_fail<VarNum>(args, 0, "take");
     valt_or_fail<VarCons, VarList>(args, 1, "take");
     auto n = get<VarNum>(*args[0]).i;
@@ -320,7 +320,7 @@ EnvEntry f_take(span<EnvEntry> args)
 
 EnvEntry f_splice(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("splice argc");
+    if (args.size() != 1) throwRunError("splice argc");
     valt_or_fail<VarCons, VarList>(args, 0, "splice");
     return make_shared<Var>(VarSplice{normal_list(*args[0]).v});
 }
@@ -331,7 +331,7 @@ EnvEntry f_splice(span<EnvEntry> args)
 
 EnvEntry f_not(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("not argc");
+    if (args.size() != 1) throwRunError("not argc");
     return make_shared<Var>(VarBool{
             valt_in<VarBool>(*args[0])
             and get<VarBool>(*args[0]).b == false});
@@ -435,14 +435,14 @@ EnvEntry f_min(span<EnvEntry> args)
 
 EnvEntry f_abs(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("abs argc");
+    if (args.size() != 1) throwRunError("abs argc");
     valt_or_fail<VarNum>(args, 0, "abs");
     return make_shared<Var>(VarNum{abs(get<VarNum>(*args[0]).i)});
 }
 
 EnvEntry n1_pred(span<EnvEntry> args, string fn, bool(*p)(long long))
 {
-    if (args.size() != 1) throw RunError(fn + "argc");
+    if (args.size() != 1) throwRunError(fn + "argc");
     valt_or_fail<VarNum>(args, 0, fn);
     return make_shared<Var>(VarBool{ p(get<VarNum>(*args[0]).i) });
 }
@@ -531,7 +531,7 @@ EnvEntry setjj(span<EnvEntry> args)
 
 EnvEntry f_setj(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("set! argc");
+    if (args.size() != 2) throwRunError("set! argc");
     if (not ((valt_in<VarCons, VarList, VarNonlist>(*args[0])
                     and valt_in<VarCons, VarList, VarNonlist>(*args[1]))
                 or args[0]->index() == args[1]->index())) {
@@ -542,13 +542,13 @@ EnvEntry f_setj(span<EnvEntry> args)
 
 EnvEntry f_setjj(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("set!! argc");
+    if (args.size() != 2) throwRunError("set!! argc");
     return setjj(args);
 }
 
 EnvEntry f_dup(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("dup argc");
+    if (args.size() != 1) throwRunError("dup argc");
     auto r = make_shared<Var>(VarVoid{});
     if (valt_in<VarVoid>(*args[0])) {
         warn("dup of void", args);
@@ -556,7 +556,7 @@ EnvEntry f_dup(span<EnvEntry> args)
     }
     auto i = args[0].use_count();
     if (i == 0)
-        throw CoreError("assumption on refs to an arg");
+        throwCoreError("assumption on refs to an arg");
     if (i == 1)
         return args[0];
     vector<EnvEntry> w{r, args[0]};
@@ -570,13 +570,13 @@ EnvEntry f_dup(span<EnvEntry> args)
 
 EnvEntry f_aliasp(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("alias? argc");
+    if (args.size() != 2) throwRunError("alias? argc");
     return make_shared<Var>(VarBool{&*args[0] == &*args[1]});
 }
 
 EnvEntry f_eqp(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("eq? argc");
+    if (args.size() != 2) throwRunError("eq? argc");
     Var & a = *args[0];
     Var & b = *args[1];
     bool r{};
@@ -600,7 +600,7 @@ EnvEntry f_eqp(span<EnvEntry> args)
 
 EnvEntry f_equalp(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("equal? argc");
+    if (args.size() != 2) throwRunError("equal? argc");
     Var & a = *args[0];
     Var & b = *args[1];
     if (not valt_in<VarList, VarNonlist, VarCons>(a)
@@ -691,7 +691,7 @@ EnvEntry f_equalp(span<EnvEntry> args)
 
 EnvEntry f_make_record(span<EnvEntry> args)
 {
-    if (args.size() < 1) throw RunError("make-record argc");
+    if (args.size() < 1) throwRunError("make-record argc");
     valt_or_fail<VarNam>(args, 0, "make-record");
     vector<EnvEntry> v{args.begin(), args.end()};
     return make_shared<Var>(VarRec{v});
@@ -699,7 +699,7 @@ EnvEntry f_make_record(span<EnvEntry> args)
 
 EnvEntry f_record_get(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("record-get argc");
+    if (args.size() != 2) throwRunError("record-get argc");
     valt_or_fail<VarRec>(args, 0, "record-get");
     valt_or_fail<VarNum>(args, 1, "record-get");
     auto & r = get<VarRec>(*args[0]);
@@ -708,7 +708,7 @@ EnvEntry f_record_get(span<EnvEntry> args)
 
 EnvEntry f_record_setj(span<EnvEntry> args)
 {
-    if (args.size() != 3) throw RunError("record-set! argc");
+    if (args.size() != 3) throwRunError("record-set! argc");
     valt_or_fail<VarRec>(args, 0, "record-set!");
     valt_or_fail<VarNum>(args, 1, "record-set!");
     keeps(args[2]);
@@ -719,7 +719,7 @@ EnvEntry f_record_setj(span<EnvEntry> args)
 
 EnvEntry f_recordp(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("record? argc");
+    if (args.size() != 2) throwRunError("record? argc");
     valt_or_fail<VarRec>(args, 0, "record?");
     valt_or_fail<VarNam>(args, 1, "record?");
     auto h = get<VarNam>(*get<VarRec>(*args[0]).v[0]).h;
@@ -732,7 +732,7 @@ EnvEntry f_recordp(span<EnvEntry> args)
 
 EnvEntry f_string_ref(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("string->ref argc");
+    if (args.size() != 2) throwRunError("string->ref argc");
     valt_or_fail<VarString>(args, 0, "string->ref");
     valt_or_fail<VarNum>(args, 1, "string->ref");
     auto s = get<VarString>(*args[0]).s;
@@ -746,7 +746,7 @@ EnvEntry f_string_ref(span<EnvEntry> args)
 
 EnvEntry f_string_z_list(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("string->list argc");
+    if (args.size() != 1) throwRunError("string->list argc");
     valt_or_fail<VarString>(args, 0, "string->list");
     auto s = get<VarString>(*args[0]).s;
     vector<EnvEntry> v;
@@ -761,7 +761,7 @@ EnvEntry f_string_z_list(span<EnvEntry> args)
 
 EnvEntry f_list_z_string(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("list->string argc");
+    if (args.size() != 1) throwRunError("list->string argc");
     valt_or_fail<VarCons, VarList>(args, 0, "list->string");
     auto j = make_iter(*args[0]);
     string s;
@@ -769,7 +769,7 @@ EnvEntry f_list_z_string(span<EnvEntry> args)
         auto x = j->get();
         if (not x) break;
         if (not valt_in<VarNum>(*x))
-            throw RunError("list->string not number");
+            throwRunError("list->string not number");
         s += utf_make(get<VarNum>(*x).i);
     }
     return make_shared<Var>(VarString{move(s)});
@@ -777,7 +777,7 @@ EnvEntry f_list_z_string(span<EnvEntry> args)
 
 EnvEntry f_symbol_z_string(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("symbol->string argc");
+    if (args.size() != 1) throwRunError("symbol->string argc");
     valt_or_fail<VarNam>(args, 0, "symbol->string");
     int h = get<VarNam>(*args[0]).h;
     return make_shared<Var>(VarString{u_names->get(h)});
@@ -785,7 +785,7 @@ EnvEntry f_symbol_z_string(span<EnvEntry> args)
 
 EnvEntry f_substring(span<EnvEntry> args)
 {
-    if (args.size() < 2) throw RunError("substring argc");
+    if (args.size() < 2) throwRunError("substring argc");
     valt_or_fail<VarString>(args, 0, "substring");
     valt_or_fail<VarNum>(args, 1, "substring");
     auto & s = get<VarString>(*args[0]).s;
@@ -801,7 +801,7 @@ EnvEntry f_substring(span<EnvEntry> args)
 
 EnvEntry f_substring_index(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("substring-index argc");
+    if (args.size() != 2) throwRunError("substring-index argc");
     valt_or_fail<VarString>(args, 0, "substring-index");
     valt_or_fail<VarString>(args, 1, "substring-index");
     auto s = get<VarString>(*args[0]).s;
@@ -813,7 +813,7 @@ EnvEntry f_substring_index(span<EnvEntry> args)
 
 EnvEntry f_string_length(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("string-length argc");
+    if (args.size() != 1) throwRunError("string-length argc");
     valt_or_fail<VarString>(args, 0, "string-length");
     auto s = get<VarString>(*args[0]).s;
     return make_shared<Var>(VarNum{static_cast<long long>(s.length())});
@@ -832,7 +832,7 @@ EnvEntry f_string_append(span<EnvEntry> args)
 typedef bool (*spred_t)(const string &, const string &);
 EnvEntry spred(span<EnvEntry> args, const string & fn, spred_t f)
 {
-    if (args.size() != 2) throw RunError(fn);
+    if (args.size() != 2) throwRunError(fn);
     valt_or_fail<VarString>(args, 0, fn);
     valt_or_fail<VarString>(args, 1, fn);
     auto s = get<VarString>(*args[0]).s;
@@ -860,14 +860,14 @@ EnvEntry f_stringgtp(span<EnvEntry> args)
 
 EnvEntry f_string_z_number(span<EnvEntry> args)
 {
-    if (args.size() < 1) throw RunError("string->number argc");
+    if (args.size() < 1) throwRunError("string->number argc");
     valt_or_fail<VarString>(args, 0, "string->number");
     auto s = get<VarString>(*args[0]).s;
     int radix = 10;
     if (args.size() >= 2) {
         radix = get<VarNum>(*args[2]).i;
         if (radix < 2 or radix > 36)
-            throw RunError("string->number radix");
+            throwRunError("string->number radix");
     }
     auto r = strtoll(s.data(), nullptr, radix);
     return make_shared<Var>(VarNum{r});
@@ -875,14 +875,14 @@ EnvEntry f_string_z_number(span<EnvEntry> args)
 
 EnvEntry f_number_z_string(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("number->string argc");
+    if (args.size() != 1) throwRunError("number->string argc");
     valt_or_fail<VarNum>(args, 0, "number->string");
     auto n = get<VarNum>(*args[0]).i;
     ostringstream oss;
     if (args.size() >= 2) {
         int radix = get<VarNum>(*args[2]).i;
         if (radix < 2 or radix > 36)
-            throw RunError("number->string radix");
+            throwRunError("number->string radix");
         oss << setbase(radix);
     }
     oss << n;
@@ -895,45 +895,45 @@ EnvEntry f_number_z_string(span<EnvEntry> args)
 
 EnvEntry f_booleanp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("boolean? argc");
+    if (args.size() != 1) throwRunError("boolean? argc");
     return make_shared<Var>(VarBool{valt_in<VarBool>(*args[0])});
 }
 EnvEntry f_numberp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("number? argc");
+    if (args.size() != 1) throwRunError("number? argc");
     return make_shared<Var>(VarBool{valt_in<VarNum>(*args[0])});
 }
 
 EnvEntry f_procedurep(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("procedure? argc");
+    if (args.size() != 1) throwRunError("procedure? argc");
     return make_shared<Var>(VarBool{
             valt_in<VarFunHost, VarFunOps>(*args[0])});
 }
 
 EnvEntry f_symbolp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("symbol? argc");
+    if (args.size() != 1) throwRunError("symbol? argc");
     return make_shared<Var>(VarBool{valt_in<VarNam>(*args[0])});
 }
 
 EnvEntry f_nullp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("null? argc");
+    if (args.size() != 1) throwRunError("null? argc");
     auto & a = *args[0];
     if (valt_in<VarList>(a) and get<VarList>(a).v.size() == 0)
-        throw CoreError("empty cont-list");
+        throwCoreError("empty cont-list");
     return make_shared<Var>(VarBool{
             valt_in<VarCons>(a) and nullptr == get<VarCons>(a).c});
 }
 
 EnvEntry f_listp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("list? argc");
+    if (args.size() != 1) throwRunError("list? argc");
     auto & a = *args[0];
     if (valt_in<VarList>(a)) {
         if (get<VarList>(a).v.size() == 0)
-            throw CoreError("empty cont-list");
+            throwCoreError("empty cont-list");
         return make_shared<Var>(VarBool{true});
     }
     if (not valt_in<VarCons>(a))
@@ -952,13 +952,13 @@ EnvEntry f_listp(span<EnvEntry> args)
 
 EnvEntry f_pairp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("pair? argc");
+    if (args.size() != 1) throwRunError("pair? argc");
     auto & a = *args[0];
     if (valt_in<VarNonlist>(a))
         return make_shared<Var>(VarBool{true});
     if (valt_in<VarList>(a)) {
         if (get<VarList>(a).v.size() == 0)
-            throw CoreError("empty cont-list");
+            throwCoreError("empty cont-list");
         return make_shared<Var>(VarBool{true});
     }
     return make_shared<Var>(VarBool{
@@ -967,7 +967,7 @@ EnvEntry f_pairp(span<EnvEntry> args)
 
 EnvEntry f_contpp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("cont?? argc");
+    if (args.size() != 1) throwRunError("cont?? argc");
     // warn("uses cont??", args);
     return make_shared<Var>(
             VarBool{valt_in<VarList, VarNonlist>(*args[0])});
@@ -975,7 +975,7 @@ EnvEntry f_contpp(span<EnvEntry> args)
 
 EnvEntry f_voidp(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("void? argc");
+    if (args.size() != 1) throwRunError("void? argc");
     return make_shared<Var>(VarBool{valt_in<VarVoid>(*args[0])});
 }
 
@@ -985,7 +985,7 @@ EnvEntry f_voidp(span<EnvEntry> args)
 
 EnvEntry f_length(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("length argc");
+    if (args.size() != 1) throwRunError("length argc");
     valt_or_fail<VarCons, VarList>(args, 0, "length");
     auto & a = *args[0];
     long long r{};
@@ -1000,7 +1000,7 @@ EnvEntry f_length(span<EnvEntry> args)
 
 EnvEntry f_apply(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("apply argc");
+    if (args.size() != 2) throwRunError("apply argc");
     valt_or_fail<VarCons, VarList>(args, 1, "apply");
     vector<EnvEntry> e{args[0]};
     for (auto & v : normal_list(*args[1]).v)
@@ -1010,7 +1010,7 @@ EnvEntry f_apply(span<EnvEntry> args)
 
 EnvEntry f_map(span<EnvEntry> args)
 {
-    if (args.size() < 1) throw RunError("map argc");
+    if (args.size() < 1) throwRunError("map argc");
     valt_or_fail<VarFunOps, VarFunHost>(args, 0, "map");
     vector<unique_ptr<ConsOrListIter>> inputs;
     for (size_t i = 1; i != args.size(); ++i) {
@@ -1060,7 +1060,7 @@ struct SearchWithFun : SearchPred {
 
 EnvEntry f_member(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("member argc");
+    if (args.size() != 2) throwRunError("member argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 1, "member");
     EnvEntry f = make_shared<Var>(VarBool{false});
     unique_ptr<SearchPred> t;
@@ -1102,7 +1102,7 @@ EnvEntry f_member(span<EnvEntry> args)
 
 EnvEntry f_assoc(span<EnvEntry> args)
 {
-    if (args.size() != 2) throw RunError("assoc argc");
+    if (args.size() != 2) throwRunError("assoc argc");
     valt_or_fail<VarCons, VarList, VarNonlist>(args, 1, "assoc");
     EnvEntry f = make_shared<Var>(VarBool{false});
     unique_ptr<SearchPred> t;
@@ -1158,7 +1158,7 @@ EnvEntry f_display(span<EnvEntry> args)
 
 EnvEntry f_read(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("read argc");
+    if (args.size() != 1) throwRunError("read argc");
     valt_or_fail<VarString>(args, 0, "read");
     auto & s = get<VarString>(*args[0]).s;
     auto t = readx(s, *u_names);
@@ -1171,7 +1171,7 @@ EnvEntry f_read(span<EnvEntry> args)
 
 EnvEntry f_write(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("write argc");
+    if (args.size() != 1) throwRunError("write argc");
     ostringstream f;
     print(args[0], *u_names, f);
     return make_shared<Var>(VarString{f.str()});
@@ -1214,11 +1214,11 @@ namespace humble {
 void init_functions(Names & n)
 {
     if (u_names and u_names != &n)
-        throw CoreError("functions on separate intern");
+        throwCoreError("functions on separate intern");
     u_names = &n;
     auto & g = GlobalEnv::initial();
     typedef EnvEntry (*hp)(span<EnvEntry> args);
-    if (n.size() != NAM__KNOWN) throw CoreError("init names expected");
+    if (n.size() != NAM__KNOWN) throwCoreError("init names expected");
     for (auto & p : initializer_list<pair<string, hp>>{
             { "list", f_list },
             { "nonlist", f_nonlist },

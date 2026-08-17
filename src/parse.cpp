@@ -80,7 +80,7 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
     auto parse1 = [&i, &z, depth]()
     {
         auto [w, j] = parse_r(z, i + 1, PARSE_MODE_ONE, depth);
-        if (w.v.size() != 1) throw CoreError("parse one");
+        if (w.v.size() != 1) throwCoreError("parse one");
         i = j;
         return std::move(w.v.at(0));
     };
@@ -96,7 +96,7 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
                 oss << " does not match '";
                 oss << (paren_mode >= 0 ?  string(par_beg + paren_mode, 1)
                         : "(none)") << "'";
-                throw SrcError(oss.str());
+                throwSrcError(oss.str());
             }
             return {fr, i + 1};
         } else if (std::holds_alternative<LexBeg>(x)) {
@@ -113,8 +113,11 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
             r.push_back(LexForm{{nam_splice, parse1()}});
         } else if (std::holds_alternative<LexR>(x)) {
             auto w = parse1();
-            if (not holds_alternative<LexForm>(w))
-                throw SrcError("#r takes form");
+            if (not holds_alternative<LexForm>(w)) {
+                ostringstream oss;
+                oss << "line " << linenumber << ": #r takes form";
+                throwSrcError(oss.str());
+            }
             auto & f = get<LexForm>(w);
             vector<Lex> a;
             for (auto & x : f.v)
@@ -135,7 +138,7 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
                 ostringstream oss;
                 oss << "parens '" << par_beg[paren_mode];
                 oss << "' depth " << depth << " not closed";
-        throw SrcError(oss.str());
+        throwSrcError(oss.str());
     }
 #ifdef DEBUG
     cout << "parse: " << r << "\n";
@@ -189,18 +192,11 @@ Macros clone_macros(Macros & macros)
 
 LexForm readx(const std::string & s, Names & n)
 {
-    vector<Lex> z;
     linenumber = 1;
-    try {
-        z = lex(s, n);
-    } catch (const SrcError & e) {
-        ostringstream oss;
-        oss << "line " << linenumber << ": " << e.what();
-        throw SrcError(oss.str());
-    }
+    auto z = lex(s, n);
     auto [w, i] = parse_r(z, 0, PARSE_MODE_TOP, 0);
     if (i != z.size()) {
-        throw CoreError("not fully consumed; unexpected");
+        throwCoreError("not fully consumed; unexpected");
     }
     return w;
 }
@@ -289,7 +285,7 @@ bool is_dotform(const LexForm & x)
 
 LexForm without_dot(const LexForm & x)
 {
-    if (not is_dotform(x)) throw CoreError("no dot");
+    if (not is_dotform(x)) throwCoreError("no dot");
     LexForm r = x;
     auto d = r.v.size() - 2;
     r.v.erase(r.v.begin() + d);
@@ -298,7 +294,7 @@ LexForm without_dot(const LexForm & x)
 
 LexForm with_dot(const LexForm & x)
 {
-    if (is_dotform(x)) throw CoreError("has dot");
+    if (is_dotform(x)) throwCoreError("has dot");
     LexForm r = x;
     auto d = r.v.size() - 1;
     r.v.insert(r.v.begin() + d, LexDot{});
@@ -307,7 +303,11 @@ LexForm with_dot(const LexForm & x)
 
 void QtArgCheck(string name, const LexForm & t)
 {
-    if (t.v.size() != 2) throw SrcError(name);
+    if (t.v.size() != 2) {
+        ostringstream oss;
+        oss << "line " << linenumber << ": " << name;
+        throwSrcError(oss.str());
+    }
 }
 
 Lex Quote::operator()(LexForm && t)

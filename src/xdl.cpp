@@ -17,8 +17,8 @@ unique_ptr<Macro> LibLoader::requires_macro()
         Requires(set<string> & accum) : accum(&accum) { }
         Lex operator()(LexForm && s) override
         {
-            if (s.v.size() != 2) throw SrcError("requires argc");
-            if (not holds_alternative<LexString>(s.v[1])) throw SrcError("requires");
+            if (s.v.size() != 2) throwSrcError("requires argc");
+            if (not holds_alternative<LexString>(s.v[1])) throwSrcError("requires");
             accum->insert(get<LexString>(s.v[1]).s);
             return LexVoid{};
         }

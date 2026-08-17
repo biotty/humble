@@ -23,7 +23,9 @@ void errout(const string & ty, const string & wh, const string & fn)
 
 void run_top(LexForm & ast, string src, Names & names, Macros & macros,
         GlobalEnv & env, string & fn, vector<LexEnv *> & local_envs, LibLoader & loader)
+#ifndef HUMBLE_NOEXC
     try
+#endif
 {
     auto t = parse(src, names, macros);
     loader(env, names, cerr);
@@ -37,12 +39,16 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
             os << endl;
         }
     }
+#ifndef HUMBLE_NOEXC
 } catch (const SrcError & e) {
     errout("src-error", e.what(), fn);
 } catch (const RunError & e) {
     errout("run-error", e.what(), fn);
 } catch (const runtime_error & e) {
     errout("error", e.what(), fn);
+#else
+    (void)fn;
+#endif
 }
 
 int main(int argc, char ** argv)

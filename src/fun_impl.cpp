@@ -13,11 +13,11 @@ VarExt & vext_or_fail(const vector<int> & ts, span<EnvEntry> args, size_t i, str
     oss << s << " args[" << i << "] ";
     if (not holds_alternative<VarExt>(*args[i])) {
         oss << var_type_name(*args[i]);
-        throw RunError(oss.str());
+        throwRunError(oss.str());
     } else if (auto u = get<VarExt>(*args[i]).t;
             find(ts.begin(), ts.end(), u) == ts.end()) {
         oss << "ext:" << u_names->get(u);
-        throw RunError(oss.str());
+        throwRunError(oss.str());
     }
     return get<VarExt>(*args[i]);
 }

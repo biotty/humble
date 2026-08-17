@@ -4,17 +4,17 @@ set(CMAKE_CXX_STANDARD 23)
 enable_testing()
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 # ^ only needed to support extension modules
-add_compile_options(-Wall -Wextra -Werror -O2
+add_compile_options(-Wall -Wextra -Werror -O2 -fno-rtti
     # -Wshadow     # for potential tidyup
 )
 # add_compile_options(-DDEBUG)
- add_compile_options(-ggdb -O0)
+# add_compile_options(-ggdb -O0)
 # add_compile_options(-fsanitize=address)
 # # alt: valgrind
 
 find_package(GTest REQUIRED)
 
-add_library(Humble
+set(HumbleSRC
     fun_impl.cpp
     io_functions.cpp
     functions.cpp
@@ -31,6 +31,12 @@ add_library(Humble
     debug.cpp
     except.cpp)
 
+add_library(Humble ${HumbleSRC})
+
+set(NoExcOptions -DHUMBLE_NOEXC -fno-exceptions -fno-unwind-tables)
+add_library(HumbleNoExc ${HumbleSRC})
+target_compile_options(HumbleNoExc PUBLIC ${NoExcOptions})
+
 set(LIBS Humble
     # -lstdc++exp # when DEBUG, to allow backtrace
     # -lasan      # when sanitize address enabled.
@@ -41,6 +47,10 @@ target_link_libraries(Hcurses -lncursesw ${LIBS})
 
 add_executable(humble main.cpp)
 target_link_libraries(humble ${LIBS})
+
+add_executable(humble_noexc main.cpp)
+target_compile_options(humble_noexc PUBLIC ${NoExcOptions})
+target_link_libraries(humble_noexc HumbleNoExc)
 
 add_executable(test_utf test_utf.cpp)
 target_link_libraries(test_utf GTest::GTest GTest::Main ${LIBS})

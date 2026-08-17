@@ -46,7 +46,7 @@ Lex find_unbound(span<Lex> t, int y)
         } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
             // pass
         } else {
-            throw CoreError("unknown form");
+            throwCoreError("unknown form");
         }
     }
     return LexVoid{};  // <-- use to indicate not found
@@ -88,7 +88,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
         } else if (auto & op = get<LexOp>(f.v[0]);
                 op.code == OP_BIND) {
             if (not is_block)
-                throw SrcError("define in non-block");
+                throwSrcError("define in non-block");
             auto i = get<LexNam>(f.v.at(1)).h;
             auto u = unbound(span1(f.v, 2), defs, false);
 #ifdef DEBUG
@@ -115,7 +115,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
         } else if (op.code == OP_EXPORT) {
             // pass
         } else {
-            throw CoreError("unknown form");
+            throwCoreError("unknown form");
         }
     }
     vector<int> w(from_branches.size());
@@ -136,7 +136,7 @@ void report_unbound(set<int> u, LexForm & t, Names & names)
             a << "\n" << info_unbound(x, names);
         }
     }
-    throw SrcError("unbound," + a.str());
+    throwSrcError("unbound," + a.str());
 }
 
 void zloc_scopes(span<Lex> t, LexEnv * local_env, vector<LexEnv *> & local_envs)
@@ -176,7 +176,7 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env, vector<LexEnv *> & local_envs)
         } else if (op.code == OP_IMPORT or op.code == OP_EXPORT) {
             // pass
         } else {
-            throw CoreError("unknown form");
+            throwCoreError("unknown form");
         }
     }
 }
@@ -243,14 +243,14 @@ FunEnv LexEnv::activation(FunEnv & captured, bool dot, span<EnvEntry> args)
     if (dot) {
         size_t last = n_parms - 1;
         if (args.size() < last)
-            throw RunError("fun-dot expected more args");
+            throwRunError("fun-dot expected more args");
         copy(args.begin(), args.begin() + last, env.v.begin());
         env.set(last, make_shared<Var>(VarList{}));
         copy(args.begin() + last, args.end(),
                 back_inserter(get<VarList>(*env.get(last)).v));
     } else {
         if (args.size() != n_parms)
-            throw RunError("fun bad arg count");
+            throwRunError("fun bad arg count");
         copy(args.begin(), args.end(), env.v.begin());
     }
     return env;
@@ -272,7 +272,7 @@ static EnvEntry to_list_var(const ConsPtr & c)
 Lex to_lex(EnvEntry a)
 {
     // cerr << "to_lex\n";
-    if (not a) throw CoreError("mute variable");
+    if (not a) throwCoreError("mute variable");
     if (holds_alternative<VarCons>(*a)) {
         // cerr << "holds cons\n";
         a = to_list_var(get<VarCons>(*a).c);
@@ -304,17 +304,17 @@ Lex to_lex(EnvEntry a)
             } else if constexpr (is_same_v<T, VarUnquote>) {
                 return *q.u;
             } else if constexpr (is_same_v<T, VarSplice>) {
-                throw RunError("splice to lex");
+                throwRunError("splice to lex");
             } else if constexpr (is_same_v<T, VarFunOps>) {
-                throw RunError("fun to lex");
+                throwRunError("fun to lex");
             } else if constexpr (is_same_v<T, VarFunHost>) {
-                throw RunError("host-fun to lex");
+                throwRunError("host-fun to lex");
             } else if constexpr (is_same_v<T, VarApply>) {
-                throw RunError("latent-apply to lex");
+                throwRunError("latent-apply to lex");
             } else if constexpr (is_same_v<T, VarVoid>) {
                 return LexVoid{};
             } else {
-                throw CoreError("to lex not handled, "
+                throwCoreError("to lex not handled, "
                         + string{var_type_name(*a)});
             }
     }, *a);
@@ -364,7 +364,7 @@ EnvEntry from_lex(Lex & x)
             } else {
                 ostringstream oss;
                 oss << "lex#" << x.index();
-                throw CoreError("from lex not handled, "
+                throwCoreError("from lex not handled, "
                         + oss.str());
             }
     }, x);
@@ -396,7 +396,7 @@ void print(EnvEntry a, Names & n, std::ostream & os)
                 os << ')';
             } else if constexpr (is_same_v<T, VarNonlist>) {
                 auto j = z.v.size();
-                if (j < 2) throw CoreError("short nonlist");
+                if (j < 2) throwCoreError("short nonlist");
                 char c = '(';
                 for (auto & w : z.v) {
                     if (0 == --j) os << " .";
@@ -425,7 +425,7 @@ void print(EnvEntry a, Names & n, std::ostream & os)
             } else if constexpr (is_same_v<T, VarExt>) {
                 os << "#~" << n.get(z.t);
             } else {
-                throw CoreError("unexpected var for print, "
+                throwCoreError("unexpected var for print, "
                         + string{var_type_name(*a)});
             }
     }, *a);

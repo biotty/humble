@@ -121,7 +121,7 @@ EnvEntry xapply(vector<EnvEntry> v)
         return make_shared<Var>(VarApply{v});
     if (holds_alternative<VarFunHost>(*v.at(0)))
         return get<VarFunHost>(*v.at(0)).p({v.begin() + 1, v.end()});
-    throw RunError("apply non-fun");
+    throwRunError("apply non-fun");
 }
 
 EnvEntry xeval_op(LexForm & f, Env & env);
@@ -142,7 +142,7 @@ EnvEntry xeval(Lex & x, Env & env)
             }
             if constexpr (is_same_v<T, LexNonlist>) {
                 auto v = run_each(z.v, env);
-                if (v.empty()) throw CoreError("empty nonlist");
+                if (v.empty()) throwCoreError("empty nonlist");
                 if (holds_alternative<VarList>(*v.back())) {
                     auto w = move(get<VarList>(*v.back()));
                     v.pop_back();
@@ -154,7 +154,7 @@ EnvEntry xeval(Lex & x, Env & env)
                     auto c = make_shared<Var>(Cons::from_list(
                                 {v.begin(), v.begin() + v.size() - 1},
                                 cons_last));
-                    if (not cons_last) throw CoreError("empty list");
+                    if (not cons_last) throwCoreError("empty list");
                     cons_last->d = v.back();
                     return c;
                 }
@@ -178,17 +178,17 @@ EnvEntry xeval(Lex & x, Env & env)
                 return make_shared<Var>(VarUnquote{&z});
             if constexpr (is_same_v<T, LexQuote>
                     or is_same_v<T, LexQuasiquote>)
-                throw CoreError("eval quote");
+                throwCoreError("eval quote");
             if constexpr (is_same_v<T, LexDot>)
-                throw RunError("eval dot");
+                throwRunError("eval dot");
             if constexpr (is_same_v<T, LexForm>) {
                 // cout << &z.v.back() << " xeval form back\n";
-                if (z.v.empty()) throw CoreError("empty form");
+                if (z.v.empty()) throwCoreError("empty form");
                 if (not holds_alternative<LexOp>(z.v[0]))
                     return xapply(run_each(z.v, env));
                 return xeval_op(z, env);
             }
-            throw CoreError("eval unknown");
+            throwCoreError("eval unknown");
     }, x);
 }
 
@@ -208,13 +208,13 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     } else if (op.code == OP_COND) {
         for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi) {
             if (not holds_alternative<LexForm>(*yi))
-                throw RunError("cond term not form");
+                throwRunError("cond term not form");
             auto & y = get<LexForm>(*yi);
             auto t = run(y.v.at(0), env);
             if (not holds_alternative<VarBool>(*t) or get<VarBool>(*t).b)
                 return xeval(y.v.at(1), env);
         }
-        throw RunError("all cond #f");
+        throwRunError("all cond #f");
     } else if (op.code == OP_IMPORT) {
         OverlayEnv e{GlobalEnv::initial()};
         for (auto zi = f.v.begin() + 2; zi != f.v.end(); ++zi)
@@ -222,7 +222,7 @@ EnvEntry xeval_op(LexForm & f, Env & env)
         auto & m = get<LexImport>(f.v.at(1));
         for (size_t i = 0; i != m.a.size(); ++i) {
             auto p = e.get(m.b.at(i));
-            if (not p) throw RunError("no such name for export");
+            if (not p) throwRunError("no such name for export");
             env.set(m.a.at(i), p);
         }
     } else if (op.code == OP_SEQ) {
@@ -233,7 +233,7 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     } else if (op.code == OP_EXPORT) {
         // pass
     } else {
-        throw CoreError("unknown op");
+        throwCoreError("unknown op");
     }
     return make_shared<Var>(VarVoid{});
 }
@@ -246,7 +246,7 @@ EnvEntry run(Lex & x, Env & env)
 {
     // cout << x << " *run*\n";
     auto y = xeval(x, env);
-    if (not y) throw CoreError("mute eval");
+    if (not y) throwCoreError("mute eval");
     if (not holds_alternative<VarApply>(*y))
         return y;
     auto & a = get<VarApply>(*y).a;

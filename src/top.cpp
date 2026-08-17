@@ -23,7 +23,7 @@ string Opener::operator()(string name, noresolve_t)
     filename = name;
     ifstream f(name, std::ios_base::binary);
     if (not f.is_open()) {
-        throw std::runtime_error("Failed to open source-file by name"
+        throwCoreError("Failed to open source-file by name"
                 " '" + name + "'");
     }
     return string{(istreambuf_iterator<char>(f)), 

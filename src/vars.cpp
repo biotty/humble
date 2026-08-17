@@ -27,8 +27,8 @@ void GlobalEnv::set(int i, EnvEntry e) { m[i] = e; }
 GlobalEnv GlobalEnv::init_done()
 {
     GlobalEnv r(create_t{});
-    if (this != &initial()) throw CoreError("init on user-env");
-    if (is_init_done) throw CoreError("init more than once");
+    if (this != &initial()) throwCoreError("init on user-env");
+    if (is_init_done) throwCoreError("init more than once");
     is_init_done = true;
     r.m = m;
     return r;
@@ -66,7 +66,7 @@ void FunEnv::set(int i, EnvEntry e) { v[i] = e; }
 
 EnvEntry NullEnv::get(int)
 {
-    throw CoreError("nullenv lookup");
+    throwCoreError("nullenv lookup");
 }
 
 void NullEnv::set(int, EnvEntry) { };
@@ -79,9 +79,9 @@ VarExt::VarExt(int t)
 
 VarExt::VarExt(const VarExt & other)
 {
-    if (other.f) throw RunError("non-copyable ext");
+    if (other.f) throwRunError("non-copyable ext");
     // improve: ExtError with h, so that in run() may
-    // lookup name and re-throw just like LookupError
+    // lookup name and re-throwjust like LookupError
     t = other.t;
     u = other.u;
     f = nullptr;

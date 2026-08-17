@@ -31,7 +31,7 @@ TEST_F(EnvTest, xeval_splice)
 
 EnvEntry echo1(std::span<EnvEntry> a)
 {
-    if (a.empty()) throw RunError("echo1");
+    if (a.empty()) throwRunError("echo1");
     return a[0];
 }
 
@@ -77,7 +77,7 @@ TEST_F(EnvTest, xeval_nonlist_cat)
 
 EnvEntry cons1(std::span<EnvEntry> a)
 {
-    if (a.size() != 1) throw RunError("cons1");
+    if (a.size() != 1) throwRunError("cons1");
     return make_shared<Var>(VarCons{
             make_shared<Cons>(a[0], ConsPtr{})});
 }

@@ -44,7 +44,7 @@ EnvEntry f_nc_initscr(span<EnvEntry> args)
 
 EnvEntry f_nc_getmaxyx(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("nc-getmaxyx argc");
+    if (args.size() != 1) throwRunError("nc-getmaxyx argc");
     auto & e = vext_or_fail({t_nc_stdscr}, args, 0, "nc-getmaxyx");
     auto w = static_cast<WINDOW *>(e.u);
     int y{};
@@ -57,7 +57,7 @@ EnvEntry f_nc_getmaxyx(span<EnvEntry> args)
 
 EnvEntry f_nc_addstr(span<EnvEntry> args)
 {
-    if (args.size() < 4) throw RunError("nc-addstr argc");
+    if (args.size() < 4) throwRunError("nc-addstr argc");
     auto & e = vext_or_fail({t_nc_stdscr}, args, 0, "nc-addstr");
     auto w = static_cast<WINDOW *>(e.u);
     valt_or_fail<VarNum>(args, 1, "nc-addstr");
@@ -86,7 +86,7 @@ EnvEntry f_nc_addstr(span<EnvEntry> args)
 
 EnvEntry f_nc_getch(span<EnvEntry> args)
 {
-    if (args.size() != 1) throw RunError("nc-getch argc");
+    if (args.size() != 1) throwRunError("nc-getch argc");
     auto & e = vext_or_fail({t_nc_stdscr}, args, 0, "nc-getch");
     auto w = static_cast<WINDOW *>(e.u);
     int r = wgetch(w);
