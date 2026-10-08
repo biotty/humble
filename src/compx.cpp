@@ -82,7 +82,7 @@ set<int> unbound(span<Lex> t, set<int> & defs, bool is_block)
                 r.insert(u.begin(), u.end());
             }
         } else if (auto & f = get<LexForm>(x);
-                not holds_alternative<LexOp>(f.v.at(0))) {
+                f.v.empty() or not holds_alternative<LexOp>(f.v[0])) {
             auto u = unbound(f.v, defs, false);
             r.insert(u.begin(), u.end());
         } else if (auto & op = get<LexOp>(f.v[0]);
@@ -154,7 +154,7 @@ void zloc_scopes(span<Lex> t, LexEnv * local_env, vector<LexEnv *> & local_envs)
                 zloc_scopes(get<LexNonlist>(x).v, local_env, local_envs);
             }
         } else if (auto & f = get<LexForm>(x);
-                not holds_alternative<LexOp>(f.v.at(0))) {
+                f.v.empty() or not holds_alternative<LexOp>(f.v[0])) {
             zloc_scopes(f.v, local_env, local_envs);
         } else if (auto & op = get<LexOp>(f.v[0]);
                 op.code == OP_BIND) {

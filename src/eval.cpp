@@ -4,6 +4,7 @@
 #include "cons.hpp"
 #include "except.hpp"
 #include <span>
+#include <sstream>
 
 using namespace std;
 
@@ -117,11 +118,13 @@ vector<EnvEntry> run_each(span<Lex> v, Env & env)
 
 EnvEntry xapply(vector<EnvEntry> v)
 {
-    if (holds_alternative<VarFunOps>(*v.at(0)))
+    if (holds_alternative<VarFunOps>(*v[0]))
         return make_shared<Var>(VarApply{v});
-    if (holds_alternative<VarFunHost>(*v.at(0)))
-        return get<VarFunHost>(*v.at(0)).p({v.begin() + 1, v.end()});
-    throwRunError("apply non-fun");
+    if (holds_alternative<VarFunHost>(*v[0]))
+        return get<VarFunHost>(*v[0]).p({v.begin() + 1, v.end()});
+    ostringstream oss;
+    oss << "apply " << var_type_name(*v[0]);
+    throwRunError(oss.str());
 }
 
 EnvEntry xeval_op(LexForm & f, Env & env);

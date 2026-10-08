@@ -1,6 +1,7 @@
 #include "cons.hpp"
 #include "except.hpp"
 #include "debug.hpp"
+#include <sstream>
 
 using namespace humble;
 using namespace std;
@@ -92,10 +93,12 @@ ConsPtr to_cons_list(Var & x, ConsPtr & last) {
     if (holds_alternative<VarList>(x)) {
         return Cons::from_list(get<VarList>(x).v, last).c;
     } else if (holds_alternative<VarNonlist>(x)) {
-        last = nullptr;  // vfy: not needed
+        last = nullptr;  // vfy: whether needed, i-e append
         return Cons::from_nonlist(get<VarNonlist>(x).v).c;
     }
-    throwCoreError("to_cons on not list");
+    ostringstream oss;
+    oss << var_type_name(x) << " to cons";
+    throwCoreError(oss.str());
 }
 
 ConsPtr to_cons(Var & x)
