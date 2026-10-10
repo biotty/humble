@@ -440,8 +440,10 @@ Lex m_cond(LexForm && s)
     size_t n = s.v.size();
     size_t i = 1;
     for (; i != n; ++i) {
+        malt_or_fail<LexForm>(s.v[i], "cond-clause not form");
         auto & d = get<LexForm>(s.v[i]);
-        if (nameq(d.v.at(0), NAM_ELSE)) {
+        if (d.v.empty()) throwSrcError("cond-clause form empty");
+        if (nameq(d.v[0], NAM_ELSE)) {
             LexForm r;
             move(s.v.begin(), s.v.begin() + i, back_inserter(r.v));
             LexForm a{{LexOp{}}};
@@ -450,7 +452,7 @@ Lex m_cond(LexForm && s)
             r.v.push_back(move(f));
             return r;
         }
-        if (nameq(d.v.at(1), NAM_THEN)) break;
+        if (d.v.size() > 1 and nameq(d.v[1], NAM_THEN)) break;
         if (d.v.size() != 2) {
             LexForm r{{d.v[0]}};
             LexForm a{{LexOp{}}};
@@ -461,11 +463,12 @@ Lex m_cond(LexForm && s)
     }
     if (i == n) return move(s);
     auto & g = get<LexForm>(s.v[i]);
+    if (g.v.size() < 3) throwSrcError("then-target short");
     LexForm a{{LexOp{}, LexForm{{
-        nam_then, LexForm{{move(g.v.at(2)), nam_then}}}}}};
+        nam_then, LexForm{{move(g.v[2]), nam_then}}}}}};
     move(s.v.begin() + i + 1, s.v.end(), back_inserter(a.v));
     LexForm t{{LexOp{}, LexForm{{
-        LexForm{{nam_then, move(g.v.at(0))}}}}, m_cond(move(a))}};
+        LexForm{{nam_then, move(g.v[0])}}}}, m_cond(move(a))}};
     Lex x = m_let(move(t));
     LexForm m;
     move(s.v.begin(), s.v.begin() + i, back_inserter(m.v));
@@ -565,13 +568,14 @@ private:
 
     static Lex xcase_target(LexForm && s)
     {
+        if (s.v.empty()) throwSrcError("no case-target");
         if (not nameq(s.v[0], NAM_THEN)) {
             if (s.v.size() != 1)
-                throwSrcError("case target length");
+                throwSrcError("case-target length");
             return s.v[0];
         }
         if (s.v.size() != 2)
-            throwSrcError("=> target length");
+            throwSrcError("then-target length");
         return LexForm{{s.v[1], nam_else}};
     }
 
@@ -590,7 +594,8 @@ private:
         for (auto & ce : s.v) {
             auto & f = get<LexForm>(ce);
             LexForm a{{LexOp{}, xcase_test(move(f.v[0]))}};
-            if (not nameq(f.v[0], NAM_ELSE) or nameq(f.v[1], NAM_THEN)) {
+            bool is_else = nameq(f.v[0], NAM_ELSE);
+            if (not is_else or nameq(f.v[1], NAM_THEN)) {
                 LexForm x;
                 move(f.v.begin() + 1, f.v.end(), back_inserter(x.v));
                 a.v.push_back(xcase_target(move(x)));
@@ -600,6 +605,7 @@ private:
                 a.v.push_back(m_begin(move(x)));
             }
             m.v.push_back(m_and(move(a)));
+            if (is_else) break;
         }
         return m_or(move(m));
     }
