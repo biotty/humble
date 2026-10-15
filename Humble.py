@@ -387,12 +387,16 @@ def broken(*args):
 ##
 
 linenumber = None
-def spaces(s, i, n):
+
+def spaces(s, i):
+    n = len(s)
+    r = None
     global linenumber
     while i != n:
         if s[i].isspace():
             if s[i] == '\n':
                 linenumber += 1
+                r = i
             i += 1
         elif s[i] == ';':
             # comment
@@ -418,16 +422,17 @@ def spaces(s, i, n):
                 break
         else:
             break
-    return i
+    return i, r
 
 def tok(s, i):
     n = len(s)
-    i = spaces(s, i, n)
-    if i == n:
-        return None, i
-    if s[i] in (par_beg + par_end):
-        return s[i], i + 1
+    assert i < n
     w = i
+    def r():
+        return s[w : i], i
+    if s[i] in (par_beg + par_end):
+        i += 1
+        return r()
     if s[i] == "#":
         i += 1
         if i == n:
@@ -445,7 +450,7 @@ def tok(s, i):
                 i += 1
                 if i == n or not s[i].isalnum():
                     break
-        return s[w : i], i
+        return r()
     if s[i] == "\"":
         while i < n:
             i += 1
@@ -453,7 +458,7 @@ def tok(s, i):
                 raise SrcError("stop in string")
             if s[i] == "\"":
                 i += 1
-                return s[w : i], i
+                return r()
             if s[i] == "\\":
                 i += 1
                 if i == n:
@@ -462,19 +467,88 @@ def tok(s, i):
         i += 1
         if i == n:
             raise SrcError("stop at @")
-        return s[w : i], i
+        return r()
     if s[i] in quotes:
         i += 1
         if i == n:
             raise SrcError("stop at quote")
-        return s[w : i], i
+        return r()
     while s[i].isalnum() or s[i] in name_cs:
         i += 1
         if i == n:
             break
     if i != w:
-        return s[w : i], i
+        return r()
     raise SrcError("character '%c'" %(s[i],))
+
+class Frontend:
+    def __init__(self, s, i):
+        self.s = s
+        self.i = i
+        self.f = True
+        self.w = []  # (ap, ni)
+        self.p = []  # pending
+
+    def pop_pending(self):
+        r = self.p[0]
+        del self.p[0]
+        return r
+
+    def atind(self, r, x):
+        self.p.append(r)
+        # todo:
+        #       according to indents
+        #       activated on (x >= 0 and r not in par_beg)
+        #       but escaped by "." as we already are here
+        # (foo
+        #        (foo)
+        #               . foo)
+        # (foo
+        #           activator1
+        #                 (foo)
+        #              (foo)
+        #     activator2
+        #         (foo)
+        #         activator3
+        #         activator4)
+        # ==>
+        # (foo (foo) foo)
+        # (foo [activator1 (foo) (foo)]
+        #      [activator2 (foo) [activator3] [activator4]])
+        #
+        # then finally add on the : ==> ( till eol ) inside this
+        #
+        # in c++ string_view still used for fe.get (ex tok) but
+        # underlying may be static string with the injected par
+
+    def get(self):
+        if self.p:
+            return self.pop_pending()
+        k = self.i
+        i, x = spaces(self.s, k)
+        if i == len(self.s):
+            return None
+        if self.f and x is None:
+            self.f = False
+            x = k - 1
+        t, self.i = tok(self.s, i)
+        # LATER: here t ":" -> "(", ++c ...
+        #        when x is None t is then fine
+        #        otherwise use "((" because otherwise
+        #        it would not activate in atind below.
+        #        therefore, inside atind would be unescaped
+        #        back to single "("
+        #        LATER*: use a forth parens pair \2 \3
+        #                and prohibit < \7 in input
+        #                in eventual (unexpected) error
+        #                messages on parens they can be
+        #                represented by "#(" and "#)"
+        if x is None:
+            return t
+        if t == ".":
+            return self.get()
+        self.atind(t, x)
+        return self.pop_pending()
 
 def unescape_string(s):
     octals = "01234567"
@@ -543,14 +617,26 @@ class Names:
 def lex(s, names):
     n = len(s)
     i = 0
+    # TODO: support "#!" anywhere ";" would be permitted
+    #       and process it as a comment, as part of tok.
+    #       then remove this here.  also, there support
+    #       #!tabs but this must be prior to any token
+    #       and followed by a line with a tab pluss "."
+    #       and then followed by expanded to spaces "."
+    #       which then sets tabexpand wisp uses.
+    #       it defaults to -1 for prohibiting tab in indents.
+    #       support #!tabs-only meaning space prohibited; 0
+    #       support "wisp" (dflt), "no-wisp".
+    #       DO NOT: support of "fold-case", "no-fold-case"
     if s.startswith("#!"):
         try:
             i = s.index('\n')
         except ValueError:
             raise SrcError("'#!' without end")
     a = []
-    while i != n:
-        t, i = tok(s, i)
+    f = Frontend(s, i)
+    while True:
+        t = f.get()
         if not t:
             break
         v = None
