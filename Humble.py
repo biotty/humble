@@ -363,6 +363,8 @@ def set_verbose(v):
     global verbose
     verbose = v
 
+enable_wisp = False
+
 import sys
 
 def debug(*args):
@@ -486,69 +488,53 @@ class Frontend:
         self.s = s
         self.i = i
         self.f = True
-        self.w = []  # (ap, ni)
+        self.w = [-1]
         self.p = []  # pending
 
-    def pop_pending(self):
+    def unqueue(self):
         r = self.p[0]
         del self.p[0]
         return r
 
-    def atind(self, r, x):
-        self.p.append(r)
-        # todo:
-        #       according to indents
-        #       activated on (x >= 0 and r not in par_beg)
-        #       but escaped by "." as we already are here
-        # (foo
-        #        (foo)
-        #               . foo)
-        # (foo
-        #           activator1
-        #                 (foo)
-        #              (foo)
-        #     activator2
-        #         (foo)
-        #         activator3
-        #         activator4)
-        # ==>
-        # (foo (foo) foo)
-        # (foo [activator1 (foo) (foo)]
-        #      [activator2 (foo) [activator3] [activator4]])
-        #
-        # then finally add on the : ==> ( till eol ) inside this
-        #
-        # in c++ string_view still used for fe.get (ex tok) but
-        # underlying may be static string with the injected par
-
     def get(self):
         if self.p:
-            return self.pop_pending()
+            return self.unqueue()
         k = self.i
         i, x = spaces(self.s, k)
         if i == len(self.s):
-            return None
-        if self.f and x is None:
+            q = len(self.w) - 1
+            if q == 0:
+                return None
+            self.p.extend(["]"] * q)
+            self.w = [-1]
+            return self.unqueue()
+        if self.f:
             self.f = False
-            x = k - 1
+            if x is None:
+                x = k - 1
         t, self.i = tok(self.s, i)
-        # LATER: here t ":" -> "(", ++c ...
-        #        when x is None t is then fine
-        #        otherwise use "((" because otherwise
-        #        it would not activate in atind below.
-        #        therefore, inside atind would be unescaped
-        #        back to single "("
-        #        LATER*: use a forth parens pair \2 \3
-        #                and prohibit < \7 in input
-        #                in eventual (unexpected) error
-        #                messages on parens they can be
-        #                represented by "#(" and "#)"
-        if x is None:
+        if not enable_wisp:
             return t
+        if x is None:
+            # LATER: ":" -> ")", ++.c
+            return t
+        z = i - 1 - x
         if t == ".":
-            return self.get()
-        self.atind(t, x)
-        return self.pop_pending()
+            start = False
+            i, x = spaces(self.s, self.i)
+            assert x is None
+            t, self.i = tok(self.s, i)
+        else:
+            start = t not in (par_beg + par_end + quotes)
+        # LATER: ":" -> ")", ++.c
+        while z <= self.w[-1]:
+            del self.w[-1]
+            self.p.append("]")
+        if start:
+            self.w.append(z)
+            self.p.append("[")
+        self.p.append(t)
+        return self.unqueue()
 
 def unescape_string(s):
     octals = "01234567"
@@ -3525,8 +3511,7 @@ def inc_macros(names, macros):
 `(lambda =>
    (apply (case (length =>)
        ,@(map (lambda (=>) `((,(length (car =>)))
-                               (lambda ,@=>)))
-         args)) =>)))
+                               (lambda ,@=>))) args)) =>)))
 (macro ref@ args
   (ref n (length args))
   (ref n_1 (- n 1))
@@ -3571,8 +3556,7 @@ def inc_macros(names, macros):
      (apply
        (case cmd
          ,@(map gen-case procs)
-         (else => error))
-       args)))
+         (else => error)) args)))
 (macro local args
   `(ref@ ,@args (list ,@args)))
 """
