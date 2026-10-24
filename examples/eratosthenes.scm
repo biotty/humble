@@ -23,10 +23,16 @@
         (p-unset! k)
         (loop k)))))
 
-(display "2")
-(do ((i 1 (+ i 1)))
-  ((>= i m))
-  (when (list-ref odd-primes i)
-    (display " " (+ 1 (* i 2)))))
-(display "\n")
+#!wisp
+
+display "2"
+do
+  : i 1 : + i 1
+  : >= i m
+  when : list-ref odd-primes i
+    display
+      . " "
+      + 1
+         * i 2
+display "\n"
 

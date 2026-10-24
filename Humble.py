@@ -363,8 +363,6 @@ def set_verbose(v):
     global verbose
     verbose = v
 
-enable_wisp = False
-
 import sys
 
 def debug(*args):
@@ -389,6 +387,16 @@ def broken(*args):
 ##
 
 linenumber = None
+enable_wisp = False
+# consider: wisp_onlytab and default
+# disallow tabs in indent when wisp
+
+def handle_pragma(w):
+    global enable_wisp
+    if w == "wisp":
+        enable_wisp = True
+    elif w == "nowisp":
+        enable_wisp = False
 
 def spaces(s, i):
     n = len(s)
@@ -405,7 +413,9 @@ def spaces(s, i):
             while i != n and s[i] != '\n':
                 i += 1
         elif s[i] == '#':
-            if i + 1 != n and s[i + 1] == '|':
+            if i + 1 == n:
+                break
+            if s[i + 1] == '|':
                 # multiline-comment
                 i += 2
                 x = None
@@ -418,11 +428,22 @@ def spaces(s, i):
                         break
                     x = y
                     i += 1
-                else:
+                else:  # on while
                     raise SrcError("#| comment not ended")
+            elif s[i + 1] == '!':
+                if i != 0 and s[i - 1] not in '\n\r':
+                    raise SrcError("#! not first on line")
+                # ignored or pragma directive
+                i += 2
+                j = i
+                while i != n and s[i] != '\n':
+                    i += 1
+                handle_pragma(s[j : i].rstrip())
             else:
+                # sole # token
                 break
         else:
+            # non-space token
             break
     return i, r
 
@@ -489,7 +510,8 @@ class Frontend:
         self.i = i
         self.f = True
         self.w = [-1]
-        self.p = []  # pending
+        self.p = []
+        self.c = 0
 
     def unqueue(self):
         r = self.p[0]
@@ -503,21 +525,20 @@ class Frontend:
         i, x = spaces(self.s, k)
         if i == len(self.s):
             q = len(self.w) - 1
-            if q == 0:
-                return None
-            self.p.extend(["]"] * q)
-            self.w = [-1]
-            return self.unqueue()
+            self.p = [")"] * self.c + ["]"] * q + [None]
+            return self.get()
+        t, self.i = tok(self.s, i)
+        if not enable_wisp:
+            return t
         if self.f:
             self.f = False
             if x is None:
                 x = k - 1
-        t, self.i = tok(self.s, i)
-        if not enable_wisp:
-            return t
         if x is None:
-            # LATER: ":" -> ")", ++.c
-            return t
+            if t != ":":
+                return t
+            self.c += 1
+            return "("
         z = i - 1 - x
         if t == ".":
             start = False
@@ -526,7 +547,11 @@ class Frontend:
             t, self.i = tok(self.s, i)
         else:
             start = t not in (par_beg + par_end + quotes)
-        # LATER: ":" -> ")", ++.c
+        self.p.extend([")"] * self.c)
+        self.c = 0
+        if t == ":":
+            self.c += 1
+            t = "("
         while z <= self.w[-1]:
             del self.w[-1]
             self.p.append("]")
@@ -603,22 +628,6 @@ class Names:
 def lex(s, names):
     n = len(s)
     i = 0
-    # TODO: support "#!" anywhere ";" would be permitted
-    #       and process it as a comment, as part of tok.
-    #       then remove this here.  also, there support
-    #       #!tabs but this must be prior to any token
-    #       and followed by a line with a tab pluss "."
-    #       and then followed by expanded to spaces "."
-    #       which then sets tabexpand wisp uses.
-    #       it defaults to -1 for prohibiting tab in indents.
-    #       support #!tabs-only meaning space prohibited; 0
-    #       support "wisp" (dflt), "no-wisp".
-    #       DO NOT: support of "fold-case", "no-fold-case"
-    if s.startswith("#!"):
-        try:
-            i = s.index('\n')
-        except ValueError:
-            raise SrcError("'#!' without end")
     a = []
     f = Frontend(s, i)
     while True:
