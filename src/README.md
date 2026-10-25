@@ -24,10 +24,13 @@ other examples.  To embedd the interpreter go see
 Should be thread-safe as the few globals are not
 mutated once setup.
 
-# Further study
+## To Do
 
-To implement call/cc one could use c++ co-routines or thread
-(we want to save the stack and get back to it, right?).
+* system-chdir s
+* terminal? p
+* ref-count?? v ; to test assumption in tests.scm
+* hardening on i-e invalid args or syntax
+* example/test for read/write records (works as-is)
 
 # Extensibility
 

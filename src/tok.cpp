@@ -115,7 +115,7 @@ pair<string_view, size_t> tok(std::string_view s)
         if (++i == n) break;
     }
     if (i) return r();
-    auto g = utf_ref(s.substr(i), 0);
+    auto g = utf_ref(s, 0);
     throwSrcErrorLine("glyph '" + string(g.u) + "'");
 }
 

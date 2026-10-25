@@ -4,7 +4,6 @@
 #
 # My scheme is more humble than yours!
 #
-#
 # Deviations:  (concept)
 #
 # The environment cannot be mutated from an inner scope,
@@ -39,7 +38,7 @@
 # mutation on the environments.
 # A local name can only be re-defined in
 # the very same scope -- as opposed to traditional scheme.
-# (def) is a convenience that does ref and dup.
+# (define) is a convenience that does ref and dup.
 # the dup implementation is required to never take a copy
 # when not needed (only one reference held to the object).
 #
@@ -55,7 +54,6 @@
 #     variable transforms to a cons chain.  sharing
 #     happens on cdr-usage or otherhow that more than
 #     one variable owns any of head or tail.
-# * The dict type (an alist with efficient repr)
 # * macro (exactly as lisp defmacro) -- and gensym
 # * import of file (that needs "export" as first expr)
 # * ref is as define (allows (recursive) function syntax)
@@ -79,7 +77,7 @@
 # * #void -- unit type i-e is returned on r7rs "unspec"
 # * (error) function that reports given value and exits.
 #
-# Work-in-Progress:  (elaboration)
+# Discarded-Ideas:  (control-flow, .. )
 #
 # * "handlers" global env entry (like stdout) that also each
 #   host-fun has a ref to, will be tried for symbol-key on
@@ -98,28 +96,6 @@
 #   is a no-op.  or general handle-except that takes a lambda
 #   and yields #f iff to consider still not catched.  the flag
 #   state may be checked only in run_each().
-# * The c++ implementation will use engine registering own
-#   sets of macros and functions.  One such set may be
-#   ncurses as of the snake demo, but another more interesting
-#   set of functionality may be libffi support - that also
-#   invites looking into support of an engine-opaque VAR
-#   type where only a user-data and destructor-callback is known.
-# * Functions available untangling the repl components,
-#   (read port), (eval d) also does macro_expand and run
-#   in global env, (write d port) and (compile d port).
-#   These leverage from_lex and to_lex, as d is a var,
-#   while read then benefits from lex parse.
-#   This results in two types of files, x: lex not macro-expanded,
-#   and may save either data or code, and y: op-code-lex ready
-#   to be fed to the interpreter and run.  There is no conversion
-#   from type y, on which only action is to run.  Remember that
-#   I still don't have string->symbol, which would not trivially
-#   work in a scope, and this problem is not worth resolving.
-# * Delirium ad previous idea:  One could have a graft-point in the
-#   AST denoted by an expression, that is globally named and may
-#   then be used as a target p for (compile p), allowing to mutate
-#   the code itself.  The graft point may be wrapped as possibly
-#   a lambda or OP_IMPORT (at hand waving level of thought here).
 #
 # Excluded:  (non-features)
 #
@@ -135,7 +111,6 @@
 # * No |n a m e s| and no fold-case mode.  Recommended restriction
 #   to ascii names.  But utf8 accepted in char- or string-literal.
 #   Names cannot start in a '.' or a '@' but may contain them.
-# * FS/System ops, as there is i.e input-pipe
 # * define-syntax; instead powerful "unhygienic" lisp macro
 # * Char, but number parsed for #\ and with utf-8 support.
 # * Only octal escape for bytes in string.
