@@ -30,49 +30,56 @@ static const char * name_cs = "!$%&*+-./:<=>?@^_~";
     throwSrcError(oss.str());
 }
 
-size_t spaces(const char * s, size_t n)
+pair<size_t, optional<size_t>> spaces(const char * s, size_t n)
 {
     if (not s) throwCoreError("spaces null");
     auto h = s;
     auto p = s + n;
+    optional<size_t> x;
     while (s != p) {
-        if (isspace(s[0])) {
-            if (s[0] == '\n') linenumber += 1;
-            s += 1;
-        } else if (s[0] == ';') {
+        if (isspace(*s)) {
+            if (*s == '\n') {
+                ++linenumber;
+                x = s - h;
+            }
+            ++s;
+        } else if (*s == ';') {
             // comment
-            while (s != p and s[0] != '\n') s += 1;
-        } else if (s[0] == '#') {
-            if (s + 1 != p and s[1] == '|') {
+            while (s != p and *s != '\n') ++s;
+        } else if (*s == '#') {
+            if (s + 1 == p) break;
+            if (s[1] == '|') {
                 // multiline-comment
                 s += 2;
                 char x = 0;
                 while (s != p) {
-                    char y = s[0];
-                    if (y == '\n') linenumber += 1;
+                    char y = *s;
+                    if (y == '\n') ++linenumber;
                     else if (y == '#' and x == '|') {
-                        s += 1;
+                        ++s;
                         break;
                     }
                     x = y;
-                    s += 1;
+                    ++s;
                 }
                 if (s == p) throwSrcErrorLine("#| comment not ended");
-            } else break;
+            } else if (s[1] == '!') {
+                for (s += 2; s != p and *s != '\n'; ++s)
+                    ;
+                if (*s != '\n') throwSrcErrorLine("#! with no end");
+                // todo: pragma
+            } else break;  // sole # token
         } else break;
     }
-    return s - h;
+    return {s - h, x};
 }
 
 pair<string_view, size_t> tok(std::string_view s)
 {
     if (s.empty()) throwCoreError("tok empty");
-    auto k = spaces(s.data(), s.size());
-    s = s.substr(k);
-    if (s.empty()) return {s, k};
     size_t i = 0;
-    auto r = [s, &i, k]() -> decltype(tok("")) {
-        return {s.substr(0, i), k + i};
+    auto r = [s, &i]() -> decltype(tok("")) {
+        return {s.substr(0, i), i};
     };
     if (strchr(par_beg_end, s[i])) {
         ++i;
@@ -197,22 +204,35 @@ std::string Names::get(int h)
     return v.at(h);
 }
 
+class Frontend {
+    string_view s;
+    size_t i = 0;
+public:
+    Frontend(string_view s) : s(s) {}
+
+    string_view get()
+    {
+        auto t = s.substr(i);
+        auto [k, x] = spaces(t.data(), t.size());
+        t = t.substr(k);
+        i += k;
+        if (t.empty()) return t;
+        auto [r, j] = tok(t);
+        i += j;
+        return r;
+    }
+};
+
 // Function scans to produce tokens such as numeric
 // literals, strings and names.  The names are
 // "interned", meaning each given an identifier.
 vector<Lex> lex(const string & s, Names & names)
 {
-    const auto n = s.size();
-    size_t i = 0;
-    if (s[0] == '#' and s[1] == '!') {
-        i = s.find('\n');
-        if (i == s.npos) throwSrcErrorLine("'#!' without end");
-    }
     vector<Lex> r;
-    while (i != n) {
-        const auto [t, k] = tok(string_view(s).substr(i));
+    Frontend fe{s};
+    while (true) {
+        const auto t = fe.get();
         if (t.empty()) break;
-        i += k;
         Lex v;
         if (auto p = strchr(par_beg_end, t[0]); p) {
             auto par = static_cast<int>(p - par_beg_end);

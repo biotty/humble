@@ -13,20 +13,20 @@ TEST(spaces, null_arg)
 TEST(spaces, empty)
 {
     auto s = "";
-    ASSERT_EQ(0, spaces(s, strlen(s)));
+    ASSERT_EQ(0, spaces(s, strlen(s)).first);
 }
 
 TEST(spaces, skip_one)
 {
     auto s = " a";
-    ASSERT_EQ(1, spaces(s, strlen(s)));
+    ASSERT_EQ(1, spaces(s, strlen(s)).first);
 }
 
 TEST(spaces, skip_some)
 {
     linenumber = 0;
     auto s = "\t\n\r\v\ta";
-    ASSERT_EQ(5, spaces(s, strlen(s)));
+    ASSERT_EQ(5, spaces(s, strlen(s)).first);
     EXPECT_EQ(1, linenumber);
 }
 
@@ -34,7 +34,7 @@ TEST(spaces, skip_comment)
 {
     linenumber = 0;
     auto s = " ;b\na";
-    ASSERT_EQ(4, spaces(s, strlen(s)));
+    ASSERT_EQ(4, spaces(s, strlen(s)).first);
     EXPECT_EQ(1, linenumber);
 }
 
@@ -42,7 +42,7 @@ TEST(spaces, skip_multiline_comment)
 {
     linenumber = 0;
     auto s = " #|b\n\n|#a";
-    ASSERT_EQ(8, spaces(s, strlen(s)));
+    ASSERT_EQ(8, spaces(s, strlen(s)).first);
     EXPECT_EQ(2, linenumber);
 }
 
@@ -52,15 +52,15 @@ TEST(spaces, err_multiline_not_ended)
     ASSERT_THROW(spaces(s, strlen(s)), SrcError);
 }
 
+TEST(spaces, last_newline_reported)
+{
+    auto s = " \n \nQ";
+    ASSERT_EQ(3, *spaces(s, strlen(s)).second);
+}
+
 TEST(tok, err_empty)
 {
     ASSERT_THROW(tok(""), CoreError);
-}
-
-TEST(tok, skips_space)
-{
-    string s = " a";
-    ASSERT_EQ(s.substr(1), tok(s).first);
 }
 
 TEST(tok, par)

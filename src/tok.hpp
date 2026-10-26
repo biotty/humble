@@ -6,6 +6,7 @@
 #include <vector>
 #include <initializer_list>
 #include <functional>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <map>
@@ -19,7 +20,7 @@ namespace humble {
 
 extern int linenumber;
 
-size_t spaces(const char * s, size_t n);
+std::pair<size_t, std::optional<size_t>> spaces(const char * s, size_t n);
 
 std::pair<std::string_view, size_t> tok(std::string_view s);
 

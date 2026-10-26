@@ -375,13 +375,13 @@ def handle_pragma(w):
 
 def spaces(s, i):
     n = len(s)
-    r = None
+    x = None
     global linenumber
     while i != n:
         if s[i].isspace():
             if s[i] == '\n':
                 linenumber += 1
-                r = i
+                x = i
             i += 1
         elif s[i] == ';':
             # comment
@@ -420,7 +420,7 @@ def spaces(s, i):
         else:
             # non-space token
             break
-    return i, r
+    return i, x
 
 def tok(s, i):
     n = len(s)
@@ -518,7 +518,8 @@ class Frontend:
         if t == ".":
             start = False
             i, x = spaces(self.s, self.i)
-            assert x is None
+            if x:
+                raise SrcError("newline after wisp-dot")
             t, self.i = tok(self.s, i)
         else:
             start = t not in (par_beg + par_end + quotes)
