@@ -42,7 +42,7 @@ value-semantics evaluation, namely a copy of the instance
 (the term here is "variable", and it may be bound to
 (referenced from) a "name" or a "constructor" such as
 cons, lambda or nonlist)
-taken (when more than one reference held to the it).
+taken (when more than one reference held to it).
 What you will observe is that when passing paramenters,
 set! will affect the variable used as argument.  This is
 an effect of the non-duplicating evaluation mentioned.

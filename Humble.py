@@ -493,34 +493,39 @@ class Frontend:
         del self.p[0]
         return r
 
+    def esctok(self):
+        b, x = spaces(self.s, self.i)
+        if x:
+            raise SrcError("newline after wisp-dot")
+        if b == len(self.s):
+            raise SrcError("eof at wisp-dot")
+        t, self.i = tok(self.s, b)
+        return t
+
     def get(self):
         if self.p:
             return self.unqueue()
-        k = self.i
-        i, x = spaces(self.s, k)
-        if i == len(self.s):
+        y = self.i
+        b, x = spaces(self.s, y)
+        if b == len(self.s):
             q = len(self.w) - 1
             self.p = [")"] * self.c + ["]"] * q + [None]
             return self.get()
-        t, self.i = tok(self.s, i)
+        t, self.i = tok(self.s, b)
         if not enable_wisp:
             return t
         if self.f:
             self.f = False
             if x is None:
-                x = k - 1
+                x = y - 1
         if x is None:
             if t != ":":
                 return t
             self.c += 1
             return "("
-        z = i - 1 - x
         if t == ".":
             start = False
-            i, x = spaces(self.s, self.i)
-            if x:
-                raise SrcError("newline after wisp-dot")
-            t, self.i = tok(self.s, i)
+            t = self.esctok()
         else:
             start = t not in (par_beg + par_end + quotes)
         self.p.extend([")"] * self.c)
@@ -528,6 +533,7 @@ class Frontend:
         if t == ":":
             self.c += 1
             t = "("
+        z = b - 1 - x
         while z <= self.w[-1]:
             del self.w[-1]
             self.p.append("]")

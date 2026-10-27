@@ -5,6 +5,7 @@
 #include <cstring>
 #include <climits>
 #include <vector>
+#include <list>
 #include <charconv>
 #include <sstream>
 #include <ostream>
@@ -18,8 +19,16 @@ using namespace std;
 namespace humble {
 
 int linenumber;
+bool enable_wisp;
 
-static const char * quotes = "'`,";
+void handle_pragma(string_view w)
+{
+    if (w == "wisp") enable_wisp = true;
+    else if (w == "nowisp") enable_wisp = false;
+}
+
+#define QUOTES "'`,"
+static const char * quotes = QUOTES;
 static const char * par_beg_end = PAR_BEG PAR_END;
 static const char * name_cs = "!$%&*+-./:<=>?@^_~";
 
@@ -64,10 +73,12 @@ pair<size_t, optional<size_t>> spaces(const char * s, size_t n)
                 }
                 if (s == p) throwSrcErrorLine("#| comment not ended");
             } else if (s[1] == '!') {
-                for (s += 2; s != p and *s != '\n'; ++s)
-                    ;
+                s += 2;
+                auto z = s;
+                while (s != p and *s != '\n')
+                    ++s;
                 if (*s != '\n') throwSrcErrorLine("#! with no end");
-                // todo: pragma
+                handle_pragma({z, static_cast<size_t>(s - z)});
             } else break;  // sole # token
         } else break;
     }
@@ -205,21 +216,97 @@ std::string Names::get(int h)
 }
 
 class Frontend {
-    string_view s;
+    const string_view s;
     size_t i = 0;
+    bool f = true;
+    vector<int> w = {-1};
+    list<string_view> p;
+    int c = 0;
+
+    string_view unqueue()
+    {
+        auto r = p.front();
+        p.erase(p.begin());
+        return r;
+    }
+
+    string_view esctok()
+    {
+        auto u = s.substr(i);
+        auto [k, x] = spaces(u.data(), u.size());
+        if (x.has_value())
+            throwSrcErrorLine("newline after wisp-dot");
+        u = u.substr(k);
+        i += k;
+        if (u.empty()) throwSrcErrorLine("eof at wisp-dot");
+        auto [t, j] = tok(u);
+        i += j;
+        return t;
+    }
+
+    static constexpr string c_beg = "(";
+    static constexpr string c_end = ")";
+    static constexpr string w_beg = "[";
+    static constexpr string w_end = "]";
+
 public:
+
     Frontend(string_view s) : s(s) {}
 
     string_view get()
     {
-        auto t = s.substr(i);
-        auto [k, x] = spaces(t.data(), t.size());
-        t = t.substr(k);
+        if (not p.empty())
+            return unqueue();
+        auto y = i;
+        auto u = s.substr(i);
+        auto [k, x] = spaces(u.data(), u.size());
+        u = u.substr(k);
         i += k;
-        if (t.empty()) return t;
-        auto [r, j] = tok(t);
+        if (u.empty()) {
+            for (int h = 0; h != c; ++h)
+                p.push_back(c_end);
+            for (size_t q = 1; q != w.size(); ++q)
+                p.push_back(w_end);
+            p.push_back(u);
+            return get();
+        }
+        auto [t, j] = tok(u);
+        auto b = i;
         i += j;
-        return r;
+        if (not enable_wisp)
+            return t;
+        if (f) {
+            f = false;
+            if (not x.has_value()) x = -1;
+        }
+        if (not x.has_value()) {
+            if (t != ":") return t;
+            ++c;
+            return c_beg;
+        }
+        bool start{};
+        if (t == ".") {
+            t = esctok();
+        } else {
+            start = (NULL == strchr(PAR_BEG PAR_END QUOTES, t[0]));
+        }
+        for (; c > 0; --c) p.push_back(c_end);
+        if (t == ":") {
+            ++c;
+            t = c_beg;
+        }
+        int z = static_cast<ptrdiff_t>(b) - 1
+            - static_cast<ptrdiff_t>(y + x.value());
+        while (z <= w.back()) {
+            w.pop_back();
+            p.push_back(w_end);
+        }
+        if (start) {
+            w.push_back(z);
+            p.push_back(w_beg);
+        }
+        p.push_back(t);
+        return unqueue();
     }
 };
 
