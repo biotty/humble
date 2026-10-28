@@ -21,8 +21,23 @@ namespace humble {
 int linenumber;
 bool enable_wisp;
 
+string_view trim(string_view w)
+{
+    const auto n = w.size();
+    if (n == 0) return w;
+    size_t i = 0;
+    while (isspace(w[i]))
+        if (++i == n) return w.substr(n);
+    size_t j = i;
+    while (++j != n and not isspace(w[j]))
+        ;
+    return w.substr(i, j - i);
+}
+
 void handle_pragma(string_view w)
 {
+    w = trim(w);
+
     if (w == "wisp") enable_wisp = true;
     else if (w == "nowisp") enable_wisp = false;
 }

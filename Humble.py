@@ -413,7 +413,7 @@ def spaces(s, i):
                 j = i
                 while i != n and s[i] != '\n':
                     i += 1
-                handle_pragma(s[j : i].rstrip())
+                handle_pragma(s[j : i].strip())
             else:
                 # sole # token
                 break
@@ -523,11 +523,11 @@ class Frontend:
                 return t
             self.c += 1
             return "("
-        if t == ".":
-            start = False
+        escdot = t == "."
+        if escdot:
             t = self.esctok()
-        else:
-            start = t not in (par_beg + par_end + quotes)
+        start = escdot ^ (
+                t not in (par_beg + par_end + quotes))
         self.p.extend([")"] * self.c)
         self.c = 0
         if t == ":":

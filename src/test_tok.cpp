@@ -273,11 +273,11 @@ TEST(lex, dot_quotes_void)
 
     vector<Lex> v = lex(".'`,#void", m);
     ASSERT_EQ(5, v.size());
-    ASSERT_TRUE(std::holds_alternative<LexDot>(v[0]));
-    ASSERT_TRUE(std::holds_alternative<LexQt>(v[1]));
-    ASSERT_TRUE(std::holds_alternative<LexQqt>(v[2]));
-    ASSERT_TRUE(std::holds_alternative<LexUnq>(v[3]));
-    ASSERT_TRUE(std::holds_alternative<LexVoid>(v[4]));
+    ASSERT_TRUE(holds_alternative<LexDot>(v[0]));
+    ASSERT_TRUE(holds_alternative<LexQt>(v[1]));
+    ASSERT_TRUE(holds_alternative<LexQqt>(v[2]));
+    ASSERT_TRUE(holds_alternative<LexUnq>(v[3]));
+    ASSERT_TRUE(holds_alternative<LexVoid>(v[4]));
 }
 
 TEST(lex, names)
@@ -305,5 +305,23 @@ TEST(lex, name_nonascii)
 
     ASSERT_THROW(lex("Àa", m), SrcError);
     ASSERT_THROW(lex("'Àa", m), SrcError);
+}
+
+TEST(lex, wisp)
+{
+    Names m;
+    struct t {
+        ~t() { enable_wisp = false; }
+    } s;
+    enable_wisp = true;
+    vector<Lex> v = lex("a : b\n . c", m);
+    ASSERT_EQ(7, v.size());
+    ASSERT_TRUE(holds_alternative<LexBeg>(v[0]));
+    ASSERT_TRUE(holds_alternative<LexNam>(v[1]));
+    ASSERT_TRUE(holds_alternative<LexBeg>(v[2]));
+    ASSERT_TRUE(holds_alternative<LexNam>(v[3]));
+    ASSERT_TRUE(holds_alternative<LexEnd>(v[4]));
+    ASSERT_TRUE(holds_alternative<LexNam>(v[5]));
+    ASSERT_TRUE(holds_alternative<LexEnd>(v[6]));
 }
 

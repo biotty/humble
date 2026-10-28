@@ -1,4 +1,7 @@
-1
+;#!wisp
+;uncomment to enable wisp will also work on this file
+;because wisp is with some care not being triggered
+(list 1)
 (+)
 '(#f #t)
 (ref i '()) i
@@ -6,7 +9,7 @@
 [ ref y 1 ] ; a comment
 (list y (list y y))
 {+ 1 2}
-y
+(list y)
 (append '(1) 2)
 (set! y (+ 1 y))
 (display (set! y (+ 1 y)))
@@ -50,8 +53,7 @@ y
 (letrec ((A (lambda (n i) (cond ((eqv? n 0) i) (1 (B n i)))))
          (B (lambda (n i) (A (+ n -1) (+ i 2)))))
   (A 4 1)) ; another comment
-#f
-#t
+(display #f #t)
 (list-ref (list 1 2 3) 2)
 `(a (a b ,(+ 1 1)))
 (car (car (cdr '(1 (8 2) 3 () 5))))
@@ -75,13 +77,13 @@ y
 (((h 1) 2) 3)
 (letrec ((even?
           (lambda (n)
-            (if (zero? n)
-                #t
+            (if (zero? n
+                ) #t
                 (odd? (- n 1)))))
          (odd?
           (lambda (n)
-            (if (zero? n)
-                #f
+            (if (zero? n
+                ) #f
                 (even? (- n 1))))))
   (even? 123))
 (let loop ((x 0) (y 0)) (if (eqv? x 9) `(,x ,y) (loop (+ x 1) (- y 3))))
@@ -276,11 +278,11 @@ y
   (cond ((null? numbers) (list nonneg neg))
     ((>= (car numbers) 0)
      (loop (cdr numbers)
-        (cons (car numbers) nonneg)
-        neg))
+        (cons (car numbers) nonneg
+        ) neg))
     ((< (car numbers) 0)
-     (loop (cdr numbers)
-        nonneg
+     (loop (cdr numbers
+        ) nonneg
         (cons (car numbers) neg)))))
 )
 (ref fact
@@ -298,8 +300,8 @@ y
      (let ((x 4))
      (lambda (y) (+ x y))))
 (chk (add4 6) 10)
-(chk ((lambda (x y . z) z)
-    3 4 5 6)
+(chk ((lambda (x y . z) z
+    ) 3 4 5 6)
        '(5 6))
 (ref c
   (case (car '(c d))
@@ -364,8 +366,8 @@ y
 (chk '(206 177 195 167 64)
   (reverse (let loop ((p (open-input-string "αç@")) (r '()))
     (let ((s (read-byte p)))
-      (if (eof-object? s)
-        r (loop p (cons s r)))))))
+      (if (eof-object? s) r
+        (loop p (cons s r)))))))
 ; impl-defined observations:
 (macro echo (a) a);
 (chk #f (cont?? (echo '())))
