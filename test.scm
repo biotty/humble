@@ -390,3 +390,10 @@ also showing examples and the history of development
 (ref i j)
 (local i)
 (chk #f (alias? i j))
+; read, write and record type
+(define-record-type <P> (p x) p?
+  (x get-x))
+(ref s "(#r(<P> 1) #r(<P> 2))")
+(ref data
+  (read s))
+(chk (write data) s)

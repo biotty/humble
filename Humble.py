@@ -794,7 +794,9 @@ def expand_macros(t, macros, qq):
 
 def readx(s, names):
     global linenumber
+    global wisp_mode
     linenumber = 1
+    wisp_mode = 0
     try:
         z = lex(s, names)
     except SrcError as e:
@@ -1517,7 +1519,9 @@ def m_import(names, macros, opener):
         except:
             raise SrcError("no such file")
         global linenumber
+        global wisp_mode
         u_ln = linenumber
+        u_wm = wisp_mode
         r = compx(f.read(), names, e_macros, i_env.keys())
         f.close()
         prefix_s = None
@@ -1548,6 +1552,7 @@ def m_import(names, macros, opener):
         #       be done from top-level
         opener.filename = u_fn
         linenumber = u_ln
+        wisp_mode = u_wm
         return [OP_IMPORT, set_up, *r[1:]]
     return ximport
 

@@ -101,6 +101,9 @@ not trigger infix notation as proposed in full WISP.
 Alternatively "#!wisp-tabs" will allow only tabs,
 while otherwise tabs are disallowed under WISP mode.
 
+The dot inverting mode of leading parens is very
+nice in `case 1 /  . (1 2) (foo) /  . (3) (bar)`.
+
 # Compiling the Interpreter
 
 Here is how I have this development set up.

@@ -699,6 +699,7 @@ public:
         e_macros[NAM_IMPORT] = make_unique<Import>(*names, e_macros, *opener, *local_envs);
         auto src = (*opener)(get<LexString>(s.v[1]).s);
         auto u_ln = linenumber;
+        auto u_wm = wisp_mode;
         auto r = compx(parse(src, *names, e_macros), *names,
                 GlobalEnv::initial().keys(), *local_envs);
         string prefix_s;
@@ -731,6 +732,7 @@ public:
         }
         opener->filename = u_fn;
         linenumber = u_ln;
+        wisp_mode = u_wm;
         LexForm t{{LexOp{OP_IMPORT}, move(set_up)}};
         move(r.v.begin(), r.v.end(), back_inserter(t.v));
         return t;

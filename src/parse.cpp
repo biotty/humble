@@ -193,6 +193,7 @@ Macros clone_macros(Macros & macros)
 LexForm readx(const std::string & s, Names & n)
 {
     linenumber = 1;
+    wisp_mode = 0;
     auto z = lex(s, n);
     auto [w, i] = parse_r(z, 0, PARSE_MODE_TOP, 0);
     if (i != z.size()) {
