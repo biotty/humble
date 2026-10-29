@@ -311,9 +311,9 @@ TEST(lex, wisp)
 {
     Names m;
     struct t {
-        ~t() { enable_wisp = false; }
+        ~t() { wisp_mode = 0; }
     } s;
-    enable_wisp = true;
+    wisp_mode = 1;
     vector<Lex> v = lex("a : b\n . c", m);
     ASSERT_EQ(7, v.size());
     ASSERT_TRUE(holds_alternative<LexBeg>(v[0]));

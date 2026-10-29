@@ -31,12 +31,6 @@ mutated once setup.
 * ref-count?? v ; to test assumption in tests.scm
 * hardening on i-e invalid args or syntax
 * example/test for read/write records (works as-is)
-* describe wisp-dialect where "." inverts.  no infix-escape.
-    wisp inserts parens for colon and brackets for indent.
-    therefore mixing requires brackets on starts, as
-    wisp will not track non-wisp or intra-line parens.
-* when wisp enabled disallow indents with other than lws
-    (defer: #!wisp-tabs to enable and disallow all but tabs)
 
 # Extensibility
 

@@ -19,7 +19,7 @@ using namespace std;
 namespace humble {
 
 int linenumber;
-bool enable_wisp;
+int wisp_mode;
 
 string_view trim(string_view w)
 {
@@ -38,8 +38,9 @@ void handle_pragma(string_view w)
 {
     w = trim(w);
 
-    if (w == "wisp") enable_wisp = true;
-    else if (w == "nowisp") enable_wisp = false;
+    if (w == "wisp") wisp_mode = 1;
+    else if (w == "no-wisp") wisp_mode = 0;
+    else if (w == "wisp-tabs") wisp_mode = 2;
 }
 
 #define QUOTES "'`,"
@@ -288,7 +289,7 @@ public:
         auto [t, j] = tok(u);
         auto b = i;
         i += j;
-        if (not enable_wisp)
+        if (not wisp_mode)
             return t;
         if (f) {
             f = false;
@@ -299,19 +300,18 @@ public:
             ++c;
             return c_beg;
         }
-        bool start{};
-        if (t == ".") {
-            t = esctok();
-        } else {
-            start = (NULL == strchr(PAR_BEG PAR_END QUOTES, t[0]));
-        }
+        auto z = static_cast<ptrdiff_t>(b) - 1
+            - static_cast<ptrdiff_t>(y + x.value());
+        if (memchr(u.data() - z, (wisp_mode == 1 ? '\t' : ' '), z))
+            throwSrcErrorLine("disallowed indent for wisp mode");
+        bool escdot = (t == ".");
+        if (escdot) t = esctok();
+        bool start = escdot ^ ! strchr(PAR_BEG PAR_END QUOTES, t[0]);
         for (; c > 0; --c) p.push_back(c_end);
         if (t == ":") {
             ++c;
             t = c_beg;
         }
-        int z = static_cast<ptrdiff_t>(b) - 1
-            - static_cast<ptrdiff_t>(y + x.value());
         while (z <= w.back()) {
             w.pop_back();
             p.push_back(w_end);
@@ -331,9 +331,9 @@ public:
 vector<Lex> lex(const string & s, Names & names)
 {
     vector<Lex> r;
-    Frontend fe{s};
+    Frontend f{s};
     while (true) {
-        const auto t = fe.get();
+        const auto t = f.get();
         if (t.empty()) break;
         Lex v;
         if (auto p = strchr(par_beg_end, t[0]); p) {

@@ -362,16 +362,16 @@ def broken(*args):
 ##
 
 linenumber = None
-enable_wisp = False
-# consider: wisp_onlytab and default
-# disallow tabs in indent when wisp
+wisp_mode = 0
 
 def handle_pragma(w):
-    global enable_wisp
+    global wisp_mode
     if w == "wisp":
-        enable_wisp = True
-    elif w == "nowisp":
-        enable_wisp = False
+        wisp_mode = 1
+    elif w == "no-wisp":
+        wisp_mode = 0
+    elif w == "wisp-tabs":
+        wisp_mode = 2
 
 def spaces(s, i):
     n = len(s)
@@ -512,7 +512,7 @@ class Frontend:
             self.p = [")"] * self.c + ["]"] * q + [None]
             return self.get()
         t, self.i = tok(self.s, b)
-        if not enable_wisp:
+        if not wisp_mode:
             return t
         if self.f:
             self.f = False
@@ -523,6 +523,10 @@ class Frontend:
                 return t
             self.c += 1
             return "("
+        v = wisp_mode - 1
+        if "\t "[v] in self.s[x : b]:
+            raise SrcError("disallowed indent for %s"
+                           % (["wisp", "wisp-tabs"][v],))
         escdot = t == "."
         if escdot:
             t = self.esctok()

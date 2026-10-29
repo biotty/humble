@@ -19,7 +19,7 @@
 namespace humble {
 
 extern int linenumber;
-extern bool enable_wisp;
+extern int wisp_mode;
 
 std::pair<size_t, std::optional<size_t>> spaces(const char * s, size_t n);
 

@@ -83,6 +83,22 @@ Please note that the only numeric type is the integer.
 For an index of all language-macros, macros and
 functions, see the [INDEX](INDEX.md).
 
+# WISP
+
+The wisp frontend will insert square brackets based
+on indentation only, starting at lines beginning
+with anything but any parens/quote.
+Independently of this it will enclose in parens
+till end of line at a colon.  When a line starts
+with a dot the rule of whether to start said
+indentation block is inverted, and the dot absorbed.
+
+The curly braces have no special meaning; it does
+not trigger infix notation as proposed in full WISP.
+"#!wisp" enables this mode, and "#!no-wisp" disables.
+Alternatively "#!wisp-tabs" will allow only tabs,
+while otherwise tabs are disallowed under WISP mode.
+
 # Compiling the Interpreter
 
 Here is how I have this development set up.
