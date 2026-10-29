@@ -93,6 +93,8 @@ till end of line at a colon.  When a line starts
 with a dot the rule of whether to start said
 indentation block is inverted, and the dot absorbed.
 
+The pre-processing does not count parens depth/kind
+and only does the manipulation as described here.
 The curly braces have no special meaning; it does
 not trigger infix notation as proposed in full WISP.
 "#!wisp" enables this mode, and "#!no-wisp" disables.

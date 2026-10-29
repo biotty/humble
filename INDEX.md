@@ -199,6 +199,8 @@ duplicating its arguments of non-container types:
 The following are functions that are not meant for
 direct use.  They are not in any way hidden,
 as could have been this index.
+(ref-count) is only used for whitebox
+platform regression test.
 
 | Name | Args |
 | --- | --- |
@@ -208,4 +210,5 @@ as could have been this index.
 | record? | Any |
 | record-get | Record Number |
 | record-set! | Record Number Any |
+| ref-count | Any |
 

@@ -114,7 +114,8 @@
 # * define-syntax; instead powerful "unhygienic" lisp macro
 # * Char, but number parsed for #\ and with utf-8 support.
 # * Only octal escape for bytes in string.
-# * (newline).
+# * (newline)
+# * (system-chdir), (system-{in,out}-terminal?)
 #
 # Note:  (beware)
 #
@@ -2217,6 +2218,11 @@ def f_setjj(*args):
 
 RC_BARE = 3
 
+def f_ref_count(*args):
+    fargc_must_eq("ref-count", args, 1)
+    rc = sys.getrefcount(args[0])
+    return [VAR_NUM, rc - RC_BARE + 1]
+
 def f_dup(*args):
     fargc_must_eq("dup", args, 1)
     if args[0][0] == VAR_VOID:
@@ -3432,6 +3438,7 @@ def init_env(names):
             ("string>?", f_stringgtp),
             ("string->number", f_string_z_number),
             ("number->string", f_number_z_string),
+            ("ref-count", f_ref_count),
             ("exit", f_exit),
             ("eof-object?", f_eof_objectp),
             ("open-input-file", f_open_input_file),

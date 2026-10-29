@@ -1,12 +1,18 @@
+#| multi-line comment
+input for reference regression-test as a side-effect
+also showing examples and the history of development
+|#
+
 ;#!wisp
-;uncomment to enable wisp will also work on this file
-;because wisp is with some care not being triggered
+; ^ uncomment to enable wisp will also work on this file
+;   because wisp is with some care not being triggered
 (list 1)
 (+)
 '(#f #t)
 (ref i '()) i
 (ref (f) 1) `(,(f))
-[ ref y 1 ] ; a comment
+(ref-count f)
+[ ref y 1 ]
 (list y (list y y))
 {+ 1 2}
 (list y)
@@ -384,14 +390,3 @@
 (ref i j)
 (local i)
 (chk #f (alias? i j))
-; explicit dict (idea obsoleted by implicit optimized
-; assoc in cons/list - which will be very involved)
-;(ref d (alist->dict '[(1 . 2)]))
-;(chk (dict? d) #true)
-;(dict-get-default! d 1 9)
-;(dict-get-default! d 2 9)
-;(assoc 2 (dict->alist d))
-;(chk (assoc 2 (dict->alist d)) '(2 . #o11))
-;(dict-set! d 7 8)
-;(chk 8 (dict-if-get d 7 0 (lambda (x) x)))
-

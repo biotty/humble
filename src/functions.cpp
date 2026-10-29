@@ -546,6 +546,12 @@ EnvEntry f_setjj(span<EnvEntry> args)
     return setjj(args);
 }
 
+EnvEntry f_ref_count(span<EnvEntry> args)
+{
+    if (args.size() != 1) throwRunError("ref-count argc");
+    return make_shared<Var>(VarNum{args[0].use_count()});
+}
+
 EnvEntry f_dup(span<EnvEntry> args)
 {
     if (args.size() != 1) throwRunError("dup argc");
@@ -1298,6 +1304,7 @@ void init_functions(Names & n)
             { "assoc", f_assoc },
             { "error", f_error },
             { "exit", f_exit },
+            { "ref-count", f_ref_count },
     }) g.set(n.intern(p.first), make_shared<Var>(VarFunHost{ p.second }));
 }
 

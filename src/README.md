@@ -19,18 +19,11 @@ Should be explorable, and you have "test.scm" and
 other examples.  To embedd the interpreter go see
 "main.cpp" as example.
 
-# Notes
+## Known Bugs
 
-Should be thread-safe as the few globals are not
-mutated once setup.
-
-## To Do
-
-* system-chdir s
-* terminal? p
-* ref-count?? v ; to test assumption in tests.scm
-* hardening on i-e invalid args or syntax
-* example/test for read/write records (works as-is)
+* need hardening on i-e invalid args or syntax
+* macroexpand need to report file and line
+* on runtime error, need to list call-stack names
 
 # Extensibility
 
