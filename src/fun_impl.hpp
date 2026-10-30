@@ -26,6 +26,8 @@ void valt_or_fail(std::span<EnvEntry> args, size_t i, std::string s)
 }
 
 extern Names * u_names;
+// note: used for symbols, which are not relocated in lexical scopes
+//       -- the names of variables are not observed by functions
 
 VarExt & vext_or_fail(const std::vector<int> & ts,
         std::span<EnvEntry> args, size_t i, std::string s);

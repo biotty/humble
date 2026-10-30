@@ -17,12 +17,14 @@ struct FunOps {
     LexEnv * local_env;
     bool dot;
     span<Lex> block;
+/*
 #ifdef DEBUG
     FunOps(FunEnv c, LexEnv * e, bool d, span<Lex> b)
         : captured(c), local_env(e), dot(d), block(b)
     { cout << "FunOps CONSTRUCT " << this << endl; }
     ~FunOps() { cout << "FunOps DELETE " << this << endl; }
 #endif
+*/
 };
 
 EnvEntry tco(FunOps f, span<EnvEntry> args)
@@ -131,8 +133,27 @@ EnvEntry xeval_op(LexForm & f, Env & env);
 
 EnvEntry xeval(Lex & x, Env & env)
 {
+    // todo: each x will here get recorded, but LexNam is mapped as
+    // follows.  add to run/xeval a third opt.par 'names' that will
+    // map any LexNam h value, producing value for a GlobalNam{h,line}.
+    // a trace ring-buffer is written to, where the
+    // entry type is variant<Lex *, GlobalNam> and a function with
+    // access to u_names can print this, such as the (error)
+    // or throwRunError.  also re-visit whether to replace some
+    // of the throwCoreError calls.  the first step in this is
+    // however to allow the following debug to trace nicely, as
+    // opposed to now where LexNam shows numeric h (relocated
+    // to the local lexical scope by zloc), which will need
+    // exactly the described addition.  the objective and purpose
+    // is to have a trace as exemplified shown on error:
+    // trace:  cond eq? 1 5:foo cons i 1 6:cdr bar
+    // where line-number is shown only when differs from last
+    // optimization:  hand-roll the variant type so that it
+    // takes no more space than a pointer, by having it be odd
+    // when a GlobalNam where line is shifted up and OR'ed with 1
+    // -- assuming the Lex pointed to are aligned, which
+    // they are as of c++, because they are vector elements.
 #ifdef DEBUG
-    // cout << "eval " << &x << endl;
     cout << "eval: " << x << "\n";
 #endif
     return visit([&env](auto && z) -> EnvEntry {
