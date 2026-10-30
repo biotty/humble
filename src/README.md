@@ -21,9 +21,10 @@ other examples.  To embedd the interpreter go see
 
 ## Known Bugs
 
+* on runtime error, need tracable indication
+* sigint shall trigger error with output
 * need hardening on i-e invalid args or syntax
 * macroexpand need to report file and line
-* on runtime error, need to list call-stack names
 
 # Extensibility
 

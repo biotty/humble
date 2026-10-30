@@ -17,12 +17,14 @@ struct FunOps {
     LexEnv * local_env;
     bool dot;
     span<Lex> block;
+/*
 #ifdef DEBUG
     FunOps(FunEnv c, LexEnv * e, bool d, span<Lex> b)
         : captured(c), local_env(e), dot(d), block(b)
     { cout << "FunOps CONSTRUCT " << this << endl; }
     ~FunOps() { cout << "FunOps DELETE " << this << endl; }
 #endif
+*/
 };
 
 EnvEntry tco(FunOps f, span<EnvEntry> args)
@@ -131,8 +133,10 @@ EnvEntry xeval_op(LexForm & f, Env & env);
 
 EnvEntry xeval(Lex & x, Env & env)
 {
+    // todo: trace to ringbuf pointer to x and also to env when name,
+    // as a variant element type x | e.  then on errors render trace.
+    // also, err as #error here on flag from a sigint.
 #ifdef DEBUG
-    // cout << "eval " << &x << endl;
     cout << "eval: " << x << "\n";
 #endif
     return visit([&env](auto && z) -> EnvEntry {

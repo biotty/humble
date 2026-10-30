@@ -1,8 +1,8 @@
 #include "debug.hpp"
 
 #include "compx.hpp"
-#include "fun_impl.hpp"  // for u_names
 #include <array>
+#include <sstream>
 
 using namespace humble;
 using namespace std;
@@ -28,8 +28,7 @@ string op_repr(int op)
 string nam_repr(const LexNam & n)
 {
     ostringstream r;
-    if (u_names) r << u_names->get(n.h) << " L" << n.line;
-    else r << n.h << ", " << n.line;
+    r << n.h << " L" << n.line;
     return r.str();
 }
 
@@ -74,7 +73,7 @@ ostream & operator<<(ostream & os, const Lex & x)
     "Beg", "End", "Qt", "Qqt", "Unq", "Dot", "Spl", "R",
     "Void", "Sym", "Num", "Bool", "Nam", "String",
     "List", "Nonlist", "Form", "Quote", "Quasiquote", "Unquote",
-    "Args", "Env~", "Op", "Import", "Rec" };
+    "Args", "Env", "Op", "Import", "Rec" };
     os << "Lex" << tn.at(x.index()) << "{";
     visit([&os](auto && arg) { out(os, arg); }, x);
     return os << "}";
