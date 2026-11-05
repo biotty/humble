@@ -7,10 +7,6 @@ slight deviation in set!
 How is that for an intro?
 
 Of-course there is full tail-call optimization, TCO.
-
-There are macros but in general good extensibility
-and modularity.
-
 My scheme is more humble than yours!
 
 # Documentation
@@ -21,10 +17,8 @@ other examples.  To embedd the interpreter go see
 
 ## Known Bugs
 
-* on runtime error, need tracable indication
+* on runtime error, need some trace
 * sigint shall trigger error with output
-* need hardening on i-e invalid args or syntax
-* macroexpand need to report file and line
 
 # Extensibility
 
@@ -32,6 +26,10 @@ I/O functions were added as extended variable-types, as can
 readily be done for a float-type (null destructor means
 copyable under set!).  The interpreter may be started after
 adding any set of functions or (language-)macros.
+
+Facility to compile a C++ program into a shared-object to be
+loaded from the interpreter is provided.  It is exemplified
+by the curses module, and loaded in the snake game.
 
 # Index
 

@@ -235,6 +235,11 @@ int LexEnv::rewrite_name(int n)
     return i;
 }
 
+int LexEnv::name(int i)
+{
+    return names[i];
+}
+
 FunEnv LexEnv::activation(FunEnv & captured, bool dot, span<EnvEntry> args)
 {
     FunEnv env(names.size());
@@ -355,7 +360,7 @@ EnvEntry from_lex(Lex & x)
             } else if constexpr (is_same_v<T, LexRec>) {
                 vector<EnvEntry> v;
                 for (auto & w : q.v)
-                    v.push_back(run(w, nullenv));
+                    v.push_back(run(w, nullenv, nullptr));
                 return make_shared<Var>(VarRec{ v });
             } else if constexpr (is_same_v<T, LexNam>) {
                 return make_shared<Var>(VarNam{ q.h });
@@ -370,7 +375,7 @@ EnvEntry from_lex(Lex & x)
     }, x);
 }
 
-void print(EnvEntry a, Names & n, std::ostream & os)
+void print(EnvEntry a, const Names & n, std::ostream & os)
 {
     if (holds_alternative<VarCons>(*a)) {
         auto & c = get<VarCons>(*a).c;
@@ -443,11 +448,10 @@ void warn(const string & m, span<EnvEntry> e)
 {
     if (warn_off) return;
     int i{};
-    Names nonames;
     cerr << "run-warn: " << m << ",";
     for (auto & a : e) {
         cerr << "\nwarn-args[" << i++ << "]: " << &*a << " ";
-        print(a, nonames, cerr);
+        print(a, Names{}, cerr);
     }
     cerr << endl;
 }
@@ -456,7 +460,6 @@ void warn(const string & m, span<Lex> & t)
 {
     if (warn_off) return;
     int i{};
-    Names nonames;
     cerr << "src-warn: " << m << ",";
     for (auto & x : t) {
         cerr << "\nwarn-args[" << i++ << "]: " << &x << " ";

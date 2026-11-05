@@ -37,9 +37,9 @@ public:
     Names(const Names &) = delete;
     Names& operator=(const Names &) = delete;
     Names(std::initializer_list<std::string> w);
-    size_t size();
+    size_t size() const;
     int intern(std::string_view name);
-    std::string get(int h);
+    std::string get(int h) const;
 };
 
 struct LexBeg { int par; };

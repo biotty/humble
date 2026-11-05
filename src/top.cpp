@@ -106,7 +106,7 @@ void top_included(Names & names, Macros & macros, vector<LexEnv *> & local_envs)
     auto & env = GlobalEnv::initial();
     static auto t = compx(parse(s, names, macros), names, env.keys(), local_envs);
     // ^ keep lex tree for fun-ops refs
-    for (auto & a : t.v) run(a, env);
+    for (auto & a : t.v) run(a, env, nullptr);
 }
 
 } // ns

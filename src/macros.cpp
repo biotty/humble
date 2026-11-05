@@ -357,7 +357,7 @@ struct UserMacro : MacroNotClone<UserMacro>
         }
         EnvEntry r;
         for (auto & x : block.v)
-            r = run(x, env);
+            r = run(x, env, nullptr);
         auto x = to_lex(r);
 #ifdef DEBUG
         cout << "user-macro result: " << x << endl;

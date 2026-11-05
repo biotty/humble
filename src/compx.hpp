@@ -19,6 +19,7 @@ public:
     std::vector<int> capture() const;
     std::vector<int> rewrite_names(const std::vector<int> & c);
     int rewrite_name(int n);
+    int name(int i);
     FunEnv activation(FunEnv & captured, bool dot, std::span<EnvEntry> args);
 };
 
@@ -31,7 +32,7 @@ void compx_dispose(std::vector<LexEnv *> & local_envs);
 Lex to_lex(EnvEntry a);
 EnvEntry from_lex(Lex & x);
 
-void print(EnvEntry a, Names & n, std::ostream & os);
+void print(EnvEntry a, const Names & n, std::ostream & os);
 
 extern bool warn_off;
 void warn(const std::string & m);

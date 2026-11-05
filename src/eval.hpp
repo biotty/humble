@@ -7,7 +7,7 @@
 
 namespace humble {
 
-EnvEntry run(Lex & x, Env & env);
+EnvEntry run(Lex & x, Env & env, LexEnv * le);
 EnvEntry xapply(std::vector<EnvEntry> v);
 EnvEntry fun_call(std::vector<EnvEntry> v);
 

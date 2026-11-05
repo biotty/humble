@@ -32,7 +32,7 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
     ast = compx(move(t), names, env.keys(), local_envs);
     auto & os = cout;
     for (auto & a : ast.v) {
-        auto r = run(a, env);
+        auto r = run(a, env, nullptr);
         if (not holds_alternative<VarVoid>(*r)) {
             os << "; ==> ";
             print(r, names, os);

@@ -10,7 +10,7 @@ using namespace std;
 
 namespace humble {
 
-EnvEntry xeval(Lex & x, Env & env);
+EnvEntry xeval(Lex & x, Env & env, LexEnv * le);
 
 struct FunOps {
     FunEnv captured;
@@ -34,12 +34,12 @@ EnvEntry tco(FunOps f, span<EnvEntry> args)
     // ^ alt: = make_shared<Var>(VarVoid{}); to avoid nullptr
     bool done = false;
     while (not done) {
-        auto env = f.local_env
-            ->activation(f.captured, f.dot, args);
+        LexEnv * le = f.local_env;
+        auto env = le->activation(f.captured, f.dot, args);
         done = true;
         for (auto & w : f.block) {
             // cout << "expr " << &w << endl;
-            v = xeval(w, env);
+            v = xeval(w, env, le);
             if (holds_alternative<VarApply>(*v)) {
                 auto & a = get<VarApply>(*v).a;
                 args = span<EnvEntry>{a.begin() + 1, a.end()};
@@ -103,11 +103,11 @@ VarFunOps make_fun(Env & up, span<Lex> x, int op_code)
     return { make_shared<FunOps>(captured, local_env, dot, fun_block) };
 }
 
-vector<EnvEntry> run_each(span<Lex> v, Env & env)
+vector<EnvEntry> run_each(span<Lex> v, Env & env, LexEnv * le)
 {
     vector<EnvEntry> r;
     for (auto & x : v) {
-        auto y = run(x, env);
+        auto y = run(x, env, le);
         if (holds_alternative<VarSplice>(*y)) {
             auto & u = get<VarSplice>(*y).v;
             copy(u.begin(), u.end(), back_inserter(r));
@@ -129,43 +129,60 @@ EnvEntry xapply(vector<EnvEntry> v)
     throwRunError(oss.str());
 }
 
-EnvEntry xeval_op(LexForm & f, Env & env);
+EnvEntry xeval_op(LexForm & f, Env & env, LexEnv * le);
 
-EnvEntry xeval(Lex & x, Env & env)
+EnvEntry xeval(Lex & x, Env & env, LexEnv * le)
 {
-    // todo: each x will here get recorded, but LexNam is mapped as
-    // follows.  add to run/xeval a third opt.par 'names' that will
-    // map any LexNam h value, producing value for a GlobalNam{h,line}.
-    // a trace ring-buffer is written to, where the
-    // entry type is variant<Lex *, GlobalNam> and a function with
-    // access to u_names can print this, such as the (error)
-    // or throwRunError.  also re-visit whether to replace some
-    // of the throwCoreError calls.  the first step in this is
-    // however to allow the following debug to trace nicely, as
-    // opposed to now where LexNam shows numeric h (relocated
-    // to the local lexical scope by zloc), which will need
-    // exactly the described addition.  the objective and purpose
-    // is to have a trace as exemplified shown on error:
-    // trace:  cond eq? 1 5:foo cons i 1 6:cdr bar
-    // where line-number is shown only when differs from last
-    // optimization:  hand-roll the variant type so that it
-    // takes no more space than a pointer, by having it be odd
-    // when a GlobalNam where line is shifted up and OR'ed with 1
-    // -- assuming the Lex pointed to are aligned, which
-    // they are as of c++, because they are vector elements.
+    // todo: instead of the following, save union Lex*,int
+    // to ringbuf where int is h of the LexNam case shifted
+    // up one and |=1 to discr from pointer (aligned as
+    // el of std::vector).  on (error) or throwRunError
+    // dump ringbuf repr as this.  also let sigint trigger.
 #ifdef DEBUG
-    cout << "eval: " << x << "\n";
+    extern Names * u_names;
+    if (u_names) {
+        if (holds_alternative<LexNam>(x)) {
+            cout << ' ';
+            int h = get<LexNam>(x).h;
+            if (le) h = le->name(h);
+            if (h < 0) {
+                h = -h;
+                cout << '-';
+            }
+            cout << u_names->get(h);
+        } else if (holds_alternative<LexSym>(x)
+                or holds_alternative<LexNum>(x)
+                or holds_alternative<LexBool>(x)
+                or holds_alternative<LexString>(x)) {
+            auto v = from_lex(x);
+            cout << ' ';
+            print(v, *u_names, cout);
+        } else if (holds_alternative<LexOp>(x)) {
+            auto op = get<LexOp>(x);
+            if (op.code == OP_BIND) {
+                cout << " bind";
+            } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
+                cout << " lambda";
+            } else if (op.code == OP_COND) {
+                cout << " cond";
+            } else if (op.code == OP_IMPORT) {
+                cout << " import";
+            } else if (op.code == OP_SEQ) {
+                cout << " seq";
+            }
+        }
+    }
 #endif
-    return visit([&env](auto && z) -> EnvEntry {
+    return visit([&env, le](auto && z) -> EnvEntry {
             using T = decay_t<decltype(z)>;
             if constexpr (is_same_v<T, LexList>) {
-                auto v = run_each(z.v, env);
+                auto v = run_each(z.v, env, le);
                 if (v.empty())
                     return make_shared<Var>(VarCons{});
                 return make_shared<Var>(VarList{move(v)});
             }
             if constexpr (is_same_v<T, LexNonlist>) {
-                auto v = run_each(z.v, env);
+                auto v = run_each(z.v, env, le);
                 if (v.empty()) throwCoreError("empty nonlist");
                 if (holds_alternative<VarList>(*v.back())) {
                     auto w = move(get<VarList>(*v.back()));
@@ -193,7 +210,7 @@ EnvEntry xeval(Lex & x, Env & env)
             if constexpr (is_same_v<T, LexString>)
                 return make_shared<Var>(VarString{z.s});
             if constexpr (is_same_v<T, LexRec>)
-                return make_shared<Var>(VarRec{run_each(z.v, nullenv)});
+                return make_shared<Var>(VarRec{run_each(z.v, nullenv, nullptr)});
             if constexpr (is_same_v<T, LexSym>)
                 return make_shared<Var>(VarNam{z.h});
             if constexpr (is_same_v<T, LexVoid>)
@@ -209,19 +226,19 @@ EnvEntry xeval(Lex & x, Env & env)
                 // cout << &z.v.back() << " xeval form back\n";
                 if (z.v.empty()) throwCoreError("empty form");
                 if (not holds_alternative<LexOp>(z.v[0]))
-                    return xapply(run_each(z.v, env));
-                return xeval_op(z, env);
+                    return xapply(run_each(z.v, env, le));
+                return xeval_op(z, env, le);
             }
             throwCoreError("eval unknown");
     }, x);
 }
 
-EnvEntry xeval_op(LexForm & f, Env & env)
+EnvEntry xeval_op(LexForm & f, Env & env, LexEnv * le)
 {
     auto & op = get<LexOp>(f.v.at(0));
     if (op.code == OP_BIND) {
         env.set(get<LexNam>(f.v.at(1)).h,
-                run(f.v.at(2), env));
+                run(f.v.at(2), env, le));
     } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
         // cout << get<LexNum>(f.v.back()).i << " xeval_op\n";
         // cout << &f.v.back() << " xeval_op\n";
@@ -234,15 +251,15 @@ EnvEntry xeval_op(LexForm & f, Env & env)
             if (not holds_alternative<LexForm>(*yi))
                 throwRunError("cond term not form");
             auto & y = get<LexForm>(*yi);
-            auto t = run(y.v.at(0), env);
+            auto t = run(y.v.at(0), env, le);
             if (not holds_alternative<VarBool>(*t) or get<VarBool>(*t).b)
-                return xeval(y.v.at(1), env);
+                return xeval(y.v.at(1), env, le);
         }
         throwRunError("all cond #f");
     } else if (op.code == OP_IMPORT) {
         OverlayEnv e{GlobalEnv::initial()};
         for (auto zi = f.v.begin() + 2; zi != f.v.end(); ++zi)
-            run(*zi, e);
+            run(*zi, e, nullptr);
         auto & m = get<LexImport>(f.v.at(1));
         for (size_t i = 0; i != m.a.size(); ++i) {
             auto p = e.get(m.b.at(i));
@@ -252,7 +269,7 @@ EnvEntry xeval_op(LexForm & f, Env & env)
     } else if (op.code == OP_SEQ) {
         EnvEntry r;
         for (auto yi = f.v.begin() + 1; yi != f.v.end(); ++yi)
-            r = run(*yi, env);
+            r = run(*yi, env, le);
         return r;
     } else if (op.code == OP_EXPORT) {
         // pass
@@ -266,10 +283,10 @@ EnvEntry xeval_op(LexForm & f, Env & env)
 // issues, but not when i unintentionally take a copy of a lex and pass
 // that down to make a fun, then for the copies scope to go away prior to
 // invoking that fun -- just what has at times caused trouble.
-EnvEntry run(Lex & x, Env & env)
+EnvEntry run(Lex & x, Env & env, LexEnv * le)
 {
     // cout << x << " *run*\n";
-    auto y = xeval(x, env);
+    auto y = xeval(x, env, le);
     if (not y) throwCoreError("mute eval");
     if (not holds_alternative<VarApply>(*y))
         return y;

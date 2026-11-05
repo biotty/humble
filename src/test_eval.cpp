@@ -15,7 +15,7 @@ struct EnvTest : testing::Test {
 TEST_F(EnvTest, xeval_num)
 {
     Lex x = LexNum{3};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_EQ(3, get<VarNum>(*r).i);
 }
 
@@ -24,7 +24,7 @@ TEST_F(EnvTest, xeval_splice)
     env.set(9, make_shared<Var>(VarSplice{{
                 make_shared<Var>(VarBool{true})}}));
     Lex x = LexList{{LexNam{9, 0}}};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     auto & v = get<VarList>(*r).v;
     ASSERT_EQ(true, get<VarBool>(*v.at(0)).b);
 }
@@ -39,7 +39,7 @@ TEST_F(EnvTest, xeval_fun_host)
 {
     env.set(2, make_shared<Var>(VarFunHost{echo1}));
     Lex x = LexForm{{LexNam{2, 0}, LexNum{9}}};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_EQ(9, get<VarNum>(*r).i);
 }
 
@@ -50,7 +50,7 @@ TEST_F(EnvTest, xeval_fun_ops)
         &le, LexArgs{}, LexNum{9}}}}};
     // cout << &get<LexForm>(get<LexForm>(x).v.at(0)).v.at(3) << " test\n";
     // cout << get<LexNum>(get<LexForm>(get<LexForm>(x).v.at(0)).v.at(3)).i << " test\n";
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_EQ(9, get<VarNum>(*r).i);
 }
 
@@ -62,7 +62,7 @@ TEST_F(EnvTest, xeval_tco)
         LexForm{{LexForm{{LexOp{OP_LAMBDA},
             &le, LexArgs{}, LexNum{9}}}}}
     }}}};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_EQ(9, get<VarNum>(*r).i);
 }
 
@@ -71,7 +71,7 @@ TEST_F(EnvTest, xeval_nonlist_cat)
     Lex x = LexNonlist{{LexNum{0},
         LexList{{LexNum{1}, LexNum{2}}}
     }};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_EQ(3, get<VarList>(*r).v.size());
 }
 
@@ -88,7 +88,7 @@ TEST_F(EnvTest, xeval_cons_cat)
     Lex x = LexNonlist{{LexNum{0},
         LexForm{{LexNam{2, 0}, LexNum{1}}}
     }};
-    auto r = run(x, env);
+    auto r = run(x, env, nullptr);
     ASSERT_TRUE(holds_alternative<VarCons>(*r));
 }
 

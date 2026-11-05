@@ -198,7 +198,7 @@ Names::Names(std::initializer_list<std::string> w)
     for (auto s : w) intern(s);
 }
 
-size_t Names::size() { return v.size(); }
+size_t Names::size() const { return v.size(); }
 
 int Names::add(std::string_view name, size_t h)
 {
@@ -219,13 +219,11 @@ int Names::intern(std::string_view name)
     return add(name, h);
 }
 
-std::string Names::get(int h)
+std::string Names::get(int h) const
 {
     if (static_cast<size_t>(h) >= v.size()) {
         ostringstream oss;
-        oss << '[';
-        if (v.size() != 0) oss << v.size() << "<=";
-        oss << h << ']';
+        oss << '[' << h << ']';
         return oss.str();
     }
     return v.at(h);
