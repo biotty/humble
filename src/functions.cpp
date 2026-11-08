@@ -7,6 +7,7 @@
 #include "utf.hpp"
 #include "fun_impl.hpp"
 #include "debug.hpp"
+#include "trace.hpp"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -1195,8 +1196,8 @@ EnvEntry f_error(span<EnvEntry> args)
         cerr << "\nerror-args[" << i++ << "]: ";
         print(a, *u_names, cerr);
     }
-    cerr << "\nsorry'bout that" << endl;
-    exit(4);
+    trace_print_all(cerr);
+    exit(1);
 }
 
 EnvEntry f_exit(span<EnvEntry> args)

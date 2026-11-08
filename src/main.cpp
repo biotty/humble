@@ -1,5 +1,6 @@
 #include "compx.hpp"
 #include "eval.hpp"
+#include "trace.hpp"
 #include "top.hpp"
 #include "xdl.hpp"
 #include "functions.hpp"
@@ -9,6 +10,8 @@
 #include <iostream>
 #include <list>
 #include <cstring>
+#include <csignal>
+#include <unistd.h>
 
 using namespace humble;
 using namespace std;
@@ -44,6 +47,7 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
     errout("src-error", e.what(), fn);
 } catch (const RunError & e) {
     errout("run-error", e.what(), fn);
+    trace_print_all(cerr);
 } catch (const runtime_error & e) {
     errout("error", e.what(), fn);
 #else
@@ -51,8 +55,18 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
 #endif
 }
 
+extern "C" void signal_handler(int s)
+{
+    if (s == SIGINT) interupted.store(true);
+}
+
 int main(int argc, char ** argv)
 {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = signal_handler;
+    sigaction(SIGINT, &sa, nullptr);
+
     string dir = "/usr/share/humble";
     if (char * d = getenv("HUMBLE_DIR"); d) dir = d;
 
@@ -89,8 +103,8 @@ int main(int argc, char ** argv)
     cout << "WELCOME TO HUMBLE SCHEME.  please enter an expression and then\n"
         "use a ';' character at EOL to evaluate or EOF indication to exit\n";
     list<LexForm> x;
-    std::string line, buf;
-    while (std::getline(cin, line)) {
+    string line, buf;
+    while (getline(cin, line)) {
         buf += line + "\n";
         if (line.back() == ';') {
             x.push_back(LexForm{});
@@ -98,6 +112,6 @@ int main(int argc, char ** argv)
             buf.clear();
         }
     }
-    cout << "\nfare well.\n";
+    cout << "fare well.\n";
 }
 

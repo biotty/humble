@@ -2774,7 +2774,6 @@ def f_error(names):
         sys.stderr.write("error-function invoked,\n")
         for i, a in enumerate(args):
             sys.stdout.write("error-args[%d]: %s\n" % (i, vrepr(a, names)))
-        sys.stderr.write("-- sorry'bout that\n")
         sys.exit(1)
     return err
 
@@ -3894,5 +3893,5 @@ if __name__ == "__main__":
             compxrun("".join(buf), names, macros, env, opener.filename)
             opener.filename = None
             buf = []
-    sys.stdout.write("\nfare well.\n")
+    sys.stdout.write("fare well.\n")
 

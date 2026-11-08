@@ -427,6 +427,9 @@ void print(EnvEntry a, const Names & n, std::ostream & os)
                 os << "#~fun";
             } else if constexpr (is_same_v<T, VarFunHost>) {
                 os << "#~fun-host";
+            } else if constexpr (is_same_v<T, VarSplice>) {
+                os << "#@";
+                print(make_shared<Var>(VarList{ z.v }), n, os);
             } else if constexpr (is_same_v<T, VarExt>) {
                 os << "#~" << n.get(z.t);
             } else {

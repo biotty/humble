@@ -29,6 +29,7 @@ set(HumbleSRC
     tok.cpp
     utf.cpp
     debug.cpp
+    trace.cpp
     except.cpp)
 
 add_library(Humble ${HumbleSRC})

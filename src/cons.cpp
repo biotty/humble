@@ -98,7 +98,7 @@ ConsPtr to_cons_list(Var & x, ConsPtr & last) {
     }
     ostringstream oss;
     oss << var_type_name(x) << " to cons";
-    throwCoreError(oss.str());
+    throwRunError(oss.str());
 }
 
 ConsPtr to_cons(Var & x)

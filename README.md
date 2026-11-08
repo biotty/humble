@@ -9,7 +9,7 @@ Not even the C++ standard "algorithm" is used, and it
 does not depend on exceptions; an alternative build already
 provided for convenience toggles the Humble library to
 not generate exceptions and instead exit on failure.
-We do not use dynamic\_cast and compile with no RTTI.
+I do not use dynamic\_cast and compile with no RTTI.
 I use the 2023 revision of C++ language.
 Accomodation for systems that are not POSIX compliant
 has not been provided.
@@ -77,8 +77,12 @@ that also specifies which have this behavior.
 Other differences are either parts in Scheme r7rs that
 are absent, or that are added, such as the existence
 of an at-operator that works separately as well as
-together as the standard comma-at operator.  I also
-have the user "macro" mechanism back from LISP.
+together as the standard comma-at operator:
+```
+(let ((a `(1 2))) (+ @a))  ; => 3
+```
+
+I also have the user "macro" mechanism back from LISP.
 Please note that the only numeric type is the integer.
 For an index of all language-macros, macros and
 functions, see the [INDEX](INDEX.md).
@@ -98,22 +102,34 @@ and only does the manipulation as described here.
 The curly braces have no special meaning; it does
 not trigger infix notation as proposed in full WISP.
 "#!wisp" enables this mode, and "#!no-wisp" disables.
-Alternatively "#!wisp-tabs" will allow only tabs,
-while otherwise tabs are disallowed under WISP mode.
+Alternatively "#!wisp-tabs" allow only tabs in indents,
+while otherwise WISP allows no tabs in leading whitespace.
 
 The dot inverting mode of leading parens is very
-nice in `case 1 /  . (1 2) (foo) /  . (3) (bar)`.
+nice in
+```
+case 1
+  . (1 2) (foo)
+  . (3) (bar)
+```
 
 # Compiling the Interpreter
 
-Here is how I have this development set up.
+Here is how you may work with this software.
+Also see the CMakeLists.txt for some possible tuning.
+The alternative no-exception program
+`humble_noexc` is also built.  This one will exit on
+error even in interactive mode.
 
 ## Build and run tests
 ```
 bash all.sh
 ```
+Unit-tests for the c++ implementation as well
+as regression with the python implementation.
 
-## C++ environment help
+
+## C++ environment setup
 ```
 sudo apt install build-essential cmake libgtest-dev \
                  ncurses-dev # for snake-game example

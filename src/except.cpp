@@ -3,6 +3,7 @@
 #ifdef HUMBLE_NOEXC
 #include <cstdlib>
 #include <iostream>
+#include "trace.hpp"
 #endif
 
 using namespace std;
@@ -41,6 +42,7 @@ const char * Error::what() const noexcept
 [[noreturn]] void err(const string & what)
 {
     cerr << what << endl;
+    trace_print_all(cerr);
     exit(EXIT_FAILURE);
 }
 #endif

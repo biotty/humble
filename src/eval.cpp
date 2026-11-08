@@ -1,5 +1,6 @@
 #include "eval.hpp"
 #include "debug.hpp"
+#include "trace.hpp"
 #include "compx.hpp"
 #include "cons.hpp"
 #include "except.hpp"
@@ -9,6 +10,8 @@
 using namespace std;
 
 namespace humble {
+
+std::atomic<bool> interupted{false};
 
 EnvEntry xeval(Lex & x, Env & env, LexEnv * le);
 
@@ -133,45 +136,10 @@ EnvEntry xeval_op(LexForm & f, Env & env, LexEnv * le);
 
 EnvEntry xeval(Lex & x, Env & env, LexEnv * le)
 {
-    // todo: instead of the following, save union Lex*,int
-    // to ringbuf where int is h of the LexNam case shifted
-    // up one and |=1 to discr from pointer (aligned as
-    // el of std::vector).  on (error) or throwRunError
-    // dump ringbuf repr as this.  also let sigint trigger.
+    if (interupted.load()) throwRunError("interupted");
+    [[maybe_unused]] bool traced = trace_put(x, le);
 #ifdef DEBUG
-    extern Names * u_names;
-    if (u_names) {
-        if (holds_alternative<LexNam>(x)) {
-            cout << ' ';
-            int h = get<LexNam>(x).h;
-            if (le) h = le->name(h);
-            if (h < 0) {
-                h = -h;
-                cout << '-';
-            }
-            cout << u_names->get(h);
-        } else if (holds_alternative<LexSym>(x)
-                or holds_alternative<LexNum>(x)
-                or holds_alternative<LexBool>(x)
-                or holds_alternative<LexString>(x)) {
-            auto v = from_lex(x);
-            cout << ' ';
-            print(v, *u_names, cout);
-        } else if (holds_alternative<LexOp>(x)) {
-            auto op = get<LexOp>(x);
-            if (op.code == OP_BIND) {
-                cout << " bind";
-            } else if (op.code == OP_LAMBDA or op.code == OP_LAMBDA_DOT) {
-                cout << " lambda";
-            } else if (op.code == OP_COND) {
-                cout << " cond";
-            } else if (op.code == OP_IMPORT) {
-                cout << " import";
-            } else if (op.code == OP_SEQ) {
-                cout << " seq";
-            }
-        }
-    }
+    if (traced) trace_print_last(cout);
 #endif
     return visit([&env, le](auto && z) -> EnvEntry {
             using T = decay_t<decltype(z)>;

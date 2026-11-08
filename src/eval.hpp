@@ -4,12 +4,15 @@
 #include "vars.hpp"
 #include "tok.hpp"
 #include <vector>
+#include <atomic>
 
 namespace humble {
 
 EnvEntry run(Lex & x, Env & env, LexEnv * le);
 EnvEntry xapply(std::vector<EnvEntry> v);
 EnvEntry fun_call(std::vector<EnvEntry> v);
+
+extern std::atomic<bool> interupted;
 
 } // ns
 
