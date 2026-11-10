@@ -1,6 +1,7 @@
 #include "fun_impl.hpp"
 #include "compx.hpp"
 #include <iostream>
+#include <cstring>
 
 using namespace humble;
 using namespace std;
@@ -84,6 +85,12 @@ void trace_print(size_t & i, ostream & os)
 } // ans
 
 namespace humble {
+
+void trace_reset()
+{
+    cursor = 0;
+    memset(trace, 0, sizeof trace);
+}
 
 bool trace_put(Lex & x, LexEnv * le)
 {

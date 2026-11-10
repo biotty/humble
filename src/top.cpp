@@ -20,12 +20,12 @@ string Opener::operator()(string name)
 
 string Opener::operator()(string name, noresolve_t)
 {
-    filename = name;
     ifstream f(name, std::ios_base::binary);
     if (not f.is_open()) {
         throwCoreError("Failed to open source-file by name"
                 " '" + name + "'");
     }
+    filename = name;
     return string{(istreambuf_iterator<char>(f)), 
         istreambuf_iterator<char>()};
 }
@@ -54,6 +54,7 @@ void top_included(Names & names, Macros & macros, vector<LexEnv *> & local_envs)
 (macro ref@ args
   (ref n (length args))
   (ref n_1 (- n 1))
+  (unless (positive? n_1) (error "ref@ argc"))
   (ref syms (take n_1 args))
   (ref s (list-ref args n_1))
   (ref ls (gensym))

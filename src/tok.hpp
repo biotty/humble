@@ -81,9 +81,11 @@ struct LexUnquote;
 using LexArgs = std::vector<int>;  // for fun parms and (sorted) capture
 using Lex = std::variant<
     LexBeg/*0*/, LexEnd, LexQt, LexQqt, LexUnq, LexDot, LexSpl, LexR,
+    // ^ tokens input for parser.  v parsed lexical elements.
     LexVoid/*8*/, LexSym, LexNum, LexBool, LexNam, LexString,
     LexList/*14*/, LexNonlist, LexForm, LexQuote, LexQuasiquote, LexUnquote,
     LexArgs/*20*/, LexEnv *, LexOp, LexImport, LexRec/*24*/>;
+    // ^ args, lex-env, op -- nodes in abstract-syntax-tree
 struct LexForm { std::vector<Lex> v;
     /* cannot do the following because i use aggregate construct syntax at callers
      * (doing the following collapses one level)
@@ -141,6 +143,8 @@ inline auto nam_dup = LexNam{ NAM_DUP, 0 };
 inline auto nam_error = LexNam{ NAM_ERROR, 0 };
 inline auto nam_splice = LexNam{ NAM_SPLICE, 0 };
 inline auto nam_import = LexNam{ NAM_IMPORT, 0 };
+
+std::string lex_name(Lex & x);
 
 } // ns
 

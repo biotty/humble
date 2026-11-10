@@ -135,9 +135,12 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
         }
     }
     if (paren_mode != PARSE_MODE_TOP) {
-                ostringstream oss;
-                oss << "parens '" << par_beg[paren_mode];
-                oss << "' depth " << depth << " not closed";
+        if (paren_mode == PARSE_MODE_ONE) {
+            throwSrcError("token expected at end");
+        }
+        ostringstream oss;
+        oss << "parens '" << par_beg[paren_mode];
+        oss << "' depth " << depth << " not closed";
         throwSrcError(oss.str());
     }
 #ifdef DEBUG

@@ -6,6 +6,7 @@
 
 namespace humble {
 
+void trace_reset();
 bool trace_put(Lex & x, LexEnv * le);
 void trace_print_last(std::ostream & os);
 void trace_print_all(std::ostream & os);

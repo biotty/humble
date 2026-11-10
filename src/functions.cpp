@@ -1196,8 +1196,8 @@ EnvEntry f_error(span<EnvEntry> args)
         cerr << "\nerror-args[" << i++ << "]: ";
         print(a, *u_names, cerr);
     }
-    trace_print_all(cerr);
-    exit(1);
+    cerr << endl;
+    throwRunError("as requested");
 }
 
 EnvEntry f_exit(span<EnvEntry> args)

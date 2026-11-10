@@ -425,5 +425,16 @@ span<Lex> span1(span<Lex> x, size_t i)
     return {x.begin() + i, x.begin() + i + 1};
 }
 
+std::string lex_name(Lex & x)
+{
+    static const char * a[] = {
+        "(", ")", "'", "`", ",", "dot", "splice", "#r",
+        "void", "symbol", "number", "bool", "name", "string",
+        "list", "nonlist", "form", "quote", "quasi-quote", "unquote",
+        "args", "lex-env", "op", "import", "record"
+    };
+    return a[x.index()];
+}
+
 } // ns
 

@@ -26,7 +26,9 @@ template <typename... Ts>
 void malt_or_fail(Lex & x, string s)
 {
     if (malt_in<Ts...>(x)) return;
-    throwSrcError(s);
+    ostringstream os;
+    os << s << "; " << lex_name(x);
+    throwSrcError(os.str());
 }
 
 // used as blex - bare name equal (ign linenumber)
@@ -56,7 +58,7 @@ Lex m_lambda(LexForm && s)
     if (s.v.size() < 3) throwSrcError("lambda argc");
     s.v[0] = LexOp{OP_LAMBDA};
     if (not holds_alternative<LexForm>(s.v[1])) {
-        malt_or_fail<LexNam>(s.v[1], "lambda.1 expected name");
+        malt_or_fail<LexNam>(s.v[1], "lambda.1 must be form or name");
         s.v[0] = LexOp{OP_LAMBDA_DOT};
         s.v[1] = LexForm{{s.v[1]}};
     } else if (auto & f = get<LexForm>(s.v[1]); is_dotform(f)) {
@@ -229,7 +231,9 @@ Lex named_let(LexForm && s)
 
 Lex m_ref(LexForm && s)
 {
-    if (s.v.size() < 3) throwSrcError("ref argc");
+    if (s.v.size() < 3) throwSrcError("ref argc short");
+    if (s.v.size() != 3 and not holds_alternative<LexForm>(s.v[1]))
+        throwSrcError("plain ref argc");
     s.v[0] = LexOp{OP_BIND};
     if (holds_alternative<LexForm>(s.v[1])) {
         auto & f = get<LexForm>(s.v[1]);
@@ -261,7 +265,9 @@ Lex m_ref(LexForm && s)
 struct Define : MacroClone<Define> {
     Lex operator()(LexForm && s) override
     {
-        if (s.v.size() < 3) throwSrcError("define argc");
+        if (s.v.size() < 3) throwSrcError("define argc short");
+        if (s.v.size() != 3 and not holds_alternative<LexForm>(s.v[1]))
+            throwSrcError("plain define argc");
         if (holds_alternative<LexForm>(s.v[1]))
             return m_ref(move(s));
         s.v[0] = LexOp{OP_BIND};
@@ -592,6 +598,8 @@ private:
         // alt: instead have [nam_else, (LEX_VOID,)] above.
         LexForm m{{LexOp{}}};
         for (auto & ce : s.v) {
+            if (not holds_alternative<LexForm>(ce))
+                throwSrcError("case-body not form");
             auto & f = get<LexForm>(ce);
             LexForm a{{LexOp{}, xcase_test(move(f.v[0]))}};
             bool is_else = nameq(f.v[0], NAM_ELSE);
@@ -643,6 +651,8 @@ struct Scope : MacroClone<Scope> {
 
     Lex operator()(LexForm && s) override
     {
+        if (s.v.size() == 1) throwSrcError("scope argc");
+        malt_or_fail<LexForm>(s.v[1], "scope.1 not form");
         auto & f = get<LexForm>(s.v[1]);
         LexImport set_up;
         if (get<LexOp>(f.v[0]).code != OP_EXPORT)

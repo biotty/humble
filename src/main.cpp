@@ -109,6 +109,7 @@ int main(int argc, char ** argv)
         if (line.back() == ';') {
             x.push_back(LexForm{});
             run_top(x.back(), buf, names, macros, env, opener.filename, local_envs, loader);
+            trace_reset();
             buf.clear();
         }
     }
