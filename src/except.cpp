@@ -1,5 +1,6 @@
 #include "except.hpp"
-
+#include "tok.hpp"
+#include <sstream>
 #ifdef HUMBLE_NOEXC
 #include <cstdlib>
 #include <iostream>
@@ -9,6 +10,9 @@
 using namespace std;
 
 namespace humble {
+
+extern Names * u_names;
+extern LexNam expandsname;
 
 #ifndef HUMBLE_NOEXC
 Error::Error(const char * s)
@@ -58,11 +62,21 @@ const char * Error::what() const noexcept
 
 [[noreturn]] void throwSrcError(const string & what)
 {
+    struct { [[noreturn]] void operator()(const string & s) {
 #ifndef HUMBLE_NOEXC
-    throw SrcError(what);
+            throw SrcError(s);
 #else
-    err(what);
+            err(s);
 #endif
+    } } f;
+    const auto & n = expandsname;
+    if (n.line == 0) {
+        f(what);
+    }
+    ostringstream os;
+    os << u_names->get(n.h)
+        << " at line " << n.line << ": " << what;
+    f(os.str());
 }
 
 [[noreturn]] void throwRunError(const string & what)

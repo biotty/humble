@@ -153,6 +153,8 @@ parse_r(const std::vector<Lex> & z, size_t i, int paren_mode, int depth)
 
 namespace humble {
 
+LexNam expandsname;
+
 Names init_names()
 {
     return {
@@ -229,20 +231,21 @@ void expand_macros(Lex & t, Macros & macros, int qq)
     // note: I could let a Macro class hierarchy take care of
     // cases for user and quote recursion control so that
     // conditions are not stated here. That is a choice.
-    bool is_user = false;
-    bool is_quote = false;
-    bool current = false;
-    int h;
+    bool is_user{};
+    bool is_quote{};
+    bool current{};
+    LexNam n;
     bool is_macro = holds_alternative<LexNam>(w.v.at(0))
-        and macros.contains(h = get<LexNam>(w.v.at(0)).h);
+        and macros.contains((n = get<LexNam>(w.v.at(0))).h);
     if (is_macro) {
-        is_user = macros.at(h)->is_user;
+        is_user = macros.at(n.h)->is_user;
         current = qq == 0;
-        if (h == NAM_QUOTE) {
+        expandsname = n;
+        if (n.h == NAM_QUOTE) {
             is_quote = true;
-        } else if (h == NAM_QUASIQUOTE) {
+        } else if (n.h == NAM_QUASIQUOTE) {
             ++qq;
-        } else if (h == NAM_UNQUOTE) {
+        } else if (n.h == NAM_UNQUOTE) {
             if (--qq == 0) current = true;
         }
     }
@@ -272,7 +275,7 @@ void expand_macros(Lex & t, Macros & macros, int qq)
         expand_macros(x, *args_exp, qq);
     }
     if (current) {
-        t = (*macros.at(h))(move(w));
+        t = (*macros.at(n.h))(move(w));
         if (is_user) expand_macros(t, macros, qq);
     }
 #ifdef DEBUG

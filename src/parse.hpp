@@ -6,6 +6,8 @@
 
 namespace humble {
 
+extern LexNam expandsname;
+
 struct Macro {
     virtual Lex operator()(LexForm && t) = 0;
     bool is_user = false;  // instead of dynamic cast
