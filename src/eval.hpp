@@ -12,7 +12,7 @@ EnvEntry run(Lex & x, Env & env, LexEnv * le);
 EnvEntry xapply(std::vector<EnvEntry> v);
 EnvEntry fun_call(std::vector<EnvEntry> v);
 
-extern std::atomic<bool> interupted;
+extern volatile bool interrupted;
 
 } // ns
 

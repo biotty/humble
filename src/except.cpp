@@ -3,6 +3,7 @@
 #include <sstream>
 #ifdef HUMBLE_NOEXC
 #include <cstdlib>
+#include <csignal>
 #include <iostream>
 #include "trace.hpp"
 #endif
@@ -13,6 +14,7 @@ namespace humble {
 
 extern Names * u_names;
 extern LexNam expandsname;
+extern volatile bool interrupted;
 
 #ifndef HUMBLE_NOEXC
 Error::Error(const char * s)
@@ -45,8 +47,12 @@ const char * Error::what() const noexcept
 #else
 [[noreturn]] void err(const string & what)
 {
-    cerr << what << endl;
+    cerr << what << "\n";
     trace_print_all(cerr);
+    if (interrupted) {
+        signal(SIGINT, SIG_DFL);
+        raise(SIGINT);
+    }
     exit(EXIT_FAILURE);
 }
 #endif

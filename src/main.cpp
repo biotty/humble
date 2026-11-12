@@ -55,17 +55,18 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
 #endif
 }
 
-extern "C" void signal_handler(int s)
+extern "C" void signal_handler(int /* SIGINT */)
 {
-    if (s == SIGINT) interupted.store(true);
+    interrupted = true;
 }
 
 int main(int argc, char ** argv)
 {
+    const int handled_signal = SIGINT;
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);
     sa.sa_handler = signal_handler;
-    sigaction(SIGINT, &sa, nullptr);
+    sigaction(handled_signal, &sa, nullptr);
 
     string dir = "/usr/share/humble";
     if (char * d = getenv("HUMBLE_DIR"); d) dir = d;
@@ -97,6 +98,10 @@ int main(int argc, char ** argv)
         auto src = opener(fn, Opener::noresolve);
         LexForm ast;
         run_top(ast, src, names, macros, env, opener.filename, local_envs, loader);
+        if (interrupted) {
+            signal(handled_signal, SIG_DFL);
+            raise(handled_signal);
+        }
         return 0;
     }
 
@@ -109,10 +114,15 @@ int main(int argc, char ** argv)
         if (line.back() == ';') {
             x.push_back(LexForm{});
             run_top(x.back(), buf, names, macros, env, opener.filename, local_envs, loader);
+            if (interrupted) {
+                cerr << "\nwe're back" << endl;
+                interrupted = false;
+            }
             trace_reset();
             buf.clear();
         }
     }
+    if (interrupted) cerr << "huh\n";
     cout << "fare well.\n";
 }
 

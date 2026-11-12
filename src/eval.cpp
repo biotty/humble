@@ -4,14 +4,14 @@
 #include "compx.hpp"
 #include "cons.hpp"
 #include "except.hpp"
-#include <span>
 #include <sstream>
+#include <span>
 
 using namespace std;
 
 namespace humble {
 
-std::atomic<bool> interupted{false};
+volatile bool interrupted;
 
 EnvEntry xeval(Lex & x, Env & env, LexEnv * le);
 
@@ -136,7 +136,7 @@ EnvEntry xeval_op(LexForm & f, Env & env, LexEnv * le);
 
 EnvEntry xeval(Lex & x, Env & env, LexEnv * le)
 {
-    if (interupted.load()) throwRunError("interupted");
+    if (interrupted) throwRunError("interrupted");
     [[maybe_unused]] bool traced = trace_put(x, le);
 #ifdef DEBUG
     if (traced) trace_print_last(cout);

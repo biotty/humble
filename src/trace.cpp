@@ -121,7 +121,6 @@ void trace_print_all(ostream & os)
     os << "trace:";
     if (i != trace_n)
         do { trace_print(i, os); } while (i != cursor);
-    os << "\n";
 }
 
 } // ns
