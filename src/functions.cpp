@@ -354,6 +354,7 @@ EnvEntry f_pluss(span<EnvEntry> args)
 
 EnvEntry f_minus(span<EnvEntry> args)
 {
+    if (args.size() == 0) throwRunError("- argc");
     valt_or_fail<VarNum>(args, 0, "-");
     auto r = get<VarNum>(*args[0]).i ;
     if (args.size() == 1)
@@ -395,12 +396,14 @@ pair<long long, long long> rdiv(span<EnvEntry> args, const string & fn)
 
 EnvEntry f_divide(span<EnvEntry> args)
 {
+    if (args.size() == 0) throwRunError("/ argc");
     auto [n, d] = rdiv(args, "/");
     return make_shared<Var>(VarNum{ n / d });
 }
 
 EnvEntry f_div(span<EnvEntry> args)
 {
+    if (args.size() == 0) throwRunError("div argc");
     auto [n, d] = rdiv(args, "div");
     return make_shared<Var>(VarNonlist{{
             make_shared<Var>(VarNum{ n / d }),
@@ -1193,7 +1196,7 @@ EnvEntry f_error(span<EnvEntry> args)
     int i{};
     cerr << "error invoked,";
     for (auto & a : args) {
-        cerr << "\nerror-args[" << i++ << "]: ";
+        cerr << "\n[" << i++ << "]: ";
         print(a, *u_names, cerr);
     }
     cerr << endl;
@@ -1202,6 +1205,7 @@ EnvEntry f_error(span<EnvEntry> args)
 
 EnvEntry f_exit(span<EnvEntry> args)
 {
+    if (args.empty()) exit(0);
     valt_or_fail<VarNum>(args, 0, "exit");
     exit(get<VarNum>(*args[0]).i);
 }

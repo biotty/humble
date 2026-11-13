@@ -453,7 +453,7 @@ void warn(const string & m, span<EnvEntry> e)
     int i{};
     cerr << "run-warn: " << m << ",";
     for (auto & a : e) {
-        cerr << "\nwarn-args[" << i++ << "]: " << &*a << " ";
+        cerr << "\n[" << i++ << "]: " << &*a << " ";
         print(a, Names{}, cerr);
     }
     cerr << endl;
@@ -465,7 +465,7 @@ void warn(const string & m, span<Lex> & t)
     int i{};
     cerr << "src-warn: " << m << ",";
     for (auto & x : t) {
-        cerr << "\nwarn-args[" << i++ << "]: " << &x << " ";
+        cerr << "\n[" << i++ << "]: " << &x << " ";
         cerr << "lex#" << x.index();
     }
     cerr << endl;

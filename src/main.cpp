@@ -48,6 +48,7 @@ void run_top(LexForm & ast, string src, Names & names, Macros & macros,
 } catch (const RunError & e) {
     errout("run-error", e.what(), fn);
     trace_print_all(cerr);
+    cerr << endl;
 } catch (const runtime_error & e) {
     errout("error", e.what(), fn);
 #else

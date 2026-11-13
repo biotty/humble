@@ -2605,8 +2605,7 @@ def f_listp(*args):
         r[1] = (0 != len(args[0][1]))
         if not r[1]: broken("null as cont-list")
     elif args[0][0] == VAR_CONS:
-        r[1] = not (args[0][1] is None
-                or get_last(args[0][1]).d is not None)
+        r[1] = args[0][1] is None or get_last(args[0][1]).d is None
     return r
 
 def f_pairp(*args):
@@ -2773,7 +2772,7 @@ def f_error(names):
     def err(*args):
         sys.stderr.write("error-function invoked,\n")
         for i, a in enumerate(args):
-            sys.stdout.write("error-args[%d]: %s\n" % (i, vrepr(a, names)))
+            sys.stdout.write("[%d]: %s\n" % (i, vrepr(a, names)))
         sys.exit(1)
     return err
 

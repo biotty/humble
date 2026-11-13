@@ -92,7 +92,7 @@ means one-or-more.  "?" means optional.
 | abs | Number |
 | alias? | Any Any |
 | append | List\* Any |
-| apply | Proc List |
+| apply | Fun(Any\*) List |
 | assoc | Any List |
 | boolean? | Any |
 | car | Cons |
@@ -121,7 +121,7 @@ means one-or-more.  "?" means optional.
 | list-\>string | List |
 | list-tail | List |
 | make-list | Number Any? |
-| map | Proc List |
+| map | Fun(Any) List |
 | max | Number+ |
 | member | Any List |
 | min | Number+ |
@@ -141,8 +141,8 @@ means one-or-more.  "?" means optional.
 | output-string-get-bytes | Ext:output-string |
 | pair? | Any |
 | pause | Number |
-| pipe-system-input | Proc() |
-| pipe-system-output | Proc() |
+| pipe-system-input | Fun() |
+| pipe-system-output | Fun() |
 | port? | Any |
 | positive? | Number |
 | procedure? | Any |
@@ -176,8 +176,8 @@ means one-or-more.  "?" means optional.
 | system-setenv | String String |
 | take | Number Cons |
 | void? | Any |
-| with-input-pipe | Proc() Proc(port) |
-| with-output-pipe | Proc() Proc(port) |
+| with-input-pipe | Fun() Fun(InPort) |
+| with-output-pipe | Fun() Fun(OutPort) |
 | write | Any |
 | write-byte | Number OutPort |
 | write-string | String OutPort |
@@ -207,7 +207,7 @@ platform regression test.
 | make-prng-state | Number |
 | make-record | Name Any\* |
 | prng-get | Ext:prng-state |
-| record? | Any |
+| record? | Record Name |
 | record-get | Record Number |
 | record-set! | Record Number Any |
 | ref-count | Any |
