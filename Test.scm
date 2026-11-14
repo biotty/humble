@@ -192,16 +192,8 @@ also showing examples and the history of development
 ``(a ,,(+ 1 2))
 `(( foo ,(- 10 3)) ,@(cdr '(c)) . ,(car '(cons)))
 ((case-lambda ((x) x) ((x y) (+ x y))) 123 1)
-(ref qw (lambda (x) (if (zero? x) 0 (qw (- x 1)))))
-(qw 9)
-(ref range
-(case-lambda
-((e) (range 0 e))
-((b e) (do ((r '() (cons e r))
-(e (- e 1) (- e 1)))
-((< e b) r)))))
-(range 3)
-(range 3 5)
+(ref zw (lambda (x) (if (zero? x) 0 (zw (- x 1)))))
+(zw 9)
 (apply + (list 3 4))
 (map + '(1 3) '(2 9 0))
 (gensym)

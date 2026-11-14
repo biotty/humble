@@ -11,14 +11,9 @@ My scheme is more humble than yours!
 
 # Documentation
 
-Should be explorable, and you have "test.scm" and
+Should be explorable, and you have "Test.scm" and
 other examples.  To embedd the interpreter go see
 "main.cpp" as example.
-
-## Known Bugs
-
-* on runtime error, need some trace
-* sigint shall trigger error with output
 
 # Extensibility
 
@@ -35,19 +30,21 @@ by the curses module, and loaded in the snake game.
 
 Overview of names of (hpp and cpp) files.
 
-* except  // for users of library
+* except  // toggle throw or exit
 * debug  // controls for development
+* trace  // breadcrumbs shown on err
 * utf  // utf-8 string operations
 * tok  // the scanner and tokenizer
 * parse  // parser, quote/macro-expand
-  * macros  // the macros (and 'macro')
+  * macros  // the macros (notably macro)
 * compx  // binding and zloc
 * vars  // runtime objects
 * cons  // cons type
-* xeval  // the runtime engine
+* eval  // the runtime engine
   * functions  // builtin functions
-  * io_functions  // port
-  * dlopen_funtions // extensions
+  * io\_functions  // port
+  * fun\_impl  // function support
+* xdl // extensions loader
 * top  // toplevel
 * test_  // unit-tests
   * tok
@@ -55,8 +52,8 @@ Overview of names of (hpp and cpp) files.
   * vars
   * compx
   * cons
-  * xeval
+  * eval
 * main  // command using library
-* test.scm  // self-test
+* Test.scm  // self-test
 * snake.scm  // example game
 

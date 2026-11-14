@@ -116,6 +116,7 @@
 # * Only octal escape for bytes in string.
 # * (newline)
 # * (system-chdir), (system-{in,out}-terminal?)
+# * (case-lambda) formals support of dot-form
 #
 # Note:  (beware)
 #

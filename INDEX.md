@@ -186,7 +186,7 @@ means one-or-more.  "?" means optional.
 The following are considered "constructors" of values and are
 duplicating its arguments of non-container types:
 
-* append  // remember last arg may be non-cons
+* append  // on last arg when non-cons
 * cons
 * list
 * nonlist

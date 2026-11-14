@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-./Humble.py test.scm > out.a-test.txt
+./Humble.py Test.scm > out.a-test.txt
 ./Humble.py import_test/main.scm > out.a-import_test.txt
 ./Humble.py io_test.scm > out.a-io_test.txt
 
 cmake -S src && cmake --build . && ctest # --verbose
 
-./humble test.scm > out.b-test.txt
+./humble Test.scm > out.b-test.txt
 ./humble import_test/main.scm > out.b-import_test.txt
 ./humble io_test.scm > out.b-io_test.txt
 

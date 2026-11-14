@@ -24,7 +24,7 @@ is no game:  As an example I create the
 The interpreter was implemented in Python3 initially
 and side-by-side the C++ implementation.
 All tests result equal between the implementations;
-[test.scm](test.scm), [import\_test](import\_test/)
+[Test.scm](Test.scm), [import\_test](import\_test/)
 and [io\_test.scm](io\_test.scm).
 The Python implementation is not suggested for other
 usage than as a reference.  To run it
@@ -65,14 +65,20 @@ then I convert the list to a cons-chain.
 That was a mouthful.  But the idea is quite simple,
 and is the main deviation from standard Scheme.
 
-Now that you understood the above, please note that
-this deviation is not severe in practice, because the
+Now that the above is understood, please note that
+this deviation is subtle in practice, because the
 "constructor" functions such as "cons" or "list" does
 as mentioned above for "define" and duplicates.
 However, in this case it's done on a condition:
 The type of the argument must not be of string or
 list type.  See the function-index as referred below
 that also specifies which have this behavior.
+The result is the usual semantics except for
+function-parameters and (ref).  The non-dup for
+list-types is not observable and benefits by
+preserving the contigous mode ("no cdr-usage" or
+rather in this case "no multiple ownership";
+the passed "variable" is the single owner).
 
 Other differences are either parts in Scheme r7rs that
 are absent, or that are added, such as the existence
